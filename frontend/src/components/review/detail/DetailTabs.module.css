@@ -1,0 +1,294 @@
+/* ─── 탭 바 ─── */
+.tabBar {
+  margin-top: 28px;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  overflow-x: auto;
+}
+
+.tabBtn {
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-muted);
+  font-weight: 500;
+  font-size: 13.5px;
+  font-family: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: -1px;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.tabBtn:hover {
+  color: var(--color-text);
+}
+
+.tabBtnActive {
+  border-bottom-color: var(--color-brand);
+  color: var(--color-brand);
+  font-weight: 700;
+}
+
+.tabPanel {
+  padding-top: 24px;
+}
+
+/* ─── 공용 heading ─── */
+.heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+/* ─── Guide (시정 가이드) ─── */
+.guideGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 880px) {
+  .guideGrid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .guideCol {
+    padding: 16px;
+  }
+  .guideBoxBad,
+  .guideBoxGood {
+    padding: 12px;
+    font-size: 13px;
+  }
+  .guideActions {
+    flex-direction: column;
+  }
+  .btnPrimary,
+  .btnSecondary {
+    width: 100%;
+    padding: 10px 12px;
+  }
+}
+
+.guideCol {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-lg);
+  padding: 20px;
+}
+
+.guideColGood {
+  border-color: #6ee7b7;
+  background: linear-gradient(180deg, #f0fdf4 0%, #fff 80%);
+}
+
+.guideBoxBad {
+  margin-top: 12px;
+  padding: 14px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-left: 3px solid #dc2626;
+  border-radius: 8px;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: #7f1d1d;
+  white-space: pre-wrap;
+}
+
+.guideBoxGood {
+  margin-top: 12px;
+  padding: 14px;
+  background: #fff;
+  border: 1px solid #6ee7b7;
+  border-left: 3px solid #059669;
+  border-radius: 8px;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: #064e3b;
+  white-space: pre-wrap;
+}
+
+.guideHint {
+  font-size: 11.5px;
+  color: var(--color-text-subtle);
+  margin-top: 10px;
+}
+
+.guideActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.btnPrimary {
+  flex: 1;
+  padding: 9px 12px;
+  background: #059669;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btnPrimary:hover {
+  background: #047857;
+}
+
+.btnSecondary {
+  padding: 9px 12px;
+  background: #fff;
+  color: #065f46;
+  border: 1px solid #6ee7b7;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.btnSecondary:hover {
+  background: #f0fdf4;
+}
+
+.guideNotice {
+  grid-column: 1 / -1;
+  padding: 16px;
+  background: var(--color-brand-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--color-text);
+  line-height: 1.6;
+}
+
+.guideNoticeIcon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--color-brand);
+}
+
+/* ─── Law (근거 법령) ─── */
+.lawList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lawCard {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-lg);
+  padding: 18px;
+}
+
+.lawTag {
+  display: inline-block;
+  padding: 3px 8px;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.lawBody {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--color-text);
+  background: var(--color-surface-muted);
+  padding: 12px 14px;
+  border-radius: 8px;
+}
+
+/* ─── Context (본문 위치) ─── */
+.contextCard {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-lg);
+  padding: 20px;
+}
+
+.contextBody {
+  margin-top: 14px;
+  font-size: 13px;
+  line-height: 1.9;
+  color: var(--color-text-muted);
+}
+
+.contextDim {
+  opacity: 0.5;
+}
+
+.contextHighlight {
+  background: #fef3c7;
+  border-left: 3px solid #d97706;
+  padding: 10px 12px;
+  margin: 8px 0;
+  color: #78350f;
+  font-weight: 600;
+}
+
+.contextHighlightHint {
+  display: block;
+  font-size: 11px;
+  color: #92400e;
+  margin-top: 6px;
+  font-weight: 700;
+}
+
+/* ─── Topic (연관 주제) ─── */
+.topicCard {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-lg);
+  padding: 20px;
+}
+
+.topicTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.topicTag {
+  padding: 6px 12px;
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-pill);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.topicHint {
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--color-text-subtle);
+  line-height: 1.6;
+}
+

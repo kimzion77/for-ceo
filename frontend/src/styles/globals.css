@@ -1,0 +1,224 @@
+/* ─────────────────────────────────────────────
+ *  취업규칙 검토 AI — 글로벌 스타일
+ *  tokens.ts (civic 팔레트) 를 CSS 변수로 노출
+ * ───────────────────────────────────────────── */
+
+/* Pretendard Variable — dynamic-subset 대신 full variable 로
+   첫 페인트에서도 모든 글리프(특수문자 포함)가 일관되게 Pretendard 로 렌더. */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css');
+
+:root {
+  /* 색상 — civic */
+  --color-bg: #F5F7FA;
+  --color-surface: #FFFFFF;
+  --color-surface-muted: #EEF2F6;
+  --color-border: #DBE2EA;
+  --color-border-strong: #C2CCD8;
+  --color-text: #0F1B2D;
+  --color-text-muted: #475569;
+  --color-text-subtle: #7B8794;
+  --color-brand: #0B3D91;
+  --color-brand-soft: #E5ECF8;
+  --color-brand-strong: #08306E;
+  --color-accent: #1D6FE0;
+  --color-focus: #1D6FE0;
+
+  /* 위험도 — 백엔드 cgr/ui/constants.py::BUCKET_COLORS 와 1:1 일치 */
+  --risk-missing: #dc2626;
+  --risk-missing-soft: #fee2e2;
+  --risk-missing-text: #991b1b;
+  --risk-missing-border: #fca5a5;
+
+  --risk-violation: #ea580c;
+  --risk-violation-soft: #ffedd5;
+  --risk-violation-text: #9a3412;
+  --risk-violation-border: #fdba74;
+
+  --risk-warn: #facc15;
+  --risk-warn-soft: #fef9c3;
+  --risk-warn-text: #854d0e;
+  --risk-warn-border: #fde047;
+
+  --risk-ambiguous: #a855f7;
+  --risk-ambiguous-soft: #f3e8ff;
+  --risk-ambiguous-text: #6b21a8;
+  --risk-ambiguous-border: #d8b4fe;
+
+  --risk-ok: #22c55e;
+  --risk-ok-soft: #d1fae5;
+  --risk-ok-text: #065f46;
+  --risk-ok-border: #6ee7b7;
+
+  --risk-skipped: #6b7280;
+  --risk-skipped-soft: #f3f4f6;
+  --risk-skipped-text: #374151;
+  --risk-skipped-border: #d1d5db;
+
+  /* 타이포 — Pretendard 우선. CDN 실패 시 시스템 한글 폴백 (Mac Apple SD Gothic, Win Malgun Gothic). */
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui,
+    "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", "Noto Sans KR", sans-serif;
+  --font-mono: "D2Coding", "JetBrains Mono", ui-monospace, monospace;
+
+  --fs-display: 32px;
+  --fs-h1: 26px;
+  --fs-h2: 20px;
+  --fs-h3: 17px;
+  --fs-body: 15px;
+  --fs-small: 13px;
+  --fs-caption: 12px;
+
+  /* 간격 */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 32px;
+  --sp-8: 40px;
+  --sp-9: 56px;
+  --sp-10: 72px;
+
+  /* 라운드 */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+  --r-pill: 999px;
+
+  /* 그림자 */
+  --shadow-sm: 0 1px 2px rgba(15, 27, 45, 0.04), 0 1px 1px rgba(15, 27, 45, 0.03);
+  --shadow-md: 0 2px 8px rgba(15, 27, 45, 0.06), 0 1px 2px rgba(15, 27, 45, 0.04);
+  --shadow-lg: 0 12px 32px rgba(15, 27, 45, 0.10), 0 4px 8px rgba(15, 27, 45, 0.04);
+  --shadow-focus: 0 0 0 3px rgba(29, 111, 224, 0.25);
+}
+
+/* 리셋 — 가벼운 normalize */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  /* 한글 단어 단위 줄바꿈 — 모든 element 에 강제 적용해 button/input 등도 동일하게. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* 한글 word-break — 단어/조사가 행 사이에서 갈라지지 않도록 단어 단위로 줄바꿈.
+     긴 영어 단어/URL 만 break-word 로 끊음. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  /* 모바일에서 가로 스크롤 방지 */
+  overflow-x: hidden;
+  /* iOS — 텍스트 자동 확대 방지, 매끄러운 스크롤 */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* 포커스 — 키보드 접근성 */
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* ─── 인쇄 — REPORT_SPEC 준수 ─── */
+@page {
+  size: A4 portrait;
+  margin: 18mm 16mm;
+  /* 페이지 번호 (브라우저 지원 한정) */
+  @bottom-right {
+    content: counter(page) ' / ' counter(pages);
+    font-size: 10px;
+    color: #525252;
+    font-family: D2Coding, ui-monospace, monospace;
+  }
+  @bottom-left {
+    content: '취업규칙 자율점검 결과';
+    font-size: 10px;
+    color: #525252;
+  }
+}
+
+/* ─── 인쇄 헬퍼 (전역) ─── */
+.noPrint { /* 인쇄 시 숨길 요소 */ }
+.printOnly { display: none; }  /* 인쇄 시에만 보일 요소 */
+
+@media print {
+  html,
+  body {
+    background: #ffffff !important;
+    color: #0a0a0a !important;
+  }
+  /* 외부 링크의 url(...) 보여주는 user-agent 기본 동작 비활성 */
+  a[href]::after {
+    content: none !important;
+  }
+  /* 위험도 패턴 (repeating-linear-gradient) 가 인쇄에 보이도록 */
+  * {
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+  /* 헤더·푸터·CTA·챗봇 등 인쇄 안 할 요소들 일괄 숨김 */
+  .noPrint { display: none !important; }
+  .printOnly { display: block !important; }
+  /* 페이지 잘림 방지 — 카드 단위로 page-break-inside avoid */
+  .printAvoidBreak { page-break-inside: avoid; break-inside: avoid; }
+  /* 좌·우 2분할 카드를 인쇄 시 세로 stack (한 페이지 폭 한정) */
+  .printStack {
+    display: block !important;
+    grid-template-columns: 1fr !important;
+  }
+  /* sticky 비활성 — 본문이 위에서 차곡차곡 */
+  .printNoSticky {
+    position: static !important;
+    top: auto !important;
+    max-height: none !important;
+    height: auto !important;
+  }
+}

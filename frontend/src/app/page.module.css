@@ -1,0 +1,39 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 60px;
+}
+
+.container {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 40px 32px 0;
+  width: 100%;
+}
+
+@media (max-width: 600px) {
+  .container {
+    padding: 28px 16px 0;
+  }
+}
+
+.section {
+  margin-bottom: 28px;
+}
+
+.sectionTight {
+  margin-bottom: 24px;
+}
+
+.cta {
+  font-size: 16px;
+  padding: 16px 24px;
+}
+
+.footnote {
+  text-align: center;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--color-text-subtle);
+}

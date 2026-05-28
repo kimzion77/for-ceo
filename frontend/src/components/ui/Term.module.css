@@ -1,0 +1,76 @@
+.wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border-bottom: 1.5px dotted #94a3b8;
+  cursor: help;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  border-radius: var(--r-pill);
+  background: #cbd5e1;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  margin-left: 1px;
+}
+
+.tip {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: var(--cgr-tip-width, 280px);
+  max-width: calc(100vw - 24px);
+  background: #0f1b2d;
+  color: #fff;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  box-shadow: var(--shadow-lg);
+  z-index: 1000;
+  white-space: normal;
+  pointer-events: auto;
+}
+
+/* 라벨 ↔ 툴팁 사이 8px 호버 갭을 메워 깜빡임 방지 */
+.tip::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 0;
+  right: 0;
+  height: 8px;
+}
+
+/* ─── 모바일 — viewport 좌우 잘림 방지 ───
+ * 라벨이 화면 가장자리에 있으면 transform: translateX(-50%) 로 절반이 viewport 밖.
+ * 모바일에서는 position: fixed 로 viewport 기준 좌우 12px 안쪽에 풀폭 띄움.
+ */
+@media (max-width: 600px) {
+  .tip {
+    position: fixed;
+    top: auto;
+    bottom: 16px;
+    left: 12px;
+    right: 12px;
+    transform: none;
+    width: auto;
+    max-width: none;
+    padding: 14px 16px;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  /* fixed 시 라벨↔툴팁 갭은 무의미 */
+  .tip::before {
+    display: none;
+  }
+}

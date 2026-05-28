@@ -1,0 +1,31 @@
+/* 화면에서는 숨김. @media print 에서만 표시. */
+.root {
+  display: none;
+}
+
+@media print {
+  .root {
+    display: block;
+    background: #ffffff;
+    color: #0a0a0a;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+}
+
+/* 종이 — 최대 880px, 좌우 56px 패딩 */
+.paper {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 56px 56px 64px;
+  background: #ffffff;
+}
+
+@media print {
+  .paper {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+  }
+}

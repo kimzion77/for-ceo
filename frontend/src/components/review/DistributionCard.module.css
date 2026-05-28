@@ -1,0 +1,133 @@
+.title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+/* ─── 상단 — 큰 합계 + 도넛 가로 배치 ─── */
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.total {
+  display: flex;
+  flex-direction: column;
+}
+
+.totalN {
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -1px;
+}
+
+.totalL {
+  font-size: 12px;
+  color: var(--color-text-subtle);
+  margin-top: 6px;
+}
+
+/* ─── 도넛 ─── */
+.donutWrap {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  flex-shrink: 0;
+}
+
+.donutCenter {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  pointer-events: none;
+}
+
+.donutNumber {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.5px;
+}
+
+.donutLabel {
+  font-size: 10px;
+  font-weight: 700;
+  color: #b91c1c;
+  letter-spacing: 0.3px;
+  margin-top: 2px;
+}
+
+/* ─── 강조 박스 ─── */
+.alert {
+  margin-top: 14px;
+  padding: 10px 12px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-left: 3px solid #ea580c;
+  border-radius: 8px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #7c2d12;
+}
+
+.alert strong {
+  color: #9a3412;
+  font-weight: 700;
+}
+
+.alertIcon {
+  display: inline-block;
+  margin-right: 4px;
+}
+
+/* ─── 5-Bucket 카운트 리스트 ─── */
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 14px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: var(--r-pill);
+  flex-shrink: 0;
+}
+
+.name {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.count {
+  margin-left: auto;
+  color: var(--color-text);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}

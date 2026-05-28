@@ -1,0 +1,266 @@
+.zone {
+  background: var(--color-surface-muted);
+  border: 2px dashed var(--color-border-strong);
+  border-radius: var(--r-lg);
+  padding: 36px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, padding 0.15s;
+}
+
+.zone:hover {
+  border-color: var(--color-brand);
+}
+
+.zoneActive {
+  background: var(--color-surface);
+  border-color: var(--color-brand);
+  border-style: dashed;
+}
+
+.zoneFilled {
+  background: var(--color-surface);
+  border-color: var(--color-brand);
+  padding: 14px;
+  cursor: default;
+}
+
+.zoneFilled:hover {
+  border-color: var(--color-brand);
+}
+
+.hiddenInput {
+  display: none;
+}
+
+/* ─── 비어있을 때 (안내) ─── */
+.emptyInner {
+  text-align: center;
+}
+
+.label {
+  font-size: 16px;
+  font-weight: 600;
+  margin-top: 12px;
+  color: var(--color-text);
+}
+
+.link {
+  color: var(--color-brand);
+  text-decoration: underline;
+}
+
+.help {
+  font-size: 12px;
+  color: var(--color-text-subtle);
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+/* ─── 파일 채워졌을 때 ─── */
+.filledInner {
+  text-align: left;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.fileIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.fileInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.fileName {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileMeta {
+  font-size: 11.5px;
+  color: var(--color-text-subtle);
+  margin-top: 1px;
+}
+
+.removeBtn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--color-text-subtle);
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.removeBtn:hover {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
+/* ─── 푸터 (요약 + 액션) ─── */
+.footer {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.summary {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.summary strong {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.footerActions {
+  display: flex;
+  gap: 6px;
+}
+
+.clearBtn,
+.addBtn {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.clearBtn {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.clearBtn:hover {
+  background: var(--color-surface-muted);
+}
+
+.addBtn {
+  background: var(--color-brand-soft);
+  border: 1px solid var(--color-brand-soft);
+  color: var(--color-brand);
+}
+
+.addBtn:hover {
+  background: var(--color-brand);
+  color: #fff;
+}
+
+@media (max-width: 480px) {
+  .zone {
+    padding: 28px 14px;
+  }
+  .zoneFilled {
+    padding: 12px;
+  }
+  .label {
+    font-size: 15px;
+  }
+  .help {
+    font-size: 11.5px;
+  }
+  .footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .footerActions {
+    justify-content: flex-end;
+  }
+}
+
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.errorBox {
+  position: relative;
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  border-radius: 10px;
+  padding: 10px 36px 10px 14px;
+  color: #991b1b;
+  font-size: 12.5px;
+  line-height: 1.6;
+  animation: slideDown 0.2s ease-out;
+}
+.errorLine {
+  margin-bottom: 2px;
+}
+.errorLine:last-child {
+  margin-bottom: 0;
+}
+.errorClose {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  background: transparent;
+  border: none;
+  color: #991b1b;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+.errorClose:hover {
+  opacity: 1;
+  background: rgba(220, 38, 38, 0.1);
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

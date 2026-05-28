@@ -1,0 +1,105 @@
+.bar {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  padding: 20px 32px;
+}
+
+.inner {
+  max-width: 1240px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  background: #fff;
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.backBtn:hover {
+  background: var(--color-surface-muted);
+}
+
+.backIcon {
+  transform: rotate(180deg);
+  display: inline-flex;
+}
+
+.fileBlock {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.fileMeta {
+  min-width: 0;
+}
+
+.fileName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 380px;
+}
+
+.fileSub {
+  font-size: 11px;
+  color: var(--color-text-subtle);
+}
+
+.actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 720px) {
+  .bar {
+    padding: 14px 16px;
+  }
+  .inner {
+    gap: 12px;
+  }
+  .fileName {
+    max-width: 100%;
+  }
+  .actions {
+    margin-left: 0;
+    width: 100%;
+    gap: 6px;
+  }
+  .actions :global(button) {
+    flex: 1;
+    min-width: 0;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .inner {
+    gap: 10px;
+  }
+  .backBtn {
+    flex-shrink: 0;
+  }
+  .fileBlock {
+    flex-basis: 100%;
+  }
+}

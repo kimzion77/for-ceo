@@ -1,0 +1,105 @@
+.header {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  padding: 14px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: inherit;
+  transition: opacity 0.15s;
+}
+.brand:hover {
+  opacity: 0.85;
+}
+
+.navLink {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  padding: 4px 8px;
+  border-radius: var(--r-md);
+  transition: all 0.15s;
+}
+.navLink:hover {
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+}
+
+.logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--color-brand);
+  display: grid;
+  place-items: center;
+  color: #fff;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.subtitle {
+  font-size: 11px;
+  color: var(--color-text-subtle);
+  margin-top: 1px;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.nav a {
+  color: inherit;
+}
+
+.nav a:hover {
+  color: var(--color-text);
+}
+
+.anonChip {
+  color: var(--color-text-subtle);
+  font-size: 12px;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-pill);
+}
+
+@media (max-width: 720px) {
+  .header {
+    padding: 12px 16px;
+  }
+  .nav {
+    gap: 10px;
+  }
+  .navLink {
+    display: none;
+  }
+}
+
+@media (max-width: 380px) {
+  .title {
+    font-size: 13.5px;
+  }
+  .subtitle {
+    display: none;
+  }
+  .anonChip {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+}

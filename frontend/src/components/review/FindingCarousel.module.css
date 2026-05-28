@@ -1,0 +1,188 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ─── 카드 + 좌우 화살표 ─── */
+.stage {
+  position: relative;
+}
+
+.navBtn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-pill);
+  background: #fff;
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+  color: var(--color-text);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  z-index: 5;
+  font-family: inherit;
+  padding: 0;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+
+.navBtn:hover:not(:disabled) {
+  background: var(--color-brand);
+  color: #fff;
+  border-color: var(--color-brand);
+  transform: translateY(-50%) scale(1.05);
+  box-shadow: var(--shadow-lg);
+}
+
+.navBtn:active:not(:disabled) {
+  transform: translateY(-50%) scale(0.98);
+}
+
+.navBtn:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.prev {
+  left: -20px;
+}
+
+.next {
+  right: -20px;
+}
+
+.prev svg {
+  transform: rotate(180deg);
+}
+
+/* 좁은 메인 영역 (사이드바 단으로 떨어지기 전) — 화살표가 사이드바·바깥에
+   걸치지 않도록 카드 안쪽으로 살짝 들여둠. */
+@media (max-width: 1100px) {
+  .prev {
+    left: 8px;
+  }
+  .next {
+    right: 8px;
+  }
+}
+
+/* 모바일 — 화살표가 카드 위에 floating 으로 강하게 오버레이.
+   카드 내용 가독성 확보 위해 살짝 투명도 + 더 작은 사이즈. */
+@media (max-width: 600px) {
+  .navBtn {
+    width: 36px;
+    height: 36px;
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(4px);
+  }
+  .prev {
+    left: 6px;
+  }
+  .next {
+    right: 6px;
+  }
+}
+
+/* ─── 카드 fade-in ─── */
+.cardEnter {
+  animation: cgr-fade-in 0.18s ease-out;
+}
+
+@keyframes cgr-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ─── 빈 상태 ─── */
+.empty {
+  padding: 40px 20px;
+  text-align: center;
+  background: var(--color-surface);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--r-lg);
+  color: var(--color-text-subtle);
+  font-size: 13px;
+}
+
+/* ─── 하단 푸터: 인덱스 + dot + 키보드 힌트 ─── */
+.footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.indicator {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.2px;
+}
+
+.indicatorCurrent {
+  color: var(--color-text);
+  font-weight: 800;
+  font-size: 16px;
+}
+
+.indicatorTotal {
+  color: var(--color-text-subtle);
+}
+
+.dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: var(--color-border-strong);
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.12s, transform 0.12s;
+}
+
+.dot:hover {
+  transform: scale(1.3);
+}
+
+.dotActive {
+  background: var(--color-brand);
+  transform: scale(1.3);
+}
+
+.hint {
+  font-size: 11.5px;
+  color: var(--color-text-subtle);
+  text-align: center;
+}
+
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  padding: 0 5px;
+  height: 18px;
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  margin: 0 2px;
+}

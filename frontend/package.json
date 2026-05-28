@@ -1,0 +1,26 @@
+{
+  "name": "chwieobgyuchik-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "취업규칙 검토 AI - Next.js 프론트엔드",
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "14.2.32",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "14.2.32",
+    "typescript": "^5.5.3"
+  }
+}

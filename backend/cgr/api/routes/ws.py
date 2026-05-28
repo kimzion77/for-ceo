@@ -1,0 +1,382 @@
+"""임금명세서(wage statement) API.
+
+  1. POST /api/v1/ws/extract — 파일 → 텍스트
+  2. POST /api/v1/ws/analyze — 텍스트 + 컨텍스트 → 11개 슬롯 위반 분석
+  3. GET  /api/v1/ws/catalog — 슬롯 카탈로그 (디버그/관리자용)
+
+EC 와 달리 structure(8섹션 구조화)·generate(표준 문서) 단계는 1차 미포함.
+임금명세서는 표 구조가 단순하고, 사용자가 "필수 항목 누락 여부" 만 빠르게 확인하는 게 핵심.
+"""
+from __future__ import annotations
+
+import tempfile
+import time
+from pathlib import Path
+from typing import Any
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import Response
+from pydantic import BaseModel, Field
+
+from cgr.api.auth import require_api_key
+from cgr.config import get_llm_model
+from cgr.docx_export import DOCX_MIMETYPE, text_to_docx
+from cgr.parsers.dispatcher import parse_to_text
+from cgr.ws import repository as ws_repo
+from cgr.ws.catalog import load_ws_catalog
+from cgr.ws.models import InspectionResult, PayslipIn
+from cgr.ws.services import analyze as analyze_service
+from cgr.ws.services import generate as generate_service
+from cgr.ws.services import rule_engine
+
+
+router = APIRouter(prefix="/ws", tags=["wage_statement"])
+
+
+# ─────────────────────────────────────────────
+# 1) POST /api/v1/ws/extract
+# ─────────────────────────────────────────────
+class ExtractOut(BaseModel):
+    extracted_text: str
+    filename: str
+    elapsed_sec: float
+    model: str
+
+
+@router.post(
+    "/extract",
+    response_model=ExtractOut,
+    summary="임금명세서 파일 → 텍스트 추출 (OCR 포함)",
+    description=(
+        "이미지(PNG/JPG)는 Vision OCR, PDF·DOCX·HWP·TXT 는 공용 파서.\n"
+        "다음 단계 `/ws/analyze` 의 입력이 됩니다."
+    ),
+    dependencies=[Depends(require_api_key)],
+)
+async def post_extract(
+    file: UploadFile = File(..., description="임금명세서 파일"),
+):
+    t0 = time.time()
+    suffix = Path(file.filename or "upload.bin").suffix or ".bin"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tf:
+        tf.write(await file.read())
+        tmp_path = Path(tf.name)
+    try:
+        try:
+            text = parse_to_text(tmp_path)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"텍스트 추출 실패: {type(e).__name__}: {e}",
+            )
+    finally:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+    return ExtractOut(
+        extracted_text=text,
+        filename=file.filename or "",
+        elapsed_sec=round(time.time() - t0, 2),
+        model=get_llm_model(),
+    )
+
+
+# ─────────────────────────────────────────────
+# 2) POST /api/v1/ws/analyze
+# ─────────────────────────────────────────────
+class AnalyzeIn(BaseModel):
+    wage_text: str = Field(
+        ..., description="임금명세서 원문 (extract 응답 또는 사용자 직접 붙여넣기)"
+    )
+    business_size: str = Field(default="", description="5인이상 / 5인미만")
+    worker_types: list[str] = Field(
+        default_factory=list,
+        description="정규직 / 기간제 / 단시간 / 일용직 / 연소자 / 외국인",
+    )
+    pay_period_year: int | None = Field(
+        default=None,
+        description=(
+            "산정 대상 연도 — 최저임금 기준 (없으면 LLM 이 텍스트에서 추론)"
+        ),
+    )
+    pay_period_month: int | None = Field(
+        default=None,
+        description="산정 대상 월 (1~12)",
+    )
+    contract_type: str | None = Field(
+        default=None,
+        description="계약 유형 — 정규직 / 기간제 / 단시간 / 일용직",
+    )
+    pay_cycle: str | None = Field(
+        default=None,
+        description="임금 지급 주기 — 월급 / 시급 / 일급",
+    )
+    weekly_hours: float | None = Field(
+        default=None,
+        description="주 소정근로시간 (단시간 계약 시 의미)",
+    )
+
+
+class AnalyzeOut(BaseModel):
+    analysis_result: dict[str, Any] = Field(
+        ...,
+        description=(
+            "`{riskLevel, overallStatus, overallOpinion, results[], finalRecommendations}` "
+            "— EC analyze 와 통일된 스키마"
+        ),
+    )
+    elapsed_sec: float
+    model: str
+
+
+@router.post(
+    "/analyze",
+    response_model=AnalyzeOut,
+    summary="임금명세서 텍스트 → 11개 슬롯 위반 분석",
+    dependencies=[Depends(require_api_key)],
+)
+def post_analyze(body: AnalyzeIn):
+    t0 = time.time()
+    try:
+        result = analyze_service.run(
+            body.wage_text,
+            business_size=body.business_size,
+            worker_types=body.worker_types,
+            pay_period_year=body.pay_period_year,
+            pay_period_month=body.pay_period_month,
+            contract_type=body.contract_type,
+            pay_cycle=body.pay_cycle,
+            weekly_hours=body.weekly_hours,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"분석 실패: {type(e).__name__}: {e}",
+        )
+    return AnalyzeOut(
+        analysis_result=result,
+        elapsed_sec=round(time.time() - t0, 2),
+        model=get_llm_model(),
+    )
+
+
+# ─────────────────────────────────────────────
+# 2-b) POST /api/v1/ws/generate — 분석결과 → 수정된 표준 임금명세서
+# ─────────────────────────────────────────────
+class GenerateIn(BaseModel):
+    analysis_result: dict[str, Any] = Field(
+        ...,
+        description="`/ws/analyze` 응답의 analysis_result 전체",
+    )
+    wage_text: str = Field(
+        ..., description="원본 임금명세서 텍스트 (extract 응답)"
+    )
+    user_overrides: dict[str, str] = Field(
+        default_factory=dict,
+        description="사용자가 결과 페이지에서 직접 작성한 보완 표현 (항목명 → 표현)",
+    )
+
+
+class GenerateOut(BaseModel):
+    wage_text: str = Field(..., description="수정 반영된 표준 임금명세서 본문")
+    elapsed_sec: float
+    model: str
+
+
+@router.post(
+    "/generate",
+    response_model=GenerateOut,
+    summary="분석 결과 → 수정된 표준 임금명세서 텍스트",
+    description=(
+        "분석에서 지적된 부적절·보완필요 항목을 모두 반영한 표준 임금명세서 본문 생성. "
+        "사용자가 직접 편집한 권고가 있으면(user_overrides) 그 표현을 그대로 사용."
+    ),
+    dependencies=[Depends(require_api_key)],
+)
+def post_generate(body: GenerateIn):
+    t0 = time.time()
+    try:
+        text = generate_service.run(
+            body.analysis_result,
+            body.wage_text,
+            user_overrides=body.user_overrides or None,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"임금명세서 생성 실패: {type(e).__name__}: {e}",
+        )
+    return GenerateOut(
+        wage_text=text,
+        elapsed_sec=round(time.time() - t0, 2),
+        model=get_llm_model(),
+    )
+
+
+# ─────────────────────────────────────────────
+# 2-c) POST /api/v1/ws/generate-docx — 표준 명세서 .docx 다운로드
+# ─────────────────────────────────────────────
+class GenerateDocxIn(BaseModel):
+    wage_text: str = Field(
+        ..., description="이미 생성된 본문 (혹은 사용자가 편집한 내용)"
+    )
+    filename: str = Field(
+        default="표준_임금명세서.docx",
+        description="다운로드 파일명 (Content-Disposition)",
+    )
+
+
+@router.post(
+    "/generate-docx",
+    summary="평문 본문 → .docx 파일 변환·다운로드",
+    description=(
+        "사용자가 결과 페이지에서 편집한 표준 본문을 .docx 로 변환.\n"
+        "한글 폰트 (맑은 고딕), A4, 표준 여백. `[제목]` 패턴은 자동으로 헤딩 처리."
+    ),
+    dependencies=[Depends(require_api_key)],
+    response_class=Response,
+)
+def post_generate_docx(body: GenerateDocxIn):
+    try:
+        docx_bytes = text_to_docx(
+            body.wage_text,
+            title="표준 임금명세서",
+            subtitle="영세사업장 자율점검 서비스 — AI 기반 시정안 반영",
+            footer_note=(
+                "※ 본 문서는 AI 자율점검 결과를 반영한 표준안입니다. "
+                "법적 효력은 사업장·노무사 검토 후 확정됩니다."
+            ),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"docx 변환 실패: {type(e).__name__}: {e}",
+        )
+    # 한글 파일명 — RFC 6266 (filename*=UTF-8) 방식
+    from urllib.parse import quote
+    fname_quoted = quote(body.filename, safe="")
+    headers = {
+        "Content-Disposition": (
+            f"attachment; filename=\"document.docx\"; "
+            f"filename*=UTF-8''{fname_quoted}"
+        ),
+    }
+    return Response(
+        content=docx_bytes,
+        media_type=DOCX_MIMETYPE,
+        headers=headers,
+    )
+
+
+# ─────────────────────────────────────────────
+# 3) POST /api/v1/ws/inspect — 계산형 룰엔진
+# ─────────────────────────────────────────────
+class InspectIn(BaseModel):
+    payslip: PayslipIn = Field(
+        ...,
+        description=(
+            "사용자가 OCR 결과를 확인·확정한 구조화 임금명세서. "
+            "`pay_period_year` 는 필수 (최저임금 기준 연도)."
+        ),
+    )
+    persist: bool = Field(
+        default=False,
+        description=(
+            "True 면 payslip + inspection_run + findings + recommendations 를 DB 에 저장 — "
+            "`payslip.document_id` 가 채워져 있어야 함."
+        ),
+    )
+
+
+class InspectOut(BaseModel):
+    result: InspectionResult
+    run_uid: str | None = None
+    persisted: bool = False
+
+
+@router.post(
+    "/inspect",
+    response_model=InspectOut,
+    summary="구조화 임금명세서 → 계산형 룰엔진 실행",
+    description=(
+        "Phase 7 — 마스터 룰셋(V001~) 으로 계산형 위반 탐지.\n"
+        "결정성: 같은 PayslipIn → 같은 findings (룰셋 버전 박힘).\n\n"
+        "**판단형(LLM)** 위반은 `/ws/analyze` 와 별도 트랙."
+    ),
+    dependencies=[Depends(require_api_key)],
+)
+def post_inspect(body: InspectIn):
+    try:
+        result = rule_engine.inspect(body.payslip)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"룰엔진 실패: {type(e).__name__}: {e}",
+        )
+
+    run_uid: str | None = None
+    persisted = False
+    if body.persist:
+        if not body.payslip.document_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "persist=true 면 payslip.document_id 가 필요. "
+                    "먼저 payslip_document 를 생성하세요."
+                ),
+            )
+        try:
+            payslip_id = ws_repo.save_payslip(body.payslip)
+            _run_id, run_uid = ws_repo.save_inspection_run(payslip_id, result)
+            persisted = True
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"영속화 실패: {type(e).__name__}: {e}",
+            )
+
+    return InspectOut(result=result, run_uid=run_uid, persisted=persisted)
+
+
+# ─────────────────────────────────────────────
+# 4) GET /api/v1/ws/catalog
+# ─────────────────────────────────────────────
+class CatalogOut(BaseModel):
+    version: str
+    doc: str
+    description: str
+    slots: list[dict[str, Any]]
+
+
+@router.get(
+    "/catalog",
+    response_model=CatalogOut,
+    summary="임금명세서 슬롯 카탈로그 (관리자/디버그)",
+    description="마스터 DB 의 11개 슬롯 + 적용조건·위험도·연관주제·법령을 한 번에.",
+    dependencies=[Depends(require_api_key)],
+)
+def get_catalog():
+    try:
+        cat = load_ws_catalog()
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)
+        )
+    return CatalogOut(
+        version=cat.version,
+        doc=cat.doc,
+        description=cat.description,
+        slots=[s.model_dump() for s in cat.slots],
+    )

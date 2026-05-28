@@ -1,0 +1,119 @@
+/* EditableStructureTable — Step3 B안과 같은 톤 (white + neutral border + brand) */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.section {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.sectionHead {
+  padding: 10px 16px;
+  background: #fafaf7;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f1b2d;
+  letter-spacing: -0.2px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table thead th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  padding: 8px 12px;
+  background: #fcfcfd;
+  border-bottom: 1px solid #e5e7eb;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.table tbody tr {
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.table tbody tr:last-child {
+  border-bottom: 0;
+}
+
+.colKey {
+  width: 28%;
+}
+
+.colValue {
+  width: 42%;
+}
+
+.colNote {
+  width: 30%;
+}
+
+.cellKey {
+  padding: 8px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #0f1b2d;
+}
+
+.cellInput {
+  padding: 6px 10px;
+}
+
+.input {
+  width: 100%;
+  padding: 7px 10px;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: #0f1b2d;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.input:focus {
+  border-color: #2a6fdb;
+  box-shadow: 0 0 0 2px rgba(42, 111, 219, 0.18);
+}
+
+.input::placeholder {
+  color: #94a3b8;
+}
+
+.inputNote {
+  font-size: 11.5px;
+  color: #475569;
+}
+
+.extras {
+  margin: 0;
+  padding: 12px 16px 14px 32px;
+  font-size: 12.5px;
+  color: #0f1b2d;
+  line-height: 1.6;
+}
+
+.extras li {
+  margin-bottom: 4px;
+}
+
+.extras li:last-child {
+  margin-bottom: 0;
+}

@@ -1,0 +1,73 @@
+.page {
+  background: var(--color-bg);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.layout {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 28px 32px 60px;
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 24px;
+  width: 100%;
+}
+
+@media (max-width: 980px) {
+  .layout {
+    grid-template-columns: 1fr;
+    padding: 20px 16px 48px;
+    gap: 16px;
+  }
+}
+
+@media (max-width: 600px) {
+  .layout {
+    padding: 14px 12px 40px;
+  }
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 20px;
+  align-self: start;
+}
+
+@media (max-width: 980px) {
+  .sidebar {
+    position: static;
+  }
+}
+
+.main {
+  min-width: 0;
+}
+
+.findings {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.empty {
+  padding: 40px 20px;
+  text-align: center;
+  background: var(--color-surface);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--r-lg);
+  color: var(--color-text-subtle);
+  font-size: 13px;
+}
+
+/* ─── 인쇄 모드 ───
+ *  화면용 영역은 숨기고, PrintLayout 만 출력. */
+@media print {
+  .screenOnly {
+    display: none !important;
+  }
+}

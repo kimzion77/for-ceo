@@ -1,0 +1,11 @@
+.bar {
+  display: flex;
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  background: #f3f4f6;
+}
+
+.seg {
+  transition: width 0.4s;
+}

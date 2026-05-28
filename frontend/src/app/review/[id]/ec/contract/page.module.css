@@ -1,0 +1,225 @@
+.page {
+  background: var(--color-bg);
+  min-height: 100vh;
+}
+
+.layout {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 28px 32px 60px;
+}
+
+@media (max-width: 600px) {
+  .layout {
+    padding: 20px 16px 48px;
+  }
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.docBadge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+  letter-spacing: 0.3px;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  line-height: 1.3;
+  margin: 4px 0 6px;
+  color: var(--color-text);
+}
+
+.subtitle {
+  font-size: 13.5px;
+  color: var(--color-text-muted);
+  margin-bottom: 20px;
+  line-height: 1.6;
+}
+
+.subtitle strong {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.btnPrimary {
+  padding: 11px 18px;
+  background: var(--color-brand, #0056b3);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btnPrimary:hover {
+  background: var(--color-brand-hover, #004494);
+}
+
+.btnSecondary {
+  padding: 11px 16px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.contractCard {
+  background: white;
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-lg);
+  padding: 36px 44px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.06);
+  font-family: var(--font-sans);
+  line-height: 1.85;
+  font-size: 14px;
+  color: #1e293b;
+  white-space: pre-wrap;
+  word-break: keep-all;
+}
+
+@media (max-width: 600px) {
+  .contractCard {
+    padding: 22px 18px;
+  }
+}
+
+/* 편집 가능한 textarea — 종이 카드 톤 그대로 */
+.contractEditor {
+  display: block;
+  width: 100%;
+  min-height: 700px;
+  background: white;
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-lg);
+  padding: 36px 44px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.06);
+  font-family: var(--font-sans);
+  line-height: 1.85;
+  font-size: 14px;
+  color: #1e293b;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.contractEditor:focus {
+  border-color: var(--color-brand, #2a6fdb);
+  box-shadow: 0 0 0 2px rgba(42, 111, 219, 0.16), 0 4px 6px -1px rgba(0, 0, 0, 0.06);
+}
+
+@media (max-width: 600px) {
+  .contractEditor {
+    padding: 22px 18px;
+    min-height: 500px;
+  }
+}
+
+/* "편집됨" 배지 — 헤더 옆 */
+.dirtyBadge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+  letter-spacing: 0.1px;
+}
+
+/* Step4 우상단 토스트 */
+@keyframes contractToastIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.toast {
+  position: fixed;
+  top: 24px;
+  right: 28px;
+  z-index: 9999;
+  padding: 12px 18px;
+  border-radius: 10px;
+  background: #059669;
+  color: #fff;
+  border: 1px solid #047857;
+  font-size: 13.5px;
+  font-weight: 700;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
+  animation: contractToastIn 0.2s ease-out;
+  pointer-events: none;
+}
+
+.copyHint {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--color-text-subtle);
+}
+
+.notFound {
+  text-align: center;
+  padding: 80px 20px;
+  color: var(--color-text-subtle);
+}
+
+.notFound a {
+  color: var(--color-brand);
+  text-decoration: none;
+}
+
+@media print {
+  .head,
+  .subtitle,
+  .actions,
+  .copyHint {
+    display: none !important;
+  }
+  .contractCard {
+    border: none;
+    box-shadow: none;
+    padding: 0;
+  }
+  .layout {
+    max-width: none;
+    padding: 0;
+  }
+}
