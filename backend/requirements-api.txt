@@ -11,6 +11,7 @@ openai>=1.30
 pydantic>=2.5
 pyyaml>=6.0
 python-dotenv>=1.0
+requests>=2.31         # cgr.embedding 이 OpenAI embedding 엔드포인트 직접 호출용으로 startup 시 import
 
 # ─── 파일 파싱 (FastAPI 가 받는 업로드용) ─────
 openpyxl>=3.1
