@@ -234,12 +234,12 @@ export function LoadingScreen({ reviewId }: LoadingScreenProps) {
 
   return (
     <main className={styles.page}>
+      {bigStep && (
+        <div className={styles.bigStepWrap}>
+          <StepProgress current={bigStep} reviewId={reviewId} />
+        </div>
+      )}
       <div className={styles.inner}>
-        {bigStep && (
-          <div className={styles.bigStepWrap}>
-            <StepProgress current={bigStep} reviewId={reviewId} />
-          </div>
-        )}
         {/* 회전 로더 + 문서 아이콘 */}
         <div className={styles.loader}>
           <svg

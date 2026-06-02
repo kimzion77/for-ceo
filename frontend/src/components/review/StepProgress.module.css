@@ -5,6 +5,8 @@
   background: #fff;
   border: 1px solid var(--color-border);
   border-radius: var(--r-md);
+  overflow: hidden;        /* 잘못된 connector 가 박스 밖으로 새지 않도록 */
+  box-sizing: border-box;
 }
 
 .list {
