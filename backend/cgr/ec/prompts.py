@@ -349,9 +349,68 @@ def clean_json_response(text: str) -> str:
     return s[start : end + 1]
 
 
+def _repair_truncated_json(s: str) -> str:
+    """잘린 JSON 의 끝을 닫아 파싱 가능하게 복구 시도.
+
+    LLM 응답이 max_tokens 한도에서 잘리면 문자열·배열·객체가 닫히지 않은 상태로
+    끝남. 보수적으로 다음을 시도:
+      1) 닫히지 않은 string 안에 있으면 마지막 따옴표 안 문자를 잘라내고 " 닫기
+      2) 그 다음 ], } 를 역순으로 적절한 개수만큼 추가
+    실패해도 원본 그대로 반환 — 호출자가 default 로 떨어지게.
+    """
+    if not s or s[-1] in '}]':
+        return s
+    # 스택 추적 — string 안인지, 어떤 컨테이너 안인지
+    in_string = False
+    escape = False
+    stack: list[str] = []
+    last_unclosed_quote_idx = -1
+    for i, ch in enumerate(s):
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == '\\':
+                escape = True
+            elif ch == '"':
+                in_string = False
+        else:
+            if ch == '"':
+                in_string = True
+                last_unclosed_quote_idx = i
+            elif ch in '{[':
+                stack.append(ch)
+            elif ch in '}]':
+                if stack:
+                    stack.pop()
+    # 미완 string 이면 마지막 깨진 문자(혹은 trailing whitespace) 까지 잘라내고 " 추가
+    if in_string and last_unclosed_quote_idx >= 0:
+        # string 시작 위치 이후 부분에서 끝쪽 트림 — escape 가 잘리는 것 방지
+        tail = s[last_unclosed_quote_idx + 1:]
+        # 마지막 backslash 가 escape 미완성이면 잘라냄
+        while tail.endswith('\\'):
+            tail = tail[:-1]
+        s = s[: last_unclosed_quote_idx + 1] + tail + '"'
+    # 컨테이너 역순으로 닫기
+    closers = {'{': '}', '[': ']'}
+    while stack:
+        opener = stack.pop()
+        # trailing comma 가 있으면 제거 (불필요한 , 가 끝에 남아 있으면 파싱 실패)
+        s = s.rstrip()
+        if s.endswith(','):
+            s = s[:-1]
+        s += closers[opener]
+    return s
+
+
 def safe_json_parse(text: str, default: Any) -> Any:
-    """JSON 파싱 실패 시 default 반환."""
+    """JSON 파싱 실패 시 default 반환. truncated 응답은 자동 복구 시도."""
+    cleaned = clean_json_response(text)
     try:
-        return json.loads(clean_json_response(text))
+        return json.loads(cleaned)
     except (json.JSONDecodeError, ValueError):
-        return default
+        # 잘림 복구 한 번 더 시도
+        try:
+            repaired = _repair_truncated_json(cleaned)
+            return json.loads(repaired)
+        except (json.JSONDecodeError, ValueError):
+            return default

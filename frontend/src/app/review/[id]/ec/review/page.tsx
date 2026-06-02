@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 import EditableStructureTable from '@/components/review/EditableStructureTable';
+import { StepProgress } from '@/components/review/StepProgress';
 import { postEcAnalyze } from '@/lib/api/ec';
 import { ApiCallError } from '@/lib/api/client';
 import type { EcStructuredData } from '@/lib/api/types';
@@ -217,9 +218,7 @@ export default function EcReviewPage({ params }: { params: { id: string } }) {
   return (
     <main className={styles.page}>
       <div className={styles.layout}>
-        <div className={styles.head}>
-          <span className={styles.docBadge}>📋 근로계약서 · Step 2</span>
-        </div>
+        <StepProgress current={2} reviewId={caseId} />
         <h1 className={styles.title}>추출된 내용을 확인하고 수정해 주세요</h1>
         <div className={styles.subtitle}>
           <strong>왼쪽 원본</strong>과 비교하면서 <strong>잘못 읽힌 숫자·날짜·이름</strong> 등을{' '}

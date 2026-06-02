@@ -8,7 +8,16 @@ import { useMockProgress } from '@/hooks/useMockProgress';
 import { getCase } from '@/lib/reviewStore';
 import type { EcPhase } from '@/lib/reviewStore';
 import type { DocumentType } from '@/types/review';
+import { StepProgress, type EcStep } from './StepProgress';
 import styles from './LoadingScreen.module.css';
+
+/** EC phase → 전체 4단계 중 어느 단계에 해당하는지. */
+function ecPhaseToBigStep(phase: EcPhase | undefined): EcStep | null {
+  if (phase === 'extracting' || phase === 'structuring') return 2;
+  if (phase === 'analyzing') return 3;
+  if (phase === 'generating') return 4;
+  return null;
+}
 
 /**
  * 검토 진행 중 화면.
@@ -220,10 +229,17 @@ export function LoadingScreen({ reviewId }: LoadingScreenProps) {
   }, [reviewId, router, docType, phase]);
 
   const STEPS = config.steps;
+  // EC 풀 이식 흐름이면 전체 4단계 indicator 상단에 노출
+  const bigStep = docType === 'employment-contract' ? ecPhaseToBigStep(phase) : null;
 
   return (
     <main className={styles.page}>
       <div className={styles.inner}>
+        {bigStep && (
+          <div className={styles.bigStepWrap}>
+            <StepProgress current={bigStep} reviewId={reviewId} />
+          </div>
+        )}
         {/* 회전 로더 + 문서 아이콘 */}
         <div className={styles.loader}>
           <svg

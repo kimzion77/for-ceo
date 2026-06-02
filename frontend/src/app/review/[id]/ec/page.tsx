@@ -20,6 +20,7 @@ import type {
   EcChatTurn,
 } from '@/lib/api/types';
 import SiteHeader from '@/components/layout/SiteHeader';
+import { StepProgress } from '@/components/review/StepProgress';
 import { lookupLawExcerpt, type LawExcerpt } from '@/data/lawExcerpts';
 import { filterApplicableGroups } from '@/data/workerTypeRequirements';
 import { getCase, setCaseError, updateEc } from '@/lib/reviewStore';
@@ -199,6 +200,7 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
     <main className={styles.page}>
       <SiteHeader />
       <div className={`${styles.layout} printAvoidBreak`}>
+        <StepProgress current={3} reviewId={caseId} />
         <div className={`${styles.split} printStack`}>
           {/* ─── 좌: 업로드된 문서 패널 ─── */}
           <DocPanel

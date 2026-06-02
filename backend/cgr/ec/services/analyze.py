@@ -106,12 +106,23 @@ def run(
                 response_format={"type": "json_object"},
                 temperature=0,
                 top_p=1,
+                max_tokens=16000,  # gpt-4o-mini 최대 출력 ≒ 16384, 안전 마진
             )
-            raw = resp.choices[0].message.content or ""
+            choice = resp.choices[0]
+            raw = choice.message.content or ""
+            finish = (choice.finish_reason or "").lower()
             data = prompts.safe_json_parse(raw, default=None)
             if not isinstance(data, dict) or "results" not in data:
+                # 토큰 한도에서 잘린 경우 사용자에게 명확한 메시지
+                if finish == "length":
+                    raise RuntimeError(
+                        "분석 결과가 모델 최대 출력 길이를 초과해 잘렸어요. "
+                        "문서를 짧게 줄여서 다시 시도해 주세요. "
+                        f"(응답 {len(raw)}자, finish_reason=length)"
+                    )
                 raise RuntimeError(
-                    f"analyze 응답 형식이 올바르지 않습니다: {raw[:200]}"
+                    f"analyze 응답 형식이 올바르지 않습니다 "
+                    f"(finish={finish}, len={len(raw)}자). 다시 시도해 주세요."
                 )
             # 캐시 저장 — 같은 입력 → 같은 결과 (결정성)
             llm_cache.put(cache_key, {"analysis": data})

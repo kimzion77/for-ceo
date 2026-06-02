@@ -1,0 +1,181 @@
+.wrap {
+  width: 100%;
+  margin: 0 0 24px;
+  padding: 14px 20px;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-md);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  align-items: stretch;
+}
+
+.item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 14px;
+}
+
+.item:first-child {
+  padding-left: 0;
+}
+
+.item:last-child {
+  padding-right: 0;
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+  flex: 1;
+  min-width: 0;
+}
+
+/* 원형 단계 번호 */
+.circle {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 13px;
+  flex-shrink: 0;
+  border: 2px solid var(--color-border);
+  background: #fff;
+  color: var(--color-text-muted);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.circle_done {
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+  color: #fff;
+}
+
+.circle_current {
+  background: #fff;
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+  box-shadow: 0 0 0 4px var(--color-brand-soft);
+}
+
+.circle_todo {
+  /* default 상태 그대로 */
+}
+
+/* 텍스트 영역 */
+.body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.desc {
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item_current .title {
+  color: var(--color-brand);
+}
+
+.item_done .title {
+  color: var(--color-text-strong);
+}
+
+.item_todo .title,
+.item_todo .desc {
+  opacity: 0.6;
+}
+
+/* 단계 간 연결선 */
+.conn {
+  position: absolute;
+  top: 18px;        /* circle 의 세로 중심 (padding 4 + height 30/2 = 19, 1픽셀 보정) */
+  right: -1px;       /* item 의 오른쪽 끝, 다음 item 의 padding 안으로 살짝 들어감 */
+  width: 28px;
+  height: 2px;
+  background: var(--color-border);
+  z-index: -1;
+}
+
+.conn_done {
+  background: var(--color-brand);
+}
+
+/* 클릭 가능한 done 단계 호버 효과 */
+a.link:hover .title {
+  color: var(--color-brand);
+}
+
+a.link:hover .circle_done {
+  background: var(--color-brand-strong, #08306E);
+  border-color: var(--color-brand-strong, #08306E);
+}
+
+/* 모바일 — 작은 화면에서는 세로 압축 / 텍스트 숨김 */
+@media (max-width: 720px) {
+  .wrap {
+    padding: 12px 14px;
+  }
+  .list {
+    gap: 0;
+  }
+  .item {
+    padding: 4px 6px;
+    flex-direction: column;
+    text-align: center;
+    gap: 4px;
+  }
+  .link {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .body {
+    align-items: center;
+  }
+  .title {
+    font-size: 11.5px;
+  }
+  .desc {
+    display: none;
+  }
+  .conn {
+    top: 17px;
+    right: -50%;
+    width: 100%;
+  }
+}
+
+/* 인쇄 시 숨김 — 인쇄본에는 단계 indicator 불필요 */
+@media print {
+  .wrap {
+    display: none;
+  }
+}
