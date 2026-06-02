@@ -1,0 +1,31 @@
+# Render Blueprint — FastAPI 백엔드 자동 배포
+#
+# Render 대시보드에서 "New → Blueprint" 선택하고 이 GitHub 레포를 연결하면
+# 아래 services 가 자동으로 만들어진다. 무료 플랜이라 15분 유휴 시 sleep
+# (재기동 ~30초). Singapore 리전 — 한국에서 가장 가까운 무료 리전.
+#
+# 배포 후 수동으로 설정해야 할 환경변수:
+#   - OPENAI_API_KEY (sync: false — secret)
+#   - 이미 sync: true 인 키는 Render 가 자동 생성
+
+services:
+  - type: web
+    name: cgr-backend
+    runtime: python
+    region: singapore
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements-api.txt
+    startCommand: uvicorn cgr.api.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /docs
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: API_KEY
+        generateValue: true
+      - key: ADMIN_API_KEY
+        generateValue: true
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
