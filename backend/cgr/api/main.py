@@ -20,6 +20,7 @@ if str(_ROOT) not in sys.path:
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from cgr.api.routes import admin, ec, guide, history, master_db, review, sc, slots, topics, ws
 from cgr.api.schemas import HealthResponse
@@ -57,6 +58,10 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["X-Process-Time"],
 )
+
+# ─── gzip 응답 압축 — 분석 결과 등 큰 JSON 응답을 60-70% 줄여 전송 시간 단축 ───
+# minimum_size: 이보다 작은 응답은 압축 오버헤드만 들어서 패스. 1KB 가 합리적 임계.
+app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
 
 
 # ─── 라우터 등록 (prefix /api/v1) ──────────
@@ -102,6 +107,19 @@ async def health() -> HealthResponse:
         services["llm_cache"] = f"error: {e}"
 
     return HealthResponse(status="ok", version="1.0.0", services=services)
+
+
+# ─── Warm-up — Render 무료 sleep 방지용 초경량 ping ────────
+# 인증 불필요 + 즉시 응답. BFF 경유(`/api/cgr/warmup`)로 호출 가능하게 API_PREFIX 안에 둠.
+# UptimeRobot, 프론트 진입 시 fire-and-forget 핑 등에서 사용.
+@app.get(
+    f"{API_PREFIX}/warmup",
+    tags=["health"],
+    summary="warm-up (초경량 ping)",
+    include_in_schema=False,
+)
+async def warmup() -> dict[str, str]:
+    return {"status": "warm"}
 
 
 @app.get("/", include_in_schema=False)

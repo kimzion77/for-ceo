@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import '@/styles/globals.css';
+import WarmupPing from '@/components/WarmupPing';
 
 export const metadata: Metadata = {
   title: '노동법 자율점검 — 취업규칙 검토 AI',
@@ -31,7 +32,11 @@ export default function RootLayout({
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {/* 백엔드 warm-up — Render 무료 sleep 방지 (어떤 페이지든 마운트되면 1회 핑) */}
+        <WarmupPing />
+        {children}
+      </body>
     </html>
   );
 }
