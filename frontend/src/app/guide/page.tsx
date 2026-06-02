@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 
 import SiteHeader from '@/components/layout/SiteHeader';
-import { renderBold } from '@/lib/markdownBold';
+import { ChatAssistantBubble } from '@/components/review/ChatPanel';
 import {
   formDownloadUrl,
   getDutiesBySize,
@@ -14,6 +14,7 @@ import {
   getGuideOverview,
   getOrgs,
   getRequiredDocs,
+  getTimelineAll,
   postGuideChat,
   type FormTemplate,
   type GlossaryEntry,
@@ -21,6 +22,8 @@ import {
   type GuideItem,
   type GuideOverview,
   type GovOrg,
+  type ObligationTimeline,
+  type RelatedFormHint,
   type RequiredDoc,
   type SizeDuty,
 } from '@/lib/api/guide';
@@ -36,23 +39,11 @@ import styles from './page.module.css';
  * 분쟁·진정·구제 신청 류는 백엔드 시드에서 제외돼 표시 안 됨.
  */
 
-type Tab =
-  | 'chat'     // 챗봇 — 의무·용어·기관·서류·라이프사이클·채용 통합 질문
-  | 'calc'     // 임금 계산기 (interactive)
-  | 'forms';   // 신청 서식 (다운로드)
-
-const TABS: Array<{ key: Tab; label: string; icon: string }> = [
-  { key: 'chat', label: '노무 챗봇', icon: '💬' },
-  { key: 'calc', label: '계산기', icon: '🧮' },
-  { key: 'forms', label: '서식', icon: '📄' },
-];
-
 const SIZES = ['1인 이상', '5인 이상', '10인 이상', '30인 이상', '50인 이상'];
 
 
 export default function GuidePage() {
   const [mounted, setMounted] = useState(false);
-  const [tab, setTab] = useState<Tab>('chat');
   const [overview, setOverview] = useState<GuideOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -83,32 +74,10 @@ export default function GuidePage() {
           </div>
         )}
 
-        <nav className={styles.tabBar} role="tablist">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              role="tab"
-              aria-selected={tab === t.key}
-              className={`${styles.tabBtn} ${tab === t.key ? styles.tabBtnActive : ''}`}
-              onClick={() => setTab(t.key)}
-            >
-              <span className={styles.tabIcon}>{t.icon}</span>
-              {t.label}
-            </button>
-          ))}
-        </nav>
-
         <section className={styles.body}>
-          {tab === 'chat' && <GuideChatTab overview={overview} />}
-          {tab === 'calc' && <CalcTab />}
-          {tab === 'forms' && <FormsTab />}
+          <GuideChatTab overview={overview} />
         </section>
 
-        <footer className={styles.footer}>
-          💡 이 가이드는 자율점검에 도움이 되는 정보만 제공합니다. 분쟁·신고·구제 신청 안내는
-          포함되지 않으며, 그런 절차가 필요하면 노무사 또는 변호사에게 문의하세요.
-        </footer>
       </div>
     </main>
   );
@@ -144,9 +113,11 @@ interface ChatMsg {
   content: string;
   sources?: string[];
   followUps?: string[];
+  relatedForms?: RelatedFormHint[];
+  clarify?: string | null;
 }
 
-type ChatMode = 'chat' | 'duties' | 'glossary' | 'orgs' | 'docs';
+type ChatMode = 'chat' | 'duties' | 'stages' | 'glossary' | 'orgs' | 'docs';
 const CHAT_CATALOG_TABS: Array<{
   key: Exclude<ChatMode, 'chat'>;
   label: string;
@@ -158,13 +129,509 @@ const CHAT_CATALOG_TABS: Array<{
   { key: 'docs', label: '비치 서류', icon: '📂' },
 ];
 
-function GuideChatTab({ overview }: { overview: GuideOverview | null }) {
+/** 챗봇 의도 — 시작 화면(home)에서 사용자가 선택. */
+type Intent = 'home' | 'form' | 'calc' | 'consult';
+
+function GuideChatTab({ overview: _overview }: { overview: GuideOverview | null }) {
   const [mode, setMode] = useState<ChatMode>('chat');
+  const [intent, setIntent] = useState<Intent>('home');
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
   const [pending, setPending] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+
+  // 서식 mode — 카테고리 + 양식 카드
+  const [forms, setForms] = useState<FormTemplate[]>([]);
+  const [formCategory, setFormCategory] = useState<string>('');
+
+  // 계산 mode — 단계별 질문·답변
+  type CalcKind = 'wage' | 'retire' | 'parental' | null;
+  type CalcLine = {
+    role: 'bot' | 'user';
+    content: React.ReactNode;
+    /** chip 으로 빠르게 답 선택 가능 시 옵션 라벨 */
+    options?: { label: string; value: string }[];
+  };
+  const [calcKind, setCalcKind] = useState<CalcKind>(null);
+  const [calcLines, setCalcLines] = useState<CalcLine[]>([]);
+  const [calcSlots, setCalcSlots] = useState<Record<string, string>>({});
+  const [calcInput, setCalcInput] = useState('');
+  const calcListRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (calcListRef.current) {
+      calcListRef.current.scrollTop = calcListRef.current.scrollHeight;
+    }
+  }, [calcLines]);
+
+  // ─── 계산 mode 헬퍼 함수 ─────────────────────────────
+  const fmt = (n: number) => `${n.toLocaleString('ko-KR')}원`;
+
+  /** 봇 질문 정의 (slot 키 + 질문 + 옵션 chip + 검증) */
+  const CALC_FLOWS: Record<
+    Exclude<CalcKind, null>,
+    {
+      title: string;
+      steps: {
+        slot: string;
+        question: React.ReactNode;
+        options?: { label: string; value: string }[];
+        validate?: (v: string) => string | null; // 에러 메시지 또는 null
+      }[];
+      computeResult: (slots: Record<string, string>) => React.ReactNode;
+    }
+  > = {
+    wage: {
+      title: '💰 통상임금 계산',
+      steps: [
+        {
+          slot: 'mode',
+          question: '입력 방식을 선택해 주세요.',
+          options: [
+            { label: '월급으로 입력', value: 'monthly' },
+            { label: '시급으로 입력', value: 'hourly' },
+          ],
+        },
+        {
+          slot: 'amount',
+          question: (
+            <>
+              금액을 입력해 주세요. (정기상여금 제외 한 단위 금액)
+              <br />
+              <span style={{ fontSize: 11, color: 'var(--color-text-subtle)' }}>
+                숫자만 입력 (예: 2500000)
+              </span>
+            </>
+          ),
+          validate: (v) =>
+            /^[0-9,]+$/.test(v) && parseInt(v.replace(/,/g, ''), 10) > 0
+              ? null
+              : '숫자만 입력해 주세요',
+        },
+        {
+          slot: 'dailyHours',
+          question: '1일 소정근로시간은? (기본 8시간)',
+          options: [
+            { label: '8시간 (풀타임)', value: '8' },
+            { label: '6시간', value: '6' },
+            { label: '4시간', value: '4' },
+          ],
+          validate: (v) =>
+            /^\d+(\.\d+)?$/.test(v) && parseFloat(v) > 0 && parseFloat(v) <= 24
+              ? null
+              : '0~24 범위 숫자',
+        },
+        {
+          slot: 'weeklyHours',
+          question: '1주 소정근로시간은? (기본 40시간)',
+          options: [
+            { label: '40시간 (풀타임)', value: '40' },
+            { label: '30시간', value: '30' },
+            { label: '20시간', value: '20' },
+            { label: '15시간', value: '15' },
+          ],
+          validate: (v) =>
+            /^\d+(\.\d+)?$/.test(v) && parseFloat(v) > 0 && parseFloat(v) <= 52
+              ? null
+              : '0~52 범위 숫자',
+        },
+        {
+          slot: 'bonus',
+          question: (
+            <>
+              정기상여금이 있다면 <strong>연간 총액</strong>을 입력해 주세요. 없으면 0.
+            </>
+          ),
+          options: [{ label: '없음 (0원)', value: '0' }],
+          validate: (v) =>
+            /^[0-9,]+$/.test(v) && parseInt(v.replace(/,/g, ''), 10) >= 0
+              ? null
+              : '숫자만 입력',
+        },
+      ],
+      computeResult: (s) => {
+        const mode = s.mode;
+        const amt = parseInt((s.amount || '0').replace(/,/g, ''), 10);
+        const dH = parseFloat(s.dailyHours) || 8;
+        const wH = parseFloat(s.weeklyHours) || 40;
+        const bonus = parseInt((s.bonus || '0').replace(/,/g, ''), 10);
+        // 통상 월급 = (입력 월급) + 연간 상여금/12, 또는 시급일 때 시급 × 209h + 보너스
+        const monthlyOrdinary =
+          (mode === 'hourly' ? amt * HOURS_PER_MONTH : amt) + bonus / 12;
+        const hourly = Math.round(monthlyOrdinary / HOURS_PER_MONTH);
+        const isBelowMin = hourly > 0 && hourly < MIN_HOURLY_2026;
+        const overtime = Math.round(hourly * 1.5);
+        const night = Math.round(hourly * 0.5);
+        const holidayWithin = Math.round(hourly * 1.5);
+        const holidayOver = Math.round(hourly * 2);
+        const weeklyEligible = wH >= 15;
+        const weeklyDaily = Math.min(8, wH / 5);
+        const weekly = weeklyEligible ? Math.round(hourly * weeklyDaily) : 0;
+        const annual = Math.round(hourly * dH);
+        const severance = Math.round(hourly * dH * 30);
+        const dailyWage = Math.round(hourly * dH);
+        return (
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 8 }}>
+              ✅ 계산 결과
+            </div>
+            <div className={styles.calcResultRow}>
+              <span>월 통상임금</span>
+              <strong>{fmt(Math.round(monthlyOrdinary))}</strong>
+            </div>
+            <div className={styles.calcResultRow}>
+              <span>통상시급 (÷209h)</span>
+              <strong>{fmt(hourly)}</strong>
+            </div>
+            {isBelowMin && (
+              <div className={styles.calcWarnInline}>
+                ⚠️ 2026 최저시급 {MIN_HOURLY_2026.toLocaleString()}원 미달 — 차액{' '}
+                {fmt(MIN_HOURLY_2026 - hourly)}/시간
+              </div>
+            )}
+            <hr className={styles.calcResultDivider} />
+            <div className={styles.calcResultRow}>
+              <span>연장근로 (시간당)</span>
+              <strong>{fmt(overtime)}</strong>
+            </div>
+            <div className={styles.calcResultRow}>
+              <span>야간 가산 (시간당)</span>
+              <strong>{fmt(night)}</strong>
+            </div>
+            <div className={styles.calcResultRow}>
+              <span>휴일 8h 이내 (시간당)</span>
+              <strong>{fmt(holidayWithin)}</strong>
+            </div>
+            <div className={styles.calcResultRow}>
+              <span>휴일 8h 초과 (시간당)</span>
+              <strong>{fmt(holidayOver)}</strong>
+            </div>
+            <div className={styles.calcResultRow}>
+              <span>주휴수당 ({weeklyEligible ? `${weeklyDaily}h 기준` : '발생 없음'})</span>
+              <strong>{weeklyEligible ? fmt(weekly) : '—'}</strong>
+            </div>
+            <div className={styles.calcResultRow}>
+              <span>연차수당 ({dH}h 기준)</span>
+              <strong>{fmt(annual)}</strong>
+            </div>
+            <div className={styles.calcResultRow}>
+              <span>해고예고수당 (30일분)</span>
+              <strong>{fmt(severance)}</strong>
+            </div>
+            <div className={styles.calcResultNote}>
+              일 통상임금 {fmt(dailyWage)} 기준 · 정밀 계산은 위 🧮 계산기 탭에서 항목별 산입
+              토글 가능
+            </div>
+          </div>
+        );
+      },
+    },
+    retire: {
+      title: '📆 퇴직금 계산',
+      steps: [
+        {
+          slot: 'hireDate',
+          question: '입사일을 입력해 주세요. (예: 2020-03-01)',
+          validate: (v) =>
+            /^\d{4}-\d{2}-\d{2}$/.test(v) ? null : 'YYYY-MM-DD 형식',
+        },
+        {
+          slot: 'leaveDate',
+          question: '퇴사일을 입력해 주세요. (예: 2026-05-31)',
+          validate: (v) =>
+            /^\d{4}-\d{2}-\d{2}$/.test(v) ? null : 'YYYY-MM-DD 형식',
+        },
+        {
+          slot: 'm1',
+          question: '직전 3개월 임금 — 최근 -1개월 월 임금은? (숫자만)',
+          validate: (v) =>
+            /^[0-9,]+$/.test(v) && parseInt(v.replace(/,/g, ''), 10) > 0
+              ? null
+              : '숫자만 입력',
+        },
+        {
+          slot: 'm2',
+          question: '최근 -2개월 월 임금은? (숫자만)',
+          validate: (v) =>
+            /^[0-9,]+$/.test(v) && parseInt(v.replace(/,/g, ''), 10) > 0
+              ? null
+              : '숫자만 입력',
+        },
+        {
+          slot: 'm3',
+          question: '최근 -3개월 월 임금은? (숫자만)',
+          validate: (v) =>
+            /^[0-9,]+$/.test(v) && parseInt(v.replace(/,/g, ''), 10) > 0
+              ? null
+              : '숫자만 입력',
+        },
+        {
+          slot: 'annualBonus',
+          question: '연간 상여금이 있나요? 있으면 연 총액, 없으면 0',
+          options: [{ label: '없음 (0원)', value: '0' }],
+          validate: (v) =>
+            /^[0-9,]+$/.test(v) && parseInt(v.replace(/,/g, ''), 10) >= 0
+              ? null
+              : '숫자만 입력',
+        },
+        {
+          slot: 'annualLeavePay',
+          question: '연간 미사용 연차수당이 있나요? 있으면 연 총액, 없으면 0',
+          options: [{ label: '없음 (0원)', value: '0' }],
+          validate: (v) =>
+            /^[0-9,]+$/.test(v) && parseInt(v.replace(/,/g, ''), 10) >= 0
+              ? null
+              : '숫자만 입력',
+        },
+      ],
+      computeResult: (s) => {
+        const start = new Date(s.hireDate);
+        const end = new Date(s.leaveDate);
+        const totalDays = Math.floor((end.getTime() - start.getTime()) / 86400000);
+        const years = totalDays / 365;
+        if (totalDays < 365) {
+          return (
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 8 }}>
+                ⚠️ 퇴직금 미발생
+              </div>
+              <p style={{ fontSize: 13, lineHeight: 1.6 }}>
+                계속근로 <strong>{totalDays}일 ({years.toFixed(2)}년)</strong> — 1년 미만은
+                퇴직금 지급 의무 없음 (근로자퇴직급여보장법 제4조).
+              </p>
+            </div>
+          );
+        }
+        const w1 = parseInt((s.m1 || '0').replace(/,/g, ''), 10);
+        const w2 = parseInt((s.m2 || '0').replace(/,/g, ''), 10);
+        const w3 = parseInt((s.m3 || '0').replace(/,/g, ''), 10);
+        const bonus = parseInt((s.annualBonus || '0').replace(/,/g, ''), 10);
+        const leave = parseInt((s.annualLeavePay || '0').replace(/,/g, ''), 10);
+        const sum3 = w1 + w2 + w3;
+        const days3 = 92;
+        const avgDaily = (sum3 + (bonus * 3) / 12 + (leave * 3) / 12) / days3;
+        const severance = Math.round(avgDaily * 30 * (totalDays / 365));
+        return (
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 8 }}>
+              ✅ 계산 결과
+            </div>
+            <div className={styles.calcResultRow}>
+              <span>계속근로</span>
+              <strong>
+                {totalDays}일 ({years.toFixed(2)}년)
+              </strong>
+            </div>
+            <div className={styles.calcResultRow}>
+              <span>평균임금 (1일)</span>
+              <strong>{fmt(Math.round(avgDaily))}</strong>
+            </div>
+            <hr className={styles.calcResultDivider} />
+            <div className={styles.calcResultRow}>
+              <span style={{ fontSize: 14, fontWeight: 700 }}>예상 퇴직금</span>
+              <strong style={{ fontSize: 18, color: 'var(--color-brand)' }}>
+                {fmt(severance)}
+              </strong>
+            </div>
+            <div className={styles.calcResultNote}>
+              평균임금 × 30 × (계속근로일수 ÷ 365) · 근로자퇴직급여보장법 제8조
+            </div>
+          </div>
+        );
+      },
+    },
+    parental: {
+      title: '👶 출산·육아 급여 계산',
+      steps: [
+        {
+          slot: 'monthlyOrdinary',
+          question: (
+            <>
+              <strong>월 통상임금</strong>을 입력해 주세요. (정기상여금 포함, 월 209h 기준)
+              <br />
+              <span style={{ fontSize: 11, color: 'var(--color-text-subtle)' }}>
+                예: 2,500,000
+              </span>
+            </>
+          ),
+          validate: (v) =>
+            /^[0-9,]+$/.test(v) && parseInt(v.replace(/,/g, ''), 10) > 0
+              ? null
+              : '숫자만 입력',
+        },
+        {
+          slot: 'reducedHours',
+          question: (
+            <>
+              <strong>육아기 단축 시간</strong> (주당)도 함께 계산할까요? 없으면 0.
+            </>
+          ),
+          options: [
+            { label: '필요 없음 (0)', value: '0' },
+            { label: '주 5시간', value: '5' },
+            { label: '주 10시간', value: '10' },
+          ],
+          validate: (v) =>
+            /^\d+(\.\d+)?$/.test(v) && parseFloat(v) >= 0 && parseFloat(v) <= 40
+              ? null
+              : '0~40 범위',
+        },
+      ],
+      computeResult: (s) => {
+        const monthly = parseInt((s.monthlyOrdinary || '0').replace(/,/g, ''), 10);
+        const hourly = Math.round(monthly / HOURS_PER_MONTH);
+        const daily = Math.round((monthly / 209) * 8); // 8h 기준 일 통상임금
+        const reducedH = parseFloat(s.reducedHours) || 0;
+        const wH = 40;
+        // 출산전후휴가
+        const maternityDay = Math.min(daily, 70000);
+        const maternity90 = maternityDay * 90;
+        // 배우자
+        const spouseDay = Math.min(daily, 100000);
+        const spouse20 = spouseDay * 20;
+        // 육아휴직 12개월 (구간별 상한)
+        const cap = (n: number, ceil: number) => Math.min(n, ceil);
+        const floor = (n: number) => Math.max(n, 700000);
+        const p1 = floor(cap(monthly, 2500000));
+        const p2 = floor(cap(monthly, 2000000));
+        const p3 = floor(cap(Math.round(monthly * 0.8), 1600000));
+        const total12 = p1 * 3 + p2 * 3 + p3 * 6;
+        // 단축
+        const h100 = Math.min(10, reducedH);
+        const h80 = Math.max(0, reducedH - 10);
+        const reduced100 = cap(Math.round((monthly * h100) / wH), 2200000);
+        const reduced80 = cap(Math.round((monthly * h80 * 0.8) / wH), 1500000);
+        const reducedMonthly = reduced100 + reduced80;
+        return (
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 8 }}>
+              ✅ 계산 결과 (2025.1 개정 기준)
+            </div>
+            <div className={styles.calcResultRow}>
+              <span>통상시급</span>
+              <strong>{fmt(hourly)}</strong>
+            </div>
+            <hr className={styles.calcResultDivider} />
+            <div className={styles.calcResultRow}>
+              <span>🤰 출산전후휴가 (90일)</span>
+              <strong>{fmt(maternity90)}</strong>
+            </div>
+            <div className={styles.calcResultRow}>
+              <span>🤝 배우자 출산휴가 (20일)</span>
+              <strong>{fmt(spouse20)}</strong>
+            </div>
+            <hr className={styles.calcResultDivider} />
+            <div className={styles.calcResultRow}>
+              <span>👶 육아휴직 1~3개월 (월)</span>
+              <strong>{fmt(p1)}</strong>
+            </div>
+            <div className={styles.calcResultRow}>
+              <span>👶 육아휴직 4~6개월 (월)</span>
+              <strong>{fmt(p2)}</strong>
+            </div>
+            <div className={styles.calcResultRow}>
+              <span>👶 육아휴직 7~12개월 (월)</span>
+              <strong>{fmt(p3)}</strong>
+            </div>
+            <div className={styles.calcResultRow}>
+              <span style={{ fontWeight: 700 }}>12개월 총액</span>
+              <strong style={{ color: 'var(--color-brand)' }}>{fmt(total12)}</strong>
+            </div>
+            {reducedH > 0 && (
+              <>
+                <hr className={styles.calcResultDivider} />
+                <div className={styles.calcResultRow}>
+                  <span>🕐 육아기 단축급여 ({reducedH}h/주, 월)</span>
+                  <strong>{fmt(reducedMonthly)}</strong>
+                </div>
+              </>
+            )}
+            <div className={styles.calcResultNote}>
+              상한·하한은 2025.1 개정 기준 — 정확한 금액은 고용보험 홈페이지 확인.
+            </div>
+          </div>
+        );
+      },
+    },
+  };
+
+  const startCalc = (kind: Exclude<CalcKind, null>) => {
+    setCalcKind(kind);
+    setCalcSlots({});
+    setCalcInput('');
+    const flow = CALC_FLOWS[kind];
+    setCalcLines([
+      {
+        role: 'bot',
+        content: (
+          <>
+            <strong>{flow.title}</strong>을 시작합니다. 단계별로 답해주시면 자동으로 계산해
+            드릴게요.
+          </>
+        ),
+      },
+      {
+        role: 'bot',
+        content: flow.steps[0].question,
+        options: flow.steps[0].options,
+      },
+    ]);
+  };
+
+  const submitCalcAnswer = (value: string, displayLabel: string) => {
+    if (!calcKind) return;
+    const flow = CALC_FLOWS[calcKind];
+    const stepIdx = Object.keys(calcSlots).filter((k) => !k.startsWith('_')).length;
+    const step = flow.steps[stepIdx];
+    if (!step) return;
+    // 검증
+    if (step.validate) {
+      const err = step.validate(value);
+      if (err) {
+        setCalcLines((prev) => [
+          ...prev,
+          { role: 'user', content: displayLabel },
+          { role: 'bot', content: `⚠️ ${err} — 다시 입력해 주세요.` },
+          { role: 'bot', content: step.question, options: step.options },
+        ]);
+        setCalcInput('');
+        return;
+      }
+    }
+    const newSlots = { ...calcSlots, [step.slot]: value };
+    setCalcSlots(newSlots);
+    setCalcInput('');
+    // 다음 단계 또는 결과
+    const nextIdx = stepIdx + 1;
+    if (nextIdx >= flow.steps.length) {
+      // 완료 — 결과 계산
+      setCalcLines((prev) => [
+        ...prev,
+        { role: 'user', content: displayLabel },
+        { role: 'bot', content: flow.computeResult(newSlots) },
+      ]);
+      setCalcSlots({ ...newSlots, _done: '1' });
+    } else {
+      const nextStep = flow.steps[nextIdx];
+      setCalcLines((prev) => [
+        ...prev,
+        { role: 'user', content: displayLabel },
+        { role: 'bot', content: nextStep.question, options: nextStep.options },
+      ]);
+    }
+  };
+
+  useEffect(() => {
+    if (intent === 'form' && forms.length === 0) {
+      getForms()
+        .then((r) => {
+          // 우리 서버에서 직접 다운로드 가능한 양식만 노출
+          setForms(r.items.filter((it) => it.has_local));
+        })
+        .catch(() => setForms([]));
+    }
+  }, [intent, forms.length]);
 
   useEffect(() => {
     if (listRef.current) {
@@ -193,6 +660,8 @@ function GuideChatTab({ overview }: { overview: GuideOverview | null }) {
           content: out.answer,
           sources: out.matched_sources,
           followUps: out.follow_ups,
+          relatedForms: out.related_forms,
+          clarify: out.clarify,
         },
       ]);
     } catch (e) {
@@ -209,83 +678,365 @@ function GuideChatTab({ overview }: { overview: GuideOverview | null }) {
 
   // 카탈로그 모드 — KPI pill 클릭 시 챗봇 숨기고 정리된 카탈로그 표시
   if (mode !== 'chat') {
+    // 문서형 4탭 통합 레이아웃 (zip 명세 A안)
     return (
-      <div className={styles.chatTabWrap}>
-        <div className={styles.subTabBar}>
+      <GuideDocLayout
+        activeMode={mode}
+        onChangeMode={setMode}
+        onBack={() => setMode('chat')}
+        onAskChatbot={(q) => {
+          setMode('chat');
+          setIntent('consult');
+          void send(q);
+        }}
+      />
+    );
+  }
+
+  // ─── 시작 화면 (intent === 'home') — A안 미니멀 랜딩 ──────────────
+  if (intent === 'home') {
+    const LANDING_PICKS = [
+      '5인 이상 사업장이 챙겨야 할 의무가 뭐예요?',
+      '주휴수당은 언제 발생하나요?',
+      '근로계약서에 꼭 들어가야 할 항목은?',
+      '통상임금과 평균임금 차이가 뭐예요?',
+      '4대보험 가입 신고는 어디서 하나요?',
+      '최저임금 미달 시 처벌은?',
+    ];
+    return (
+      <div className={styles.chatLanding}>
+        {/* 브랜드 아이콘 */}
+        <div className={styles.chatLandingIcon} aria-hidden>
+          <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.9-.9L3 21l1.9-5.6A8.5 8.5 0 0 1 4 11.5 8.38 8.38 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" />
+          </svg>
+        </div>
+
+        {/* 제목 + 부제 */}
+        <h1 className={styles.chatLandingTitle}>무엇이든 물어보세요, 사장님</h1>
+        <p className={styles.chatLandingSubtitle}>
+          노무·임금·4대보험까지, 영세사업장에 필요한 답을 정리해 드려요.
+        </p>
+
+        {/* 입력창 */}
+        <form
+          className={styles.chatLandingInputBox}
+          onSubmit={(e) => {
+            e.preventDefault();
+            const text = input.trim();
+            if (!text) return;
+            setIntent('consult');
+            void send(text);
+          }}
+        >
+          <span className={styles.chatLandingInputIcon} aria-hidden>
+            <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4-4" />
+            </svg>
+          </span>
+          <input
+            type="text"
+            className={styles.chatLandingInput}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="궁금한 노무 질문을 입력하세요"
+            autoFocus
+          />
           <button
-            type="button"
-            className={`${styles.subTabBtn} ${styles.subTabBtnBack}`}
-            onClick={() => setMode('chat')}
+            type="submit"
+            className={`${styles.chatLandingSubmit} ${input.trim() ? styles.chatLandingSubmitActive : ''}`}
+            disabled={!input.trim()}
           >
-            ← 챗봇으로
+            질문
+            <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+            </svg>
           </button>
-          {CHAT_CATALOG_TABS.map((t) => (
+        </form>
+
+        {/* 추천 질문 칩 (6개) */}
+        <div className={styles.chatLandingPickList}>
+          {LANDING_PICKS.map((q) => (
             <button
-              key={t.key}
+              key={q}
               type="button"
-              className={`${styles.subTabBtn} ${mode === t.key ? styles.subTabBtnActive : ''}`}
-              onClick={() => setMode(t.key)}
+              className={styles.chatLandingPick}
+              onClick={() => {
+                setIntent('consult');
+                void send(q);
+              }}
             >
-              <span>{t.icon}</span>
-              {t.label}
+              {q}
+              <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
             </button>
           ))}
         </div>
-        {mode === 'duties' && <DutiesTab />}
-        {mode === 'glossary' && <GlossaryTab />}
-        {mode === 'orgs' && <OrgsTab />}
-        {mode === 'docs' && <DocsTab />}
+
+        {/* 빠른 메뉴 (서식·계산·카탈로그) — 미니멀 하단 footer */}
+        <div className={styles.chatLandingFooter}>
+          <button type="button" className={styles.chatLandingFooterBtn} onClick={() => { setFormCategory(''); setIntent('form'); }}>📄 서식 받기</button>
+          <button type="button" className={styles.chatLandingFooterBtn} onClick={() => setIntent('calc')}>🧮 계산 도움</button>
+          <span className={styles.chatLandingFooterDot}>·</span>
+          <button type="button" className={styles.chatLandingFooterLink} onClick={() => setMode('duties')}>의무</button>
+          <button type="button" className={styles.chatLandingFooterLink} onClick={() => setMode('stages')}>단계별 의무</button>
+          <button type="button" className={styles.chatLandingFooterLink} onClick={() => setMode('glossary')}>용어</button>
+          <button type="button" className={styles.chatLandingFooterLink} onClick={() => setMode('orgs')}>기관</button>
+          <button type="button" className={styles.chatLandingFooterLink} onClick={() => setMode('docs')}>비치 서류</button>
+        </div>
       </div>
     );
   }
 
+  // ─── 서식 mode (intent === 'form') ────────────────────────────────
+  if (intent === 'form') {
+    const byCategory: Record<string, FormTemplate[]> = {};
+    for (const f of forms) {
+      (byCategory[f.category] ||= []).push(f);
+    }
+    const categories = Object.keys(byCategory);
+    const currentList = formCategory ? byCategory[formCategory] ?? [] : [];
+    return (
+      <div className={styles.chatTabWrap}>
+        <div className={styles.intentHeader}>
+          <button
+            type="button"
+            className={styles.intentBackBtn}
+            onClick={() => setIntent('home')}
+          >
+            ← 처음으로
+          </button>
+          <h3 className={styles.intentHeaderTitle}>📄 어떤 서식이 필요하세요?</h3>
+        </div>
+        {forms.length === 0 ? (
+          <div className={styles.placeholder}>양식 목록을 불러오는 중…</div>
+        ) : (
+          <>
+            <div className={styles.intentChipRow}>
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  className={`${styles.subTabBtn} ${formCategory === cat ? styles.subTabBtnActive : ''}`}
+                  onClick={() => setFormCategory(cat)}
+                >
+                  {cat}
+                  <span className={styles.subTabCount}>{byCategory[cat].length}</span>
+                </button>
+              ))}
+            </div>
+            {formCategory && currentList.length > 0 && (
+              <ul className={styles.itemList} style={{ marginTop: 14 }}>
+                {currentList.map((f) => (
+                  <li key={f.code} className={styles.itemCard}>
+                    <div className={styles.itemTitle}>{f.form_name}</div>
+                    <p className={styles.itemDesc}>{f.purpose}</p>
+                    <div className={styles.itemMeta}>
+                      <span><strong>제출처:</strong> {f.submit_to}</span>
+                      <span><strong>기한:</strong> {f.deadline}</span>
+                    </div>
+                    <a
+                      href={formDownloadUrl(f.code)}
+                      className={styles.linkBtn}
+                      title={`${f.local_filename}${f.local_size ? ` (${Math.round(f.local_size / 1024)} KB)` : ''}`}
+                    >
+                      📥 양식 다운로드 (
+                      {f.local_filename?.split('.').pop()?.toUpperCase() || '파일'})
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {!formCategory && (
+              <p className={styles.placeholder}>
+                위 카테고리를 선택하시면 해당 양식들을 바로 받을 수 있어요.
+              </p>
+            )}
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // ─── 계산 mode (intent === 'calc') ────────────────────────────────
+  if (intent === 'calc') {
+    return (
+      <div className={styles.chatTabWrap}>
+        <div className={styles.intentHeader}>
+          <button
+            type="button"
+            className={styles.intentBackBtn}
+            onClick={() => {
+              setIntent('home');
+              setCalcKind(null);
+              setCalcLines([]);
+              setCalcSlots({});
+              setCalcInput('');
+            }}
+          >
+            ← 처음으로
+          </button>
+          <h3 className={styles.intentHeaderTitle}>🧮 어떤 계산이 필요하세요?</h3>
+        </div>
+
+        {/* 종류 선택 */}
+        {!calcKind && (
+          <div className={styles.intentMenu}>
+            <button
+              type="button"
+              className={styles.intentMenuBtn}
+              onClick={() => startCalc('wage')}
+            >
+              <span className={styles.intentMenuEmoji}>💰</span>
+              <span className={styles.intentMenuLabel}>통상임금</span>
+              <span className={styles.intentMenuDesc}>
+                통상시급 + 연장·야간·휴일·주휴·연차·해고예고 수당 한 번에
+              </span>
+            </button>
+            <button
+              type="button"
+              className={styles.intentMenuBtn}
+              onClick={() => startCalc('retire')}
+            >
+              <span className={styles.intentMenuEmoji}>📆</span>
+              <span className={styles.intentMenuLabel}>퇴직금</span>
+              <span className={styles.intentMenuDesc}>
+                평균임금 × 30 × 근속연수 (입사일·퇴사일·3개월 임금)
+              </span>
+            </button>
+            <button
+              type="button"
+              className={styles.intentMenuBtn}
+              onClick={() => startCalc('parental')}
+            >
+              <span className={styles.intentMenuEmoji}>👶</span>
+              <span className={styles.intentMenuLabel}>출산·육아 급여</span>
+              <span className={styles.intentMenuDesc}>
+                출산전후휴가·배우자 출산휴가·육아휴직·근로시간 단축
+              </span>
+            </button>
+          </div>
+        )}
+
+        {/* 단계별 질문·답변 */}
+        {calcKind && (
+          <>
+            <div className={styles.calcChatList} ref={calcListRef}>
+              {calcLines.map((ln, i) => (
+                <div
+                  key={i}
+                  className={`${styles.chatMsg} ${styles[`chatMsg_${ln.role === 'bot' ? 'assistant' : 'user'}`]}`}
+                >
+                  <div className={styles.chatBubble}>{ln.content}</div>
+                </div>
+              ))}
+              {/* 마지막 봇 메시지 옵션 chip */}
+              {(() => {
+                const last = calcLines[calcLines.length - 1];
+                if (!last || last.role !== 'bot' || !last.options) return null;
+                return (
+                  <div className={styles.calcOptionRow}>
+                    {last.options.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        className={styles.chatFollowUpChip}
+                        onClick={() => submitCalcAnswer(opt.value, opt.label)}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+            {/* 자유 입력 (chip 없거나 추가 입력 가능) */}
+            {(() => {
+              const last = calcLines[calcLines.length - 1];
+              const isAwaitingInput = last && last.role === 'bot' && !calcSlots._done;
+              if (!isAwaitingInput) return null;
+              return (
+                <form
+                  className={styles.chatInputRow}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!calcInput.trim()) return;
+                    submitCalcAnswer(calcInput.trim(), calcInput.trim());
+                  }}
+                >
+                  <input
+                    type="text"
+                    className={styles.chatInput}
+                    value={calcInput}
+                    onChange={(e) => setCalcInput(e.target.value)}
+                    placeholder="답변을 입력하세요"
+                    autoFocus
+                  />
+                  <button
+                    type="submit"
+                    className={styles.chatSend}
+                    disabled={!calcInput.trim()}
+                  >
+                    답변
+                  </button>
+                </form>
+              );
+            })()}
+            {/* 완료 후 다시 계산 / 종류 변경 */}
+            {calcSlots._done && (
+              <div className={styles.calcDoneActions}>
+                <button
+                  type="button"
+                  className={styles.intentBackBtn}
+                  onClick={() => startCalc(calcKind)}
+                >
+                  🔁 다시 계산
+                </button>
+                <button
+                  type="button"
+                  className={styles.intentBackBtn}
+                  onClick={() => {
+                    setCalcKind(null);
+                    setCalcLines([]);
+                    setCalcSlots({});
+                  }}
+                >
+                  📋 다른 계산
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // ─── 상담 mode (intent === 'consult') ─────────────────────────────
   return (
     <div className={styles.chatTabWrap}>
-      {/* 추천 질문 — 빈 대화 또는 항상 표시 */}
+      <div className={styles.intentHeader}>
+        <button
+          type="button"
+          className={styles.intentBackBtn}
+          onClick={() => {
+            setIntent('home');
+            setMessages([]);
+          }}
+        >
+          ← 처음으로
+        </button>
+        <h3 className={styles.intentHeaderTitle}>💬 무엇이 궁금하세요?</h3>
+      </div>
+
+      {/* 추천 질문 — 빈 대화일 때만 */}
       {messages.length === 0 && (
         <div className={styles.chatIntro}>
-          <h3 className={styles.chatIntroTitle}>무엇이 궁금하세요?</h3>
           <p className={styles.chatIntroSubtitle}>
             사장님들이 많이 묻는 질문이에요. 클릭 한 번이면 답을 받아볼 수 있어요. 직접
             물어보셔도 됩니다.
           </p>
-          <p className={styles.chatIntroSubtitle}>
-            정리된 자료를 직접 보고 싶다면 아래 카탈로그 카드를 누르세요.
-          </p>
-          <div className={styles.chatKpiRow}>
-            <button
-              type="button"
-              className={styles.chatKpiPillBtn}
-              onClick={() => setMode('duties')}
-              title="시기·규모별 의무 목록 보기"
-            >
-              📋 의무
-            </button>
-            <button
-              type="button"
-              className={styles.chatKpiPillBtn}
-              onClick={() => setMode('glossary')}
-              title="노무 용어 사전 보기"
-            >
-              📖 용어
-            </button>
-            <button
-              type="button"
-              className={styles.chatKpiPillBtn}
-              onClick={() => setMode('orgs')}
-              title="관할 기관 안내 보기"
-            >
-              🏛 기관
-            </button>
-            <button
-              type="button"
-              className={styles.chatKpiPillBtn}
-              onClick={() => setMode('docs')}
-              title="법령상 비치·보존 서류 보기"
-            >
-              📂 비치 서류
-            </button>
-          </div>
           <div className={styles.chatQuickGrid}>
             {QUICK_QUESTIONS.map((qq) => (
               <button
@@ -317,19 +1068,57 @@ function GuideChatTab({ overview }: { overview: GuideOverview | null }) {
             return (
               <div key={i}>
                 <div className={`${styles.chatMsg} ${styles[`chatMsg_${m.role}`]}`}>
-                  <div className={styles.chatBubble}>
-                    {m.role === 'assistant' ? renderBold(m.content) : m.content}
-                    {m.sources && m.sources.length > 0 && (
-                      <div className={styles.chatSources}>
-                        <span className={styles.chatSourcesLabel}>참고 자료</span>
-                        {m.sources.map((s) => (
-                          <span key={s} className={styles.chatSourceChip}>
-                            {s}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  {m.role === 'assistant' ? (
+                    <div className={styles.chatAssistantWrap}>
+                      {/* ChatAssistantBubble: "관련 법령: ..." 줄을 자동으로 LawChip 으로 분리
+                          (국가법령정보센터 새 탭 링크). 본문은 markdown **bold** 자동 강조. */}
+                      <ChatAssistantBubble content={m.content} />
+                      {m.sources && m.sources.length > 0 && (
+                        <div className={styles.chatSources}>
+                          <span className={styles.chatSourcesLabel}>참고 자료</span>
+                          {m.sources.map((s) => (
+                            <span key={s} className={styles.chatSourceChip}>
+                              {s}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {m.relatedForms && m.relatedForms.length > 0 && (
+                        <div className={styles.chatFormsBox}>
+                          <div className={styles.chatFormsHeader}>
+                            <span className={styles.chatFormsIcon}>📥</span>
+                            <span className={styles.chatFormsTitle}>관련 서식</span>
+                          </div>
+                          {m.clarify && (
+                            <div className={styles.chatFormsClarify}>
+                              {m.clarify}
+                            </div>
+                          )}
+                          <div className={styles.chatFormsList}>
+                            {m.relatedForms.map((f) => (
+                              <a
+                                key={f.code}
+                                href={formDownloadUrl(f.code)}
+                                className={styles.chatFormChip}
+                                download
+                                title={f.purpose || f.form_name}
+                              >
+                                <span className={styles.chatFormChipName}>
+                                  {f.form_name}
+                                </span>
+                                <span className={styles.chatFormChipMeta}>
+                                  {f.category}
+                                  {f.has_local ? ' · 다운' : ' · 외부'}
+                                </span>
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className={styles.chatBubble}>{m.content}</div>
+                  )}
                 </div>
                 {showFollowUps && (
                   <div className={styles.chatFollowUpsRow}>
@@ -394,6 +1183,598 @@ function GuideChatTab({ overview }: { overview: GuideOverview | null }) {
       <div className={styles.chatDisclaimer}>
         ⚠️ AI 답변은 일반 참고용입니다. 정확한 법령 적용은 공인노무사 상담을 권장합니다.
       </div>
+    </div>
+  );
+}
+
+
+/* ════════════════════════════════════════════════════════════════
+ * GuideDocLayout — 문서형 4탭 통합 (zip 명세 A안)
+ *
+ * 좌측 스티키 목차 + 우측 상세 패널. 의무 탭은 규모 셀렉터로 적용/미적용 구분.
+ * 데이터는 우리 DB:
+ *   의무 → size_threshold_duty (getDutiesBySize('50인 이상') 한 번에 32개)
+ *   용어 → guide_glossary
+ *   기관 → gov_org
+ *   비치서류 → required_document
+ * 액션 "관련 서식 받기": FORM_TITLE_TO_CODE 매칭 → 직접 다운로드 / 없으면 챗봇 폴백
+ * ════════════════════════════════════════════════════════════════ */
+
+type DocTabKey = '의무' | '단계' | '용어' | '기관' | '비치서류';
+const DOC_TABS: { key: DocTabKey; label: string }[] = [
+  { key: '의무', label: '의무사항' },
+  { key: '단계', label: '단계별 의무' },
+  { key: '용어', label: '용어' },
+  { key: '기관', label: '관련기관' },
+  { key: '비치서류', label: '비치 서류' },
+];
+const MODE_TO_DOCTAB: Record<Exclude<ChatMode, 'chat'>, DocTabKey> = {
+  duties: '의무',
+  stages: '단계',
+  glossary: '용어',
+  orgs: '기관',
+  docs: '비치서류',
+};
+const DOCTAB_TO_MODE: Record<DocTabKey, Exclude<ChatMode, 'chat'>> = {
+  의무: 'duties',
+  단계: 'stages',
+  용어: 'glossary',
+  기관: 'orgs',
+  비치서류: 'docs',
+};
+const DUTY_SIZES = [1, 5, 10, 30, 50] as const;
+
+/** 의무 제목 또는 비치서류 제목 → form_template 코드 (있으면 직접 다운로드) */
+const FORM_TITLE_TO_CODE: Record<string, string> = {
+  // 의무
+  '근로계약서 서면 작성·교부': 'FRM001',
+  '임금명세서 교부': 'FRM031',
+  '4대보험 가입': 'FRM006',
+  '취업규칙 작성·신고': 'FRM029',
+  // 비치서류
+  근로계약서: 'FRM001',
+  취업규칙: 'FRM029',
+  '연소근로자 관련 서류': 'FRM004',
+  '기간제·단시간 근로계약서': 'FRM002',
+  임금대장: 'FRM031',
+  '임금명세서(사본)': 'FRM031',
+};
+
+/** "1인 이상" → 1, "5인 이상" → 5 */
+function parseMinSize(s: string): number {
+  const m = s.match(/(\d+)/);
+  return m ? parseInt(m[1], 10) : 999;
+}
+
+interface DocItem {
+  // 공통
+  code?: string;
+  t: string; // 제목
+  d: string; // 본문
+  // 의무 (규모별)
+  from?: number;
+  law?: string;
+  doc?: string;
+  pen?: string;
+  // 용어
+  rel?: string;
+  // 기관
+  tag?: string;
+  tel?: string;
+  web?: string;
+  // 비치서류
+  keep?: string;
+  // 단계별 의무
+  stage?: string;
+  deadline?: string;
+  priority?: string;
+}
+
+function GuideDocLayout({
+  activeMode,
+  onChangeMode,
+  onBack,
+  onAskChatbot,
+}: {
+  activeMode: Exclude<ChatMode, 'chat'>;
+  onChangeMode: (m: Exclude<ChatMode, 'chat'>) => void;
+  onBack: () => void;
+  onAskChatbot: (q: string) => void;
+}) {
+  const activeTab = MODE_TO_DOCTAB[activeMode];
+  const [size, setSize] = useState<number>(5);
+  const [sel, setSel] = useState<number>(0);
+  const [duties, setDuties] = useState<DocItem[]>([]);
+  const [stages, setStages] = useState<DocItem[]>([]);
+  const [terms, setTerms] = useState<DocItem[]>([]);
+  const [orgs, setOrgs] = useState<DocItem[]>([]);
+  const [docs, setDocs] = useState<DocItem[]>([]);
+
+  useEffect(() => {
+    // 전체 32개 = 50인 이상 호출 시 SIZE_RANK 누적으로 다 포함됨
+    getDutiesBySize('50인 이상')
+      .then((r) =>
+        setDuties(
+          r.duties.map((x) => ({
+            code: x.code,
+            t: x.duty,
+            d: x.description || '',
+            from: parseMinSize(x.min_size),
+            law: x.legal_basis,
+            doc: x.related_docs,
+            pen: '',
+          })),
+        ),
+      )
+      .catch(() => setDuties([]));
+    getTimelineAll()
+      .then((r) =>
+        setStages(
+          r.items.map((x) => ({
+            code: x.code,
+            t: x.duty,
+            d: x.description || '',
+            stage: x.stage,
+            deadline: x.deadline || '',
+            priority: x.priority || '',
+            law: x.legal_basis,
+            pen: x.penalty || '',
+          })),
+        ),
+      )
+      .catch(() => setStages([]));
+    getGlossary()
+      .then((r) =>
+        setTerms(
+          r.items.map((g) => ({
+            code: g.code,
+            t: g.term,
+            d: g.full_def || g.short_def || '',
+            rel: g.confusable_with || '',
+          })),
+        ),
+      )
+      .catch(() => setTerms([]));
+    getOrgs()
+      .then((r) =>
+        setOrgs(
+          r.items.map((o) => ({
+            code: o.code,
+            tag: o.org_class,
+            t: o.org_name,
+            d: o.duties || '',
+            tel: o.phone || '',
+            web: o.online_channel || '',
+          })),
+        ),
+      )
+      .catch(() => setOrgs([]));
+    getRequiredDocs()
+      .then((r) =>
+        setDocs(
+          r.items.map((d) => ({
+            code: d.code,
+            tag: d.classification,
+            t: d.doc_name,
+            d: d.description || '',
+            keep: d.retention_period || '',
+            law: d.legal_basis,
+            pen: d.penalty || '',
+          })),
+        ),
+      )
+      .catch(() => setDocs([]));
+  }, []);
+
+  // 탭 전환 시 선택 초기화
+  useEffect(() => {
+    setSel(0);
+  }, [activeTab]);
+
+  const data: DocItem[] =
+    activeTab === '의무'
+      ? duties
+      : activeTab === '단계'
+        ? stages
+        : activeTab === '용어'
+          ? terms
+          : activeTab === '기관'
+            ? orgs
+            : docs;
+  const cur = data[sel];
+  const appliedCount = duties.filter((o) => (o.from ?? 1) <= size).length;
+
+  return (
+    <div className={styles.docLayout}>
+      <button
+        type="button"
+        className={styles.docBackBtn}
+        onClick={onBack}
+      >
+        ← 챗봇으로
+      </button>
+      <div className={styles.docEyebrow}>영세사업주를 위한 꿀팁</div>
+      <h1 className={styles.docTitle}>노무 가이드</h1>
+      <p className={styles.docSubtitle}>
+        자율점검에 필요한 의무·단계·용어·기관·서류를 한곳에서. 항목을 골라 자세히 살펴보세요.
+      </p>
+
+      {/* 탭 */}
+      <div className={styles.docTabBar}>
+        {DOC_TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            className={`${styles.docTabBtn} ${activeTab === t.key ? styles.docTabBtnActive : ''}`}
+            onClick={() => onChangeMode(DOCTAB_TO_MODE[t.key])}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* 의무 탭 — 규모 셀렉터 */}
+      {activeTab === '의무' && (
+        <div className={styles.docSizePicker}>
+          <div className={styles.docSizeLabel}>사업장 상시 근로자 수</div>
+          <div className={styles.docSizeBtnRow}>
+            {DUTY_SIZES.map((s) => (
+              <button
+                key={s}
+                type="button"
+                className={`${styles.docSizeBtn} ${size === s ? styles.docSizeBtnActive : ''}`}
+                onClick={() => setSize(s)}
+              >
+                {s}인 이상
+              </button>
+            ))}
+          </div>
+          <div className={styles.docSizeSummary}>
+            <strong>{size}인 이상</strong> 사업장에는 총{' '}
+            <strong>{appliedCount}개</strong>의 의무가 적용됩니다.
+          </div>
+        </div>
+      )}
+
+      {/* 2단 그리드: 좌 스티키 목차 + 우 상세 */}
+      <div className={styles.docGrid}>
+        {/* 좌측 목차 */}
+        <div className={styles.docTocSticky}>
+          {activeTab === '단계'
+            ? renderStageToc(data, sel, setSel)
+            : data.map((o, i) => {
+                const applies = activeTab !== '의무' || (o.from ?? 1) <= size;
+                const active = sel === i;
+                return (
+                  <button
+                    key={o.code || i}
+                    type="button"
+                    className={`${styles.docTocItem} ${active ? styles.docTocItemActive : ''} ${!applies ? styles.docTocItemMuted : ''}`}
+                    onClick={() => setSel(i)}
+                  >
+                    <span className={styles.docTocIcon}>
+                      {applies ? '●' : '🔒'}
+                    </span>
+                    <span className={styles.docTocText}>{o.t}</span>
+                    {activeTab === '의무' && !applies && (
+                      <span className={styles.docTocSizeBadge}>{o.from}인~</span>
+                    )}
+                  </button>
+                );
+              })}
+        </div>
+
+        {/* 우측 상세 */}
+        <div className={styles.docDetailCard}>
+          {!cur && <div className={styles.placeholder}>로딩…</div>}
+          {cur && activeTab === '의무' && (
+            <DocDetailDuty o={cur} size={size} onAsk={onAskChatbot} />
+          )}
+          {cur && activeTab === '단계' && (
+            <DocDetailStage o={cur} onAsk={onAskChatbot} />
+          )}
+          {cur && activeTab === '용어' && (
+            <DocDetailTerm o={cur} idx={sel} onAsk={onAskChatbot} />
+          )}
+          {cur && activeTab === '기관' && <DocDetailOrg o={cur} idx={sel} />}
+          {cur && activeTab === '비치서류' && (
+            <DocDetailDoc o={cur} idx={sel} onAsk={onAskChatbot} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** 단계별 TOC — stage 별 그룹 헤더 + 항목 리스트 */
+function renderStageToc(
+  data: DocItem[],
+  sel: number,
+  setSel: (i: number) => void,
+) {
+  // stage 기준으로 그룹화 (원본 순서 유지)
+  const groups: { stage: string; items: { o: DocItem; i: number }[] }[] = [];
+  data.forEach((o, i) => {
+    const s = o.stage || '기타';
+    let g = groups.find((x) => x.stage === s);
+    if (!g) {
+      g = { stage: s, items: [] };
+      groups.push(g);
+    }
+    g.items.push({ o, i });
+  });
+  return (
+    <>
+      {groups.map((g) => (
+        <div key={g.stage} className={styles.docTocGroup}>
+          <div className={styles.docTocGroupLabel}>{g.stage}</div>
+          {g.items.map(({ o, i }) => {
+            const active = sel === i;
+            return (
+              <button
+                key={o.code || i}
+                type="button"
+                className={`${styles.docTocItem} ${active ? styles.docTocItemActive : ''}`}
+                onClick={() => setSel(i)}
+              >
+                <span className={styles.docTocIcon}>●</span>
+                <span className={styles.docTocText}>{o.t}</span>
+              </button>
+            );
+          })}
+        </div>
+      ))}
+    </>
+  );
+}
+
+/** 단계별 의무 상세 */
+function DocDetailStage({
+  o,
+  onAsk,
+}: {
+  o: DocItem;
+  onAsk: (q: string) => void;
+}) {
+  const formCode = FORM_TITLE_TO_CODE[o.t];
+  const prio = (o.priority || '').toLowerCase();
+  const prioBadgeCls = prio.includes('high') || prio.includes('상')
+    ? styles.docBadgeDanger
+    : prio.includes('mid') || prio.includes('중')
+      ? styles.docBadgeWarn
+      : styles.docBadgeMuted;
+  return (
+    <>
+      <div className={styles.docDetailHead}>
+        <span className={`${styles.docBadge} ${styles.docBadgeBrand}`}>
+          📍 {o.stage}
+        </span>
+        {o.priority && (
+          <span className={`${styles.docBadge} ${prioBadgeCls}`}>
+            우선순위 · {o.priority}
+          </span>
+        )}
+      </div>
+      <h2 className={styles.docDetailTitle}>{o.t}</h2>
+      <p className={styles.docDetailBody}>{o.d}</p>
+      <div className={styles.docDetailMetaRows}>
+        {o.deadline && <DocMetaRow k="기한" v={o.deadline} />}
+        {o.law && <DocMetaRow k="법적 근거" v={o.law} />}
+        {o.pen && <DocMetaRow k="위반 시" v={o.pen} danger />}
+      </div>
+      <DocActions
+        formCode={formCode}
+        onAsk={() => onAsk(`${o.stage} - ${o.t} 에 대해 알려주세요`)}
+      />
+    </>
+  );
+}
+
+/** 의무 상세 */
+function DocDetailDuty({
+  o,
+  size,
+  onAsk,
+}: {
+  o: DocItem;
+  size: number;
+  onAsk: (q: string) => void;
+}) {
+  const applies = (o.from ?? 1) <= size;
+  const formCode = FORM_TITLE_TO_CODE[o.t];
+  return (
+    <>
+      <div className={styles.docDetailHead}>
+        {applies ? (
+          <span className={`${styles.docBadge} ${styles.docBadgeOk}`}>
+            ✓ 우리 사업장 적용
+          </span>
+        ) : (
+          <span className={`${styles.docBadge} ${styles.docBadgeMuted}`}>
+            🔒 {o.from}인 이상부터 적용
+          </span>
+        )}
+        <span className={styles.docDetailHeadMeta}>적용 기준 · {o.from}인 이상</span>
+      </div>
+      <h2 className={styles.docDetailTitle}>{o.t}</h2>
+      <p className={styles.docDetailBody}>{o.d}</p>
+      {!applies && (
+        <div className={styles.docDetailNotApplies}>
+          현재 선택한 <strong>{size}인 이상</strong>에는 해당하지 않아요. 상시 근로자가
+          <strong> {o.from}명</strong> 이상이 되면 이 의무가 새로 생깁니다.
+        </div>
+      )}
+      <div className={styles.docDetailMetaRows}>
+        {o.law && <DocMetaRow k="법적 근거" v={o.law} />}
+        {o.doc && <DocMetaRow k="관련 서류" v={o.doc} />}
+        {o.pen && <DocMetaRow k="위반 시" v={o.pen} danger />}
+      </div>
+      <DocActions
+        formCode={formCode}
+        onAsk={() => onAsk(`${o.t} 에 대해 자세히 알려주세요`)}
+      />
+    </>
+  );
+}
+
+/** 용어 상세 */
+function DocDetailTerm({
+  o,
+  idx,
+  onAsk,
+}: {
+  o: DocItem;
+  idx: number;
+  onAsk: (q: string) => void;
+}) {
+  return (
+    <>
+      <div className={styles.docDetailNumber}>
+        {String(idx + 1).padStart(2, '0')}
+      </div>
+      <h2 className={styles.docDetailTitle}>{o.t}</h2>
+      <p className={styles.docDetailBody}>{o.d}</p>
+      {o.rel && (
+        <div className={styles.docConfusable}>
+          <div className={styles.docConfusableLabel}>헷갈리는 용어</div>
+          <div className={styles.docConfusableText}>{o.rel}</div>
+        </div>
+      )}
+      <button
+        type="button"
+        className={styles.docAskBtn}
+        onClick={() => onAsk(`${o.t} 의 의미와 적용을 알려주세요`)}
+      >
+        이 용어를 챗봇에게 물어보기
+      </button>
+    </>
+  );
+}
+
+/** 기관 상세 */
+function DocDetailOrg({ o, idx }: { o: DocItem; idx: number }) {
+  // 첫 URL 추출 (online_channel 이 콤마/공백 분리일 수 있음)
+  const webUrl = (() => {
+    const txt = o.web || '';
+    const m = txt.match(/https?:\/\/[^\s,]+/);
+    if (m) return m[0];
+    // "moel.go.kr" 같은 도메인만 있는 경우
+    const domMatch = txt.match(/[a-z0-9.-]+\.(?:go\.kr|or\.kr|com|net)/i);
+    return domMatch ? `https://${domMatch[0]}` : '';
+  })();
+  return (
+    <>
+      <div className={styles.docDetailNumber}>
+        {String(idx + 1).padStart(2, '0')}
+        {o.tag ? ` · ${o.tag}` : ''}
+      </div>
+      <h2 className={styles.docDetailTitle}>{o.t}</h2>
+      <p className={styles.docDetailBody}>{o.d}</p>
+      <div className={styles.docDetailMetaRows}>
+        {o.tel && (
+          <div className={styles.docMetaRow}>
+            <span className={styles.docMetaKey}>전화</span>
+            <span className={styles.docMetaValueBrand}>📞 {o.tel}</span>
+          </div>
+        )}
+        {o.web && (
+          <div className={styles.docMetaRow}>
+            <span className={styles.docMetaKey}>웹사이트</span>
+            <span className={styles.docMetaValue}>🌐 {o.web}</span>
+          </div>
+        )}
+      </div>
+      {webUrl && (
+        <a
+          href={webUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={styles.docPrimaryBtn}
+        >
+          홈페이지 바로가기 ↗
+        </a>
+      )}
+    </>
+  );
+}
+
+/** 비치서류 상세 */
+function DocDetailDoc({
+  o,
+  idx,
+  onAsk,
+}: {
+  o: DocItem;
+  idx: number;
+  onAsk: (q: string) => void;
+}) {
+  const formCode = FORM_TITLE_TO_CODE[o.t];
+  return (
+    <>
+      <div className={styles.docDetailNumber}>
+        {String(idx + 1).padStart(2, '0')}
+        {o.tag ? ` · ${o.tag}` : ''}
+      </div>
+      <h2 className={styles.docDetailTitle}>{o.t}</h2>
+      <p className={styles.docDetailBody}>{o.d}</p>
+      <div className={styles.docDetailMetaRows}>
+        {o.keep && <DocMetaRow k="보존 기간" v={o.keep} />}
+        {o.law && <DocMetaRow k="법적 근거" v={o.law} />}
+        {o.pen && <DocMetaRow k="위반 시" v={o.pen} danger />}
+      </div>
+      <DocActions
+        formCode={formCode}
+        onAsk={() => onAsk(`${o.t} 비치·관리 방법을 알려주세요`)}
+      />
+    </>
+  );
+}
+
+function DocMetaRow({
+  k,
+  v,
+  danger,
+}: {
+  k: string;
+  v: string;
+  danger?: boolean;
+}) {
+  return (
+    <div className={styles.docMetaRow}>
+      <span className={styles.docMetaKey}>{k}</span>
+      <span className={danger ? styles.docMetaValueDanger : styles.docMetaValue}>
+        {v}
+      </span>
+    </div>
+  );
+}
+
+function DocActions({
+  formCode,
+  onAsk,
+}: {
+  formCode?: string;
+  onAsk: () => void;
+}) {
+  return (
+    <div className={styles.docActions}>
+      {formCode && (
+        <a
+          href={formDownloadUrl(formCode)}
+          className={styles.docPrimaryBtn}
+          download
+          title="우리 서버에서 직접 다운로드"
+        >
+          📥 관련 서식 받기
+        </a>
+      )}
+      <button
+        type="button"
+        className={styles.docSecondaryBtn}
+        onClick={onAsk}
+      >
+        💬 챗봇에게 물어보기
+      </button>
     </div>
   );
 }
@@ -484,9 +1865,17 @@ function DutiesTab() {
 
 function FormsTab() {
   const [items, setItems] = useState<FormTemplate[]>([]);
+  const [activeCat, setActiveCat] = useState<string>('');
+
   useEffect(() => {
-    getForms().then((r) => setItems(r.items)).catch(() => setItems([]));
+    getForms()
+      .then((r) => {
+        // 우리 서버에서 직접 다운로드 가능한 양식만 노출 (외부 redirect 양식은 제외)
+        setItems(r.items.filter((it) => it.has_local));
+      })
+      .catch(() => setItems([]));
   }, []);
+
   const byCategory = useMemo(() => {
     const out: Record<string, FormTemplate[]> = {};
     for (const it of items) {
@@ -494,47 +1883,62 @@ function FormsTab() {
     }
     return out;
   }, [items]);
+
+  const categories = useMemo(() => Object.keys(byCategory), [byCategory]);
+
+  // 첫 카테고리를 기본 선택
+  useEffect(() => {
+    if (!activeCat && categories.length > 0) {
+      setActiveCat(categories[0]);
+    }
+  }, [categories, activeCat]);
+
+  if (items.length === 0) {
+    return (
+      <div className={styles.placeholder}>
+        다운로드 가능한 양식이 없습니다.
+      </div>
+    );
+  }
+
+  const currentList = activeCat ? byCategory[activeCat] ?? [] : [];
+
   return (
     <div>
-      {Object.entries(byCategory).map(([cat, list]) => (
-        <section key={cat} className={styles.subSection}>
-          <h3 className={styles.subTitle}>{cat}</h3>
-          <ul className={styles.itemList}>
-            {list.map((f) => (
-              <li key={f.code} className={styles.itemCard}>
-                <div className={styles.itemTitle}>{f.form_name}</div>
-                <p className={styles.itemDesc}>{f.purpose}</p>
-                <div className={styles.itemMeta}>
-                  <span><strong>제출처:</strong> {f.submit_to}</span>
-                  <span><strong>기한:</strong> {f.deadline}</span>
-                </div>
-                {/* 1순위: 로컬 파일 보유 → 우리 서버에서 직접 다운로드 (정확한 MIME).
-                    2순위: 외부 URL 만 있으면 백엔드가 해당 URL 로 302 redirect — 같은
-                    엔드포인트 클릭만으로 사용자는 정부 사이트로 자연스럽게 이동. */}
-                {(f.has_local || f.download_url) && (
-                  <a
-                    href={formDownloadUrl(f.code)}
-                    {...(!f.has_local && {
-                      target: '_blank',
-                      rel: 'noopener noreferrer',
-                    })}
-                    className={styles.linkBtn}
-                    title={
-                      f.has_local
-                        ? `${f.local_filename}${f.local_size ? ` (${Math.round(f.local_size / 1024)} KB)` : ''} — 우리 서버에서 직접 다운로드`
-                        : '고용노동부 공식 자료실에서 보기'
-                    }
-                  >
-                    {f.has_local
-                      ? `📥 양식 다운로드 (${f.local_filename?.split('.').pop()?.toUpperCase() || '파일'})`
-                      : '🔗 고용노동부 공식 양식 ↗'}
-                  </a>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
+      <div className={styles.subTabBar}>
+        {categories.map((cat) => (
+          <button
+            key={cat}
+            type="button"
+            className={`${styles.subTabBtn} ${activeCat === cat ? styles.subTabBtnActive : ''}`}
+            onClick={() => setActiveCat(cat)}
+          >
+            {cat}
+            <span className={styles.subTabCount}>{byCategory[cat].length}</span>
+          </button>
+        ))}
+      </div>
+
+      <ul className={styles.itemList}>
+        {currentList.map((f) => (
+          <li key={f.code} className={styles.itemCard}>
+            <div className={styles.itemTitle}>{f.form_name}</div>
+            <p className={styles.itemDesc}>{f.purpose}</p>
+            <div className={styles.itemMeta}>
+              <span><strong>제출처:</strong> {f.submit_to}</span>
+              <span><strong>기한:</strong> {f.deadline}</span>
+            </div>
+            <a
+              href={formDownloadUrl(f.code)}
+              className={styles.linkBtn}
+              title={`${f.local_filename}${f.local_size ? ` (${Math.round(f.local_size / 1024)} KB)` : ''}`}
+            >
+              📥 양식 다운로드 (
+              {f.local_filename?.split('.').pop()?.toUpperCase() || '파일'})
+            </a>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -606,6 +2010,33 @@ const DEFAULT_WAGE_ITEMS: WageItem[] = [
   { id: 'car', label: '차량유지비', amount: '', period: 'month', included: false,
     hint: '실비변상은 X. 정액 일률 지급이면 산입 가능' },
 ];
+
+/** 임금 항목 ⓘ 호버 안내 — 브라우저 native title 대신 실제 React popover.
+ *
+ * native title 은 1초 지연 + 일부 환경(모바일·Linux)에서 안 뜨는 문제. 직접 popover 렌더.
+ * hover (mouse enter/leave) + focus/blur 둘 다 지원 — 키보드 접근성. */
+function WageItemHelpTip({ hint }: { hint: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span
+      className={styles.wageItemHelpWrap}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)}
+      onBlur={() => setOpen(false)}
+      tabIndex={0}
+      role="note"
+      aria-label={hint}
+    >
+      <span className={styles.wageItemHelp} aria-hidden>ⓘ</span>
+      {open && (
+        <span className={styles.wageItemHelpTip} role="tooltip">
+          {hint}
+        </span>
+      )}
+    </span>
+  );
+}
 
 /** 통상임금 계산기 — 항목별 입력 (고용노동부 공식 계산기 형태).
  *
@@ -742,9 +2173,7 @@ function WageCalculator() {
               ) : (
                 <span className={styles.wageItemLabel}>
                   {it.label}
-                  {it.hint && (
-                    <span className={styles.wageItemHelp} title={it.hint}>ⓘ</span>
-                  )}
+                  {it.hint && <WageItemHelpTip hint={it.hint} />}
                 </span>
               )}
             </div>

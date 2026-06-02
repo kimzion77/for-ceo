@@ -200,7 +200,7 @@ function LawChip({ lawName }: { lawName: string }) {
   );
 }
 
-function ChatAssistantBubble({ content }: { content: string }) {
+export function ChatAssistantBubble({ content }: { content: string }) {
   const { body, laws } = parseAssistantMessage(content);
   return (
     <div className={styles.chatBubble}>

@@ -190,6 +190,10 @@ export const getDutiesByStage = (stage: string) =>
     `/guide/by-stage/${encodeURIComponent(stage)}`,
   );
 
+/** 전체 단계별 의무 (28개, 8단계 묶음). 좌측 TOC 그룹화에 사용. */
+export const getTimelineAll = () =>
+  apiGet<{ items: ObligationTimeline[] }>('/guide/timeline');
+
 export const getForms = (opts: { category?: string } = {}) => {
   const q = new URLSearchParams();
   if (opts.category) q.set('category', opts.category);
@@ -224,11 +228,24 @@ export interface GuideChatTurn {
   content: string;
 }
 
+export interface RelatedFormHint {
+  code: string;
+  form_name: string;
+  category: string;
+  audience: string;
+  has_local: boolean;
+  purpose: string;
+}
+
 export interface GuideChatOut {
   answer: string;
   matched_sources: string[];
   /** 답변 컨텍스트 기반 후속 추천질문 3개 (LLM 생성). 클릭하면 자동 전송. */
   follow_ups: string[];
+  /** 질문·답변 주제와 관련된 사업주용 서식 — 챗봇 답변 아래에 다운로드 chip 으로 노출. */
+  related_forms: RelatedFormHint[];
+  /** 여러 변형이 매칭된 경우 사용자에게 한 번 더 묻는 안내 (예: 근로계약서 유형). null 이면 표시 안 함. */
+  clarify: string | null;
 }
 
 export const postGuideChat = (

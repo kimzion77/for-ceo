@@ -10,12 +10,13 @@
 """
 from __future__ import annotations
 
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 
 from cgr import db as _db
 from cgr.api.auth import require_api_key
@@ -155,6 +156,25 @@ def get_duties_by_stage(stage: str):
         (f"%{stage}%",),
     )
     return {"stage": stage, "duties": rows}
+
+
+# ─────────────────────────────────────────────
+# 4-b) GET /api/v1/guide/timeline — 전체 단계별 의무 (28개)
+# ─────────────────────────────────────────────
+@router.get(
+    "/timeline",
+    summary="전체 단계별 의무 (8단계 × 28항목)",
+    description="사업 흐름(개시→채용→임금→…→종료) 순서대로 기한·우선순위·과태료 포함.",
+    dependencies=[Depends(require_api_key)],
+)
+def get_timeline_all():
+    rows = _query_all(
+        "SELECT code, stage, duty, description, deadline, legal_basis, priority, penalty "
+        "FROM obligation_timeline "
+        "WHERE excluded_from_service = 0 "
+        "ORDER BY stage, priority, code",
+    )
+    return {"items": rows}
 
 
 # ─────────────────────────────────────────────
@@ -449,6 +469,15 @@ class GuideChatIn(BaseModel):
     history: list[GuideChatTurn] | None = None
 
 
+class RelatedFormHint(BaseModel):
+    code: str
+    form_name: str
+    category: str
+    audience: str
+    has_local: bool
+    purpose: str = ""
+
+
 class GuideChatOut(BaseModel):
     answer: str
     matched_sources: list[str] = Field(
@@ -459,6 +488,109 @@ class GuideChatOut(BaseModel):
         default_factory=list,
         description="이어서 물어볼만한 후속 질문 (사업주 자율점검 범위, 답변 컨텍스트 인지)",
     )
+    related_forms: list[RelatedFormHint] = Field(
+        default_factory=list,
+        description="질문·답변에 등장한 주제와 관련된 사업주용 서식 (다운로드 chip 노출)",
+    )
+    clarify: str | None = Field(
+        default=None,
+        description="여러 변형 서식이 매칭된 경우 사용자에게 한 번 더 묻는 질문 (예: '어떤 유형의 근로계약서인가요?'). 없으면 null.",
+    )
+
+
+# ────────────────────────────────────────────────────────────
+# 주제 → 서식 코드 매핑.
+# 키는 정규식 (한국어 lowercase 비교). 값은 (form_codes, family_label)
+# family_label 이 있으면 같은 family 안에서 여러 형이 매칭될 때 clarify 질문 생성.
+# ────────────────────────────────────────────────────────────
+_TOPIC_TO_FORMS: list[tuple[str, list[str], str | None]] = [
+    # 근로계약서 family — 5종 변형 (정규/기간제/단시간/연소/건설일용) + 외국인
+    (r"근로계약서|근로\s*계약", ["FRM001", "FRM002", "FRM003", "FRM004", "FRM005", "FRM030"], "근로계약서"),
+    # 취업규칙
+    (r"취업규칙", ["FRM029", "FRM033"], None),
+    # 임금명세서·임금대장
+    (r"임금명세서|임금\s*명세|임금대장", ["FRM031", "FRM032"], None),
+    # 4대보험
+    (r"4\s*대\s*보험|사회보험|국민연금|건강보험|고용보험|산재보험", ["FRM006", "FRM007", "FRM008"], None),
+    # 출산·육아·배우자 출산휴가
+    (r"출산전후휴가|출산\s*휴가", ["FRM009"], None),
+    (r"육아휴직|육아\s*휴직", ["FRM010", "FRM011"], None),
+    (r"육아기\s*근로시간\s*단축", ["FRM012"], None),
+    (r"배우자\s*출산", ["FRM013"], None),
+    (r"고용안정장려금|출산육아기\s*고용안정", ["FRM014"], None),
+    # 실업급여·이직
+    (r"실업급여|수급자격", ["FRM015", "FRM017"], None),
+    (r"이직확인서|이직\s*확인", ["FRM016"], None),
+    # 퇴직금·퇴직연금
+    (r"퇴직금|퇴직\s*급여", ["FRM018"], None),
+    (r"퇴직연금|db\s*형|dc\s*형|확정급여형|확정기여형", ["FRM019", "FRM034"], "퇴직연금"),
+    # 산재
+    (r"산재|업무상\s*재해|요양급여|휴업급여|장해급여", ["FRM025", "FRM026", "FRM027", "FRM028"], "산재"),
+    # 외국인
+    (r"외국인", ["FRM030"], None),
+]
+
+
+def _detect_related_forms(question: str, answer: str) -> tuple[list[RelatedFormHint], str | None]:
+    """질문 + 답변 텍스트를 스캔해 관련 서식 코드를 수집.
+
+    같은 family 안에서 2개 이상 매칭되면 clarify 질문 생성.
+    """
+    import re as _re
+
+    text = (question + "\n" + answer).lower().replace(" ", "")
+    matched_codes: list[str] = []
+    matched_families: set[str] = set()
+    for pat, codes, family in _TOPIC_TO_FORMS:
+        # 패턴은 공백 제거된 텍스트에 매칭하기 위해 \s* 제거
+        if _re.search(pat.replace(r"\s*", ""), text):
+            for c in codes:
+                if c not in matched_codes:
+                    matched_codes.append(c)
+            if family:
+                matched_families.add(family)
+
+    if not matched_codes:
+        return [], None
+
+    # 매칭된 코드로 form_template 조회 — 사업주(employer) 또는 both 만
+    placeholders = ",".join(["?"] * len(matched_codes))
+    rows = _query_all(
+        f"SELECT code, form_name, category, audience, purpose, local_filename, download_url "
+        f"FROM form_template "
+        f"WHERE code IN ({placeholders}) AND audience IN ('employer', 'both') "
+        f"ORDER BY code",
+        tuple(matched_codes),
+    )
+    hints: list[RelatedFormHint] = []
+    for r in rows:
+        hints.append(RelatedFormHint(
+            code=r["code"],
+            form_name=r["form_name"],
+            category=r["category"],
+            audience=r["audience"],
+            has_local=bool(r.get("local_filename")),
+            purpose=(r.get("purpose") or "")[:100],
+        ))
+
+    # clarify: 같은 family 에서 2개 이상 매칭된 경우 사용자에게 한 번 더 묻기
+    clarify: str | None = None
+    family_counts: dict[str, int] = {}
+    for h in hints:
+        for pat, codes, family in _TOPIC_TO_FORMS:
+            if family and h.code in codes:
+                family_counts[family] = family_counts.get(family, 0) + 1
+    for family, cnt in family_counts.items():
+        if cnt >= 2:
+            if family == "근로계약서":
+                clarify = "근로계약서는 근로자 유형별로 양식이 달라요. 어떤 유형인가요? 아래 버튼에서 골라 받으세요."
+            elif family == "퇴직연금":
+                clarify = "퇴직연금은 제도 유형(DB형/DC형)에 따라 표준규약이 달라요. 운영하시는 제도 기준으로 골라 받으세요."
+            elif family == "산재":
+                clarify = "산재 관련 서식은 신청 단계별로 양식이 달라요. 필요한 단계의 서식을 골라 받으세요."
+            break
+
+    return hints, clarify
 
 
 def _search_guide_context(query: str, *, per_table: int = 4) -> tuple[str, list[str]]:
@@ -633,7 +765,14 @@ _GUIDE_CHAT_SYSTEM = (
     "   소정근로 대가성·정기성·일률성 3요소만으로 판단.\n"
     "5) 답변은 2~5문장으로 간결. 필요하면 번호 목록 사용.\n"
     "6) 분쟁성 질문(진정·신고 등)이 들어오면 '본 서비스는 사업주 자율점검용입니다. 분쟁은\n"
-    "   관할 지방고용노동청을 통해 진행해 주세요' 로 안내.\n\n"
+    "   관할 지방고용노동청을 통해 진행해 주세요' 로 안내.\n"
+    "7) **범위 밖 질문 거절** — 노동법·노무·사업장 운영(임금·근로시간·휴가·해고·보험·취업규칙·\n"
+    "   근로계약서·임금명세서·노무제공자 계약·산재·출산육아·퇴직 등)과 무관한 질문은 답변하지\n"
+    "   말고 다음 문구로 종결:\n"
+    "     '죄송하지만 사업주 노무 관리 범위 밖 질문이라 답변드리기 어려워요. 노동법·근로조건·\n"
+    "      보험·서식·계산 등 다른 노무 관련 질문이 있으시면 도와드릴게요.'\n"
+    "   (예: '맛집 추천', '오늘 날씨', '주식 사는 법', '코딩 도와줘' 등 → 거절 문구만)\n"
+    "   범위 밖이면 '관련 법령:' 줄과 [추천질문] 섹션 모두 출력 금지.\n\n"
     "[후속 추천 질문 — 반드시 출력]\n"
     "답변 본문 + '관련 법령' 표시 다음에 빈 줄 한 칸 후 정확히 다음 형식으로 추가:\n"
     "  [추천질문]\n"
@@ -739,7 +878,14 @@ def post_guide_chat(body: GuideChatIn) -> GuideChatOut:
     cached = llm_cache.get(cache_key)
     if cached and isinstance(cached.get("text"), str):
         body, fups = _extract_followups(cached["text"])
-        return GuideChatOut(answer=body, matched_sources=sources, follow_ups=fups)
+        rel_forms, clarify = _detect_related_forms(msg, body)
+        return GuideChatOut(
+            answer=body,
+            matched_sources=sources,
+            follow_ups=fups,
+            related_forms=rel_forms,
+            clarify=clarify,
+        )
 
     client = OpenAI(api_key=get_api_key(), timeout=60.0)
     last_err: Exception | None = None
@@ -760,7 +906,14 @@ def post_guide_chat(body: GuideChatIn) -> GuideChatOut:
                 raise RuntimeError("chat 응답이 비어 있습니다.")
             llm_cache.put(cache_key, {"text": text})
             body, fups = _extract_followups(text)
-            return GuideChatOut(answer=body, matched_sources=sources, follow_ups=fups)
+            rel_forms, clarify = _detect_related_forms(msg, body)
+            return GuideChatOut(
+                answer=body,
+                matched_sources=sources,
+                follow_ups=fups,
+                related_forms=rel_forms,
+                clarify=clarify,
+            )
         except (APITimeoutError, APIConnectionError, RateLimitError) as e:
             last_err = e
             if attempt < 2:
@@ -770,3 +923,232 @@ def post_guide_chat(body: GuideChatIn) -> GuideChatOut:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"chat 처리 실패: {e}")
     raise HTTPException(status_code=500, detail=f"chat 실패: {last_err}")
+
+
+# ═══════════════════════════════════════════════════════════════
+# 14) GET /api/v1/guide/export.xlsx — 가이드 데이터 통합 Excel 다운로드
+#
+# 6개 시트: 시기별 의무 / 규모별 의무 / 용어 사전 / 정부 기관 / 비치 서류 /
+#           고용 생애주기 / 채용 컴플라이언스
+# 사장님이 오프라인에서도 참고할 수 있도록 정리된 자료를 한 파일로.
+# ═══════════════════════════════════════════════════════════════
+@router.get(
+    "/export.xlsx",
+    summary="가이드 데이터 통합 Excel 다운로드",
+    dependencies=[Depends(require_api_key)],
+)
+def export_guide_xlsx():
+    """openpyxl 로 다중 시트 xlsx 생성 후 스트림."""
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Alignment, Font, PatternFill
+    except ImportError:
+        raise HTTPException(status_code=503, detail="openpyxl 미설치 — pip install openpyxl")
+
+    wb = Workbook()
+    # 헤더 스타일 — 옅은 브랜드 배경 + 굵은 글씨
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill("solid", fgColor="0B3D91")
+    header_align = Alignment(vertical="center", horizontal="center")
+
+    def _add_sheet(title: str, headers: list[str], rows: list[dict], col_widths: list[int]):
+        ws = wb.create_sheet(title)
+        ws.append(headers)
+        for cell in ws[1]:
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_align
+        for r in rows:
+            ws.append([r.get(k, "") or "" for k in r.keys()])
+        for i, w in enumerate(col_widths, start=1):
+            ws.column_dimensions[chr(64 + i)].width = w
+        ws.row_dimensions[1].height = 28
+        # 본문 줄 wrap
+        for row in ws.iter_rows(min_row=2):
+            for cell in row:
+                cell.alignment = Alignment(wrap_text=True, vertical="top")
+
+    # 기본 첫 시트 제거 후 순서대로 추가
+    wb.remove(wb.active)
+
+    # 1) 시기별 의무
+    _add_sheet(
+        "시기별 의무",
+        ["코드", "단계", "의무", "설명", "기한", "근거 법령", "벌칙", "우선순위"],
+        [
+            {
+                "code": r["code"],
+                "stage": r["stage"],
+                "duty": r["duty"],
+                "description": r["description"],
+                "deadline": r["deadline"],
+                "legal_basis": r["legal_basis"],
+                "penalty": r["penalty"],
+                "priority": r["priority"],
+            }
+            for r in _query_all(
+                "SELECT code, stage, duty, description, deadline, legal_basis, penalty, priority "
+                "FROM obligation_timeline WHERE excluded_from_service = 0 "
+                "ORDER BY stage, code"
+            )
+        ],
+        [10, 12, 28, 50, 18, 28, 32, 10],
+    )
+
+    # 2) 규모별 의무
+    _add_sheet(
+        "규모별 의무",
+        ["코드", "최소 규모", "의무", "설명", "관련 서류", "근거 법령"],
+        [
+            {
+                "code": r["code"],
+                "min_size": r["min_size"],
+                "duty": r["duty"],
+                "description": r["description"],
+                "related_docs": r["related_docs"],
+                "legal_basis": r["legal_basis"],
+            }
+            for r in _query_all(
+                "SELECT code, min_size, duty, description, related_docs, legal_basis "
+                "FROM size_threshold_duty ORDER BY "
+                "CASE min_size WHEN '1인 이상' THEN 1 WHEN '5인 이상' THEN 5 "
+                "  WHEN '10인 이상' THEN 10 WHEN '30인 이상' THEN 30 "
+                "  WHEN '50인 이상' THEN 50 ELSE 999 END, code"
+            )
+        ],
+        [10, 12, 30, 50, 25, 28],
+    )
+
+    # 3) 용어 사전
+    _add_sheet(
+        "용어 사전",
+        ["코드", "용어", "짧은 정의", "상세 정의", "헷갈리는 용어", "근거"],
+        [
+            {
+                "code": r["code"],
+                "term": r["term"],
+                "short_def": r["short_def"],
+                "full_def": r["full_def"],
+                "confusable_with": r["confusable_with"],
+                "legal_basis": r["legal_basis"],
+            }
+            for r in _query_all(
+                "SELECT code, term, short_def, full_def, confusable_with, legal_basis "
+                "FROM guide_glossary ORDER BY code"
+            )
+        ],
+        [10, 22, 50, 70, 30, 22],
+    )
+
+    # 4) 정부 기관
+    _add_sheet(
+        "정부 기관",
+        ["코드", "기관 분류", "기관명", "담당 업무", "흔한 활용 사례", "전화", "온라인 채널", "관할"],
+        [
+            {
+                "code": r["code"],
+                "org_class": r["org_class"],
+                "org_name": r["org_name"],
+                "duties": r["duties"],
+                "common_cases": r["common_cases"],
+                "phone": r["phone"],
+                "online_channel": r["online_channel"],
+                "jurisdiction": r["jurisdiction"],
+            }
+            for r in _query_all(
+                "SELECT code, org_class, org_name, duties, common_cases, phone, "
+                "       online_channel, jurisdiction "
+                "FROM gov_org WHERE excluded_from_service = 0 ORDER BY org_class, code"
+            )
+        ],
+        [10, 18, 26, 40, 40, 14, 36, 22],
+    )
+
+    # 5) 비치 서류
+    _add_sheet(
+        "비치 서류",
+        ["코드", "분류", "서류명", "설명", "작성 시기", "보존 기간", "근거 법령", "벌칙"],
+        [
+            {
+                "code": r["code"],
+                "classification": r["classification"],
+                "doc_name": r["doc_name"],
+                "description": r["description"],
+                "prep_time": r["prep_time"],
+                "retention_period": r["retention_period"],
+                "legal_basis": r["legal_basis"],
+                "penalty": r["penalty"],
+            }
+            for r in _query_all(
+                "SELECT code, classification, doc_name, description, prep_time, "
+                "       retention_period, legal_basis, penalty "
+                "FROM required_document ORDER BY classification, code"
+            )
+        ],
+        [10, 14, 30, 50, 18, 18, 28, 22],
+    )
+
+    # 6) 고용 생애주기
+    _add_sheet(
+        "고용 생애주기",
+        ["코드", "단계", "세부 주제", "요건", "관련 서류", "시기", "근거"],
+        [
+            {
+                "code": r["code"],
+                "phase": r["phase"],
+                "sub_topic": r["sub_topic"],
+                "requirement": r["requirement"],
+                "related_docs": r["related_docs"],
+                "timing": r["timing"],
+                "legal_basis": r["legal_basis"],
+            }
+            for r in _query_all(
+                "SELECT code, phase, sub_topic, requirement, related_docs, timing, legal_basis "
+                "FROM employment_lifecycle ORDER BY phase, code"
+            )
+        ],
+        [10, 14, 22, 50, 22, 16, 24],
+    )
+
+    # 7) 채용 컴플라이언스
+    _add_sheet(
+        "채용 컴플라이언스",
+        ["코드", "단계", "의무", "설명", "위반 사례", "벌칙", "적용 대상", "근거", "점검 포인트"],
+        [
+            {
+                "code": r["code"],
+                "stage": r["stage"],
+                "duty": r["duty"],
+                "description": r["description"],
+                "violation_examples": r["violation_examples"],
+                "penalty": r["penalty"],
+                "applies_to": r["applies_to"],
+                "legal_basis": r["legal_basis"],
+                "checkpoint": r["checkpoint"],
+            }
+            for r in _query_all(
+                "SELECT code, stage, duty, description, violation_examples, penalty, "
+                "       applies_to, legal_basis, checkpoint "
+                "FROM recruit_compliance ORDER BY stage, code"
+            )
+        ],
+        [10, 14, 26, 45, 36, 22, 18, 22, 30],
+    )
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    fname = "영세사업장_노무_가이드.xlsx"
+    ascii_fallback = "labor-guide.xlsx"
+    cd = (
+        f"attachment; filename=\"{ascii_fallback}\"; "
+        f"filename*=UTF-8''{quote(fname)}"
+    )
+    return StreamingResponse(
+        buf,
+        media_type=(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ),
+        headers={"Content-Disposition": cd},
+    )
