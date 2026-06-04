@@ -5,7 +5,7 @@
  *  - 'work_rules' (기본) → ReviewFullOut (5-Bucket)
  *  - 'employment_contract' → EcReviewOut (3-Bucket)
  */
-import { apiPostForm, apiGet } from './client';
+import { ApiCallError, apiPostForm, apiGet } from './client';
 import { mapReviewResult } from './mappers';
 import type {
   AnyReviewOut,
@@ -64,7 +64,30 @@ export async function postReviewEmploymentContract(
   return out;
 }
 
-/** 공통 POST — document_type 으로 백엔드가 분기. */
+function reviewSleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(resolve, ms);
+    if (signal) {
+      signal.addEventListener(
+        'abort',
+        () => {
+          clearTimeout(t);
+          reject(new DOMException('Aborted', 'AbortError'));
+        },
+        { once: true },
+      );
+    }
+  });
+}
+
+/**
+ * 공통 POST — document_type 으로 백엔드가 분기. 비동기 잡(start + poll) 방식.
+ *
+ * 취업규칙 검토는 Excel 로드 + 전 조항 LLM 검토를 한 번에 하므로 동기 요청 시
+ * Render cold start 와 합쳐져 Vercel 60초 함수 한도를 넘겨 'Unterminated JSON'
+ * 으로 끊겼다. 이제 /review/start 로 job_id 만 받고 /review/result 를 폴링 —
+ * 각 요청 1초 미만이라 아무리 느려도(검토가 길어도) 끊기지 않는다.
+ */
 export async function postReviewRaw(opts: PostReviewOptions): Promise<AnyReviewOut> {
   const { files, context, documentType = 'work-rules', signal } = opts;
   if (files.length === 0) {
@@ -85,7 +108,37 @@ export async function postReviewRaw(opts: PostReviewOptions): Promise<AnyReviewO
   form.append('business_size', context.businessSize ?? '');
   form.append('worker_types', context.workerTypes.join(','));
 
-  return apiPostForm<AnyReviewOut>('/review', form, { signal });
+  // 1) 시작 — job_id 즉시 수령
+  const { job_id } = await apiPostForm<{ job_id: string }>('/review/start', form, {
+    signal,
+  });
+
+  // 2) 폴링
+  const POLL_MS = 2500;
+  const MAX_WAIT_MS = 6 * 60 * 1000;
+  const startedAt = Date.now();
+  for (;;) {
+    await reviewSleep(POLL_MS, signal);
+    const res = await apiGet<{
+      status: string;
+      result: AnyReviewOut | null;
+      error: string | null;
+      elapsed_sec: number;
+    }>(`/review/result/${job_id}`, { signal });
+
+    if (res.status === 'done' && res.result) {
+      return res.result;
+    }
+    if (res.status === 'error') {
+      throw new ApiCallError(500, res.error || '검토에 실패했어요. 다시 시도해 주세요.');
+    }
+    if (Date.now() - startedAt > MAX_WAIT_MS) {
+      throw new ApiCallError(
+        504,
+        '검토가 너무 오래 걸려요. 문서가 길거나 서버가 혼잡할 수 있어요. 잠시 후 다시 시도해 주세요.',
+      );
+    }
+  }
 }
 
 /** legacy alias — 기존 호출처 호환. */
