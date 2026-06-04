@@ -89,6 +89,69 @@ async def post_extract(
     )
 
 
+# ── 1-b) 비동기 추출 (이미지 OCR 은 LLM Vision 이라 느릴 수 있음) ──
+class JobStartOut(BaseModel):
+    job_id: str
+
+
+class ExtractResultOut(BaseModel):
+    status: str = Field(..., description="pending | done | error")
+    extracted_text: str | None = None
+    filename: str = ""
+    error: str | None = None
+    elapsed_sec: float = 0.0
+    model: str = ""
+
+
+@router.post(
+    "/extract/start",
+    response_model=JobStartOut,
+    summary="비동기 추출 시작 — job_id 반환",
+    dependencies=[Depends(require_api_key)],
+)
+async def post_extract_start(file: UploadFile = File(...)):
+    suffix = Path(file.filename or "upload.bin").suffix or ".bin"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tf:
+        tf.write(await file.read())
+        tmp_path = Path(tf.name)
+    filename = file.filename or ""
+
+    def _do() -> dict[str, str]:
+        try:
+            return {"extracted_text": parse_to_text(tmp_path), "filename": filename}
+        finally:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+    return JobStartOut(job_id=jobs.start_job(_do))
+
+
+@router.get(
+    "/extract/result/{job_id}",
+    response_model=ExtractResultOut,
+    summary="비동기 추출 결과 폴링",
+    dependencies=[Depends(require_api_key)],
+)
+def get_extract_result(job_id: str):
+    job = jobs.get_job(job_id)
+    if job is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="추출 작업을 찾을 수 없어요. 다시 시도해 주세요.",
+        )
+    r = job["result"] or {}
+    return ExtractResultOut(
+        status=job["status"],
+        extracted_text=r.get("extracted_text"),
+        filename=r.get("filename", ""),
+        error=job["error"],
+        elapsed_sec=job["elapsed"],
+        model=get_llm_model(),
+    )
+
+
 # ─────────────────────────────────────────────
 # 2) POST /api/v1/ec/structure
 # ─────────────────────────────────────────────
@@ -127,6 +190,52 @@ def post_structure(body: StructureIn):
     return StructureOut(
         structured_data=data,
         elapsed_sec=round(time.time() - t0, 2),
+        model=get_llm_model(),
+    )
+
+
+# ── 2-b) 비동기 구조화 (LLM 호출) ──
+class StructureResultOut(BaseModel):
+    status: str = Field(..., description="pending | done | error")
+    structured_data: dict[str, Any] | None = None
+    error: str | None = None
+    elapsed_sec: float = 0.0
+    model: str = ""
+
+
+@router.post(
+    "/structure/start",
+    response_model=JobStartOut,
+    summary="비동기 구조화 시작 — job_id 반환",
+    dependencies=[Depends(require_api_key)],
+)
+def post_structure_start(body: StructureIn):
+    text = body.extracted_text
+
+    def _do() -> dict[str, Any]:
+        return structure_service.run(text)
+
+    return JobStartOut(job_id=jobs.start_job(_do))
+
+
+@router.get(
+    "/structure/result/{job_id}",
+    response_model=StructureResultOut,
+    summary="비동기 구조화 결과 폴링",
+    dependencies=[Depends(require_api_key)],
+)
+def get_structure_result(job_id: str):
+    job = jobs.get_job(job_id)
+    if job is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="구조화 작업을 찾을 수 없어요. 다시 시도해 주세요.",
+        )
+    return StructureResultOut(
+        status=job["status"],
+        structured_data=job["result"],
+        error=job["error"],
+        elapsed_sec=job["elapsed"],
         model=get_llm_model(),
     )
 
@@ -195,11 +304,8 @@ def post_analyze(body: AnalyzeIn):
 #   GET  /api/v1/ec/analyze/result/{j} → {status, analysis_result, ...} 폴링
 #
 # 동기 /analyze 는 하위호환·로컬용으로 유지. 프론트는 start+poll 을 사용.
+# (JobStartOut 은 위 extract 섹션에서 정의됨 — 재사용)
 # ─────────────────────────────────────────────
-class JobStartOut(BaseModel):
-    job_id: str
-
-
 class AnalyzeResultOut(BaseModel):
     status: str = Field(..., description="pending | done | error")
     analysis_result: dict[str, Any] | None = None

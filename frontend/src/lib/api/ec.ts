@@ -29,25 +29,84 @@ import type {
   EcStructuredData,
 } from './types';
 
-/** 1단계: 파일 → 텍스트 (이미지면 OCR). */
+/** 공통 폴링 헬퍼 — start 로 job_id 받고 result 를 폴링. */
+async function pollJob<T>(
+  resultPath: (jobId: string) => string,
+  jobId: string,
+  pick: (res: Record<string, unknown>) => T | undefined,
+  opts: { signal?: AbortSignal; label?: string } = {},
+): Promise<T> {
+  const POLL_MS = 2000;
+  const MAX_WAIT_MS = 6 * 60 * 1000;
+  const startedAt = Date.now();
+  for (;;) {
+    await sleep(POLL_MS, opts.signal);
+    const res = await apiGet<Record<string, unknown>>(resultPath(jobId), {
+      signal: opts.signal,
+    });
+    const status = res.status as string;
+    if (status === 'done') {
+      const v = pick(res);
+      if (v !== undefined && v !== null) return v;
+      throw new ApiCallError(500, `${opts.label ?? '작업'} 결과가 비어있어요. 다시 시도해 주세요.`);
+    }
+    if (status === 'error') {
+      throw new ApiCallError(500, (res.error as string) || `${opts.label ?? '작업'}에 실패했어요. 다시 시도해 주세요.`);
+    }
+    if (Date.now() - startedAt > MAX_WAIT_MS) {
+      throw new ApiCallError(504, `${opts.label ?? '작업'}이 너무 오래 걸려요. 잠시 후 다시 시도해 주세요.`);
+    }
+  }
+}
+
+/** 1단계: 파일 → 텍스트 (이미지면 OCR) — 비동기 잡(이미지 OCR 이 느릴 수 있어 타임아웃 우회). */
 export async function postEcExtract(
   file: File,
   opts: { signal?: AbortSignal } = {},
 ): Promise<EcExtractOut> {
   const form = new FormData();
   form.append('file', file);
-  return apiPostForm<EcExtractOut>('/ec/extract', form, { signal: opts.signal });
+  const { job_id } = await apiPostForm<{ job_id: string }>('/ec/extract/start', form, {
+    signal: opts.signal,
+  });
+  return pollJob<EcExtractOut>(
+    (id) => `/ec/extract/result/${id}`,
+    job_id,
+    (res) =>
+      res.extracted_text != null
+        ? ({
+            extracted_text: res.extracted_text as string,
+            filename: (res.filename as string) ?? '',
+            elapsed_sec: (res.elapsed_sec as number) ?? 0,
+            model: (res.model as string) ?? '',
+          } as EcExtractOut)
+        : undefined,
+    { signal: opts.signal, label: '문서 추출' },
+  );
 }
 
-/** 2단계: 텍스트 → 8섹션 구조화 JSON. */
+/** 2단계: 텍스트 → 8섹션 구조화 JSON — 비동기 잡. */
 export async function postEcStructure(
   extractedText: string,
   opts: { signal?: AbortSignal } = {},
 ): Promise<EcStructureOut> {
-  return apiPostJson<EcStructureOut>(
-    '/ec/structure',
+  const { job_id } = await apiPostJson<{ job_id: string }>(
+    '/ec/structure/start',
     { extracted_text: extractedText },
     { signal: opts.signal },
+  );
+  return pollJob<EcStructureOut>(
+    (id) => `/ec/structure/result/${id}`,
+    job_id,
+    (res) =>
+      res.structured_data != null
+        ? ({
+            structured_data: res.structured_data as Record<string, unknown>,
+            elapsed_sec: (res.elapsed_sec as number) ?? 0,
+            model: (res.model as string) ?? '',
+          } as unknown as EcStructureOut)
+        : undefined,
+    { signal: opts.signal, label: '문서 정리' },
   );
 }
 
