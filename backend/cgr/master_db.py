@@ -24,8 +24,19 @@ COLS = {
     "freq_clause": 13, "freq_issue": 14,
 }
 
-# 후보 경로 (우선순위 순) — 2026판 현행, 2025판 백업
+# 레포 루트 (backend/cgr/master_db.py → parents[2] = repo root).
+# 배포 환경(Render/Linux)에서는 절대 Windows 경로가 없으므로 이 상대 경로가 1순위.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_BACKEND_DATA = Path(__file__).resolve().parents[1] / "data"
+
+# 후보 경로 (우선순위 순) — 상대경로(배포 호환) → Windows 로컬
 DEFAULT_PATHS = [
+    # ── 레포 상대 경로 (Render/Linux/모든 환경 공통) ──
+    str(_REPO_ROOT / "취업규칙 마스터 db (2026).xlsx"),
+    str(_REPO_ROOT / "취업규칙 마스터 db.xlsx"),
+    str(_BACKEND_DATA / "취업규칙 마스터 db (2026).xlsx"),
+    str(_BACKEND_DATA / "취업규칙 마스터 db.xlsx"),
+    # ── Windows 로컬 절대 경로 (개발 편의) ──
     # 2026판 (현행)
     r"C:\Users\Jini\Desktop\1. 영세사업장 자율점검\3. 취업규칙\취업규칙 마스터 db (2026).xlsx",
     r"E:\취업규칙 마스터 db (2026).xlsx",

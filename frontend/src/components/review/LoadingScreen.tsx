@@ -11,12 +11,21 @@ import type { DocumentType } from '@/types/review';
 import { StepProgress, type EcStep } from './StepProgress';
 import styles from './LoadingScreen.module.css';
 
-/** EC phase → 전체 4단계 중 어느 단계에 해당하는지. */
-function ecPhaseToBigStep(phase: EcPhase | undefined): EcStep | null {
-  if (phase === 'extracting' || phase === 'structuring') return 2;
-  if (phase === 'analyzing') return 3;
-  if (phase === 'generating') return 4;
-  return null;
+/** EC phase → 전체 4단계 중 어느 단계에 해당하는지.
+ *  로딩 화면은 항상 "무언가 진행 중"이므로 최소 step 2(문서 정리)로 fallback —
+ *  phase 가 잠깐 undefined 로 읽혀도 indicator 가 사라지지 않게. */
+function ecPhaseToBigStep(phase: EcPhase | undefined): EcStep {
+  switch (phase) {
+    case 'analyzing':
+      return 3;
+    case 'generating':
+    case 'contract':
+      return 4;
+    case 'extracting':
+    case 'structuring':
+    default:
+      return 2;
+  }
 }
 
 /**
@@ -229,8 +238,9 @@ export function LoadingScreen({ reviewId }: LoadingScreenProps) {
   }, [reviewId, router, docType, phase]);
 
   const STEPS = config.steps;
-  // EC 풀 이식 흐름이면 전체 4단계 indicator 상단에 노출
-  const bigStep = docType === 'employment-contract' ? ecPhaseToBigStep(phase) : null;
+  // EC 풀 이식 흐름이면 전체 4단계 indicator 항상 상단에 노출 (phase 로 현재 step 결정)
+  const bigStep: EcStep | null =
+    docType === 'employment-contract' ? ecPhaseToBigStep(phase) : null;
 
   return (
     <main className={styles.page}>

@@ -22,6 +22,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from cgr.api.auth import require_api_key
+from cgr.api import jobs
 from cgr.config import get_llm_model
 from cgr.docx_export import DOCX_MIMETYPE, text_to_docx
 from cgr.ec.services import analyze as analyze_service
@@ -188,6 +189,68 @@ def post_analyze(body: AnalyzeIn):
 
 
 # ─────────────────────────────────────────────
+# 3-b) 비동기 분석 — 게이트웨이 타임아웃 우회 (start + poll)
+#
+#   POST /api/v1/ec/analyze/start      → {job_id} 즉시 반환, 백그라운드 분석
+#   GET  /api/v1/ec/analyze/result/{j} → {status, analysis_result, ...} 폴링
+#
+# 동기 /analyze 는 하위호환·로컬용으로 유지. 프론트는 start+poll 을 사용.
+# ─────────────────────────────────────────────
+class JobStartOut(BaseModel):
+    job_id: str
+
+
+class AnalyzeResultOut(BaseModel):
+    status: str = Field(..., description="pending | done | error")
+    analysis_result: dict[str, Any] | None = None
+    error: str | None = None
+    elapsed_sec: float = 0.0
+    model: str = ""
+
+
+@router.post(
+    "/analyze/start",
+    response_model=JobStartOut,
+    summary="비동기 분석 시작 — job_id 반환",
+    dependencies=[Depends(require_api_key)],
+)
+def post_analyze_start(body: AnalyzeIn):
+    # 클로저로 입력 캡처 — 스레드에서 실행
+    def _do() -> dict[str, Any]:
+        return analyze_service.run(
+            body.structured_data,
+            business_size=body.business_size,
+            worker_types=body.worker_types,
+            legal_guidelines=body.legal_guidelines,
+        )
+
+    job_id = jobs.start_job(_do)
+    return JobStartOut(job_id=job_id)
+
+
+@router.get(
+    "/analyze/result/{job_id}",
+    response_model=AnalyzeResultOut,
+    summary="비동기 분석 결과 폴링",
+    dependencies=[Depends(require_api_key)],
+)
+def get_analyze_result(job_id: str):
+    job = jobs.get_job(job_id)
+    if job is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="분석 작업을 찾을 수 없어요. 작업이 만료됐거나 서버가 재시작됐을 수 있어요. 다시 시도해 주세요.",
+        )
+    return AnalyzeResultOut(
+        status=job["status"],
+        analysis_result=job["result"],
+        error=job["error"],
+        elapsed_sec=job["elapsed"],
+        model=get_llm_model(),
+    )
+
+
+# ─────────────────────────────────────────────
 # 4) POST /api/v1/ec/generate
 # ─────────────────────────────────────────────
 class GenerateIn(BaseModel):
@@ -230,6 +293,56 @@ def post_generate(body: GenerateIn):
     return GenerateOut(
         contract_text=text,
         elapsed_sec=round(time.time() - t0, 2),
+        model=get_llm_model(),
+    )
+
+
+# ─────────────────────────────────────────────
+# 4-c) 비동기 계약서 생성 — start + poll (analyze 와 동일 패턴)
+# ─────────────────────────────────────────────
+class GenerateResultOut(BaseModel):
+    status: str = Field(..., description="pending | done | error")
+    contract_text: str | None = None
+    error: str | None = None
+    elapsed_sec: float = 0.0
+    model: str = ""
+
+
+@router.post(
+    "/generate/start",
+    response_model=JobStartOut,
+    summary="비동기 계약서 생성 시작 — job_id 반환",
+    dependencies=[Depends(require_api_key)],
+)
+def post_generate_start(body: GenerateIn):
+    def _do() -> str:
+        return generate_service.run(
+            body.analysis_result,
+            user_overrides=body.user_overrides or None,
+        )
+
+    job_id = jobs.start_job(_do)
+    return JobStartOut(job_id=job_id)
+
+
+@router.get(
+    "/generate/result/{job_id}",
+    response_model=GenerateResultOut,
+    summary="비동기 계약서 생성 결과 폴링",
+    dependencies=[Depends(require_api_key)],
+)
+def get_generate_result(job_id: str):
+    job = jobs.get_job(job_id)
+    if job is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="생성 작업을 찾을 수 없어요. 다시 시도해 주세요.",
+        )
+    return GenerateResultOut(
+        status=job["status"],
+        contract_text=job["result"],
+        error=job["error"],
+        elapsed_sec=job["elapsed"],
         model=get_llm_model(),
     )
 

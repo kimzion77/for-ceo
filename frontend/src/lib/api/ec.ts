@@ -10,7 +10,14 @@
  * 각 단계가 독립 호출 가능하므로 사용자가 검토 페이지에서 머무는 동안
  * 클라이언트 메모리에 결과를 보관 (reviewStore) 한 뒤 다음 단계로 진행.
  */
-import { apiPostForm, apiPostJson, apiPostJsonBlob, triggerDownload } from './client';
+import {
+  ApiCallError,
+  apiGet,
+  apiPostForm,
+  apiPostJson,
+  apiPostJsonBlob,
+  triggerDownload,
+} from './client';
 import type {
   EcAnalyzeOut,
   EcAnalysisResult,
@@ -44,15 +51,40 @@ export async function postEcStructure(
   );
 }
 
-/** 3단계: 사용자가 검토 완료한 구조화 데이터 + 컨텍스트 → 33매핑 분석 결과. */
+/** 폴링 sleep — AbortSignal 지원. */
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(resolve, ms);
+    if (signal) {
+      signal.addEventListener(
+        'abort',
+        () => {
+          clearTimeout(t);
+          reject(new DOMException('Aborted', 'AbortError'));
+        },
+        { once: true },
+      );
+    }
+  });
+}
+
+/**
+ * 3단계: 33매핑 분석 — 비동기 잡(start + poll) 방식.
+ *
+ * 동기 단일 요청은 Render cold start + 분석 시간이 합쳐져 Vercel 60초 함수
+ * 타임아웃에 걸려 'Unterminated JSON' 으로 실패했다. 이제:
+ *   1) /ec/analyze/start 로 job_id 만 즉시 받고 (백엔드는 백그라운드 스레드 실행)
+ *   2) /ec/analyze/result/{job_id} 를 짧게 폴링 — 각 요청 1초 미만이라 타임아웃 무관
+ * 분석이 아무리 오래 걸려도(느려도) 끊기지 않고 반드시 완료된다.
+ */
 export async function postEcAnalyze(
   structuredData: EcStructuredData,
   businessSize: string,
   workerTypes: string[],
   opts: { legalGuidelines?: string; signal?: AbortSignal } = {},
 ): Promise<EcAnalyzeOut> {
-  return apiPostJson<EcAnalyzeOut>(
-    '/ec/analyze',
+  const { job_id } = await apiPostJson<{ job_id: string }>(
+    '/ec/analyze/start',
     {
       structured_data: structuredData,
       business_size: businessSize,
@@ -61,6 +93,38 @@ export async function postEcAnalyze(
     },
     { signal: opts.signal },
   );
+
+  const POLL_MS = 2500;
+  const MAX_WAIT_MS = 6 * 60 * 1000; // 6분 하드 캡
+  const startedAt = Date.now();
+  // 첫 폴링 전 약간 대기 — 짧은 작업이면 한 번에 done
+  for (;;) {
+    await sleep(POLL_MS, opts.signal);
+    const res = await apiGet<{
+      status: string;
+      analysis_result: EcAnalysisResult | null;
+      error: string | null;
+      elapsed_sec: number;
+      model: string;
+    }>(`/ec/analyze/result/${job_id}`, { signal: opts.signal });
+
+    if (res.status === 'done' && res.analysis_result) {
+      return {
+        analysis_result: res.analysis_result,
+        elapsed_sec: res.elapsed_sec,
+        model: res.model,
+      };
+    }
+    if (res.status === 'error') {
+      throw new ApiCallError(500, res.error || '분석에 실패했어요. 다시 시도해 주세요.');
+    }
+    if (Date.now() - startedAt > MAX_WAIT_MS) {
+      throw new ApiCallError(
+        504,
+        '분석이 너무 오래 걸려요. 문서가 길거나 서버가 혼잡할 수 있어요. 잠시 후 다시 시도해 주세요.',
+      );
+    }
+  }
 }
 
 /** 4단계: 분석 결과 → 표준 근로계약서 텍스트.
@@ -76,14 +140,43 @@ export async function postEcGenerate(
     signal?: AbortSignal;
   } = {},
 ): Promise<EcGenerateOut> {
-  return apiPostJson<EcGenerateOut>(
-    '/ec/generate',
+  // analyze 와 동일하게 비동기 잡(start + poll)로 — 게이트웨이 타임아웃 우회.
+  const { job_id } = await apiPostJson<{ job_id: string }>(
+    '/ec/generate/start',
     {
       analysis_result: analysisResult,
       user_overrides: opts.userOverrides ?? {},
     },
     { signal: opts.signal },
   );
+
+  const POLL_MS = 2500;
+  const MAX_WAIT_MS = 6 * 60 * 1000;
+  const startedAt = Date.now();
+  for (;;) {
+    await sleep(POLL_MS, opts.signal);
+    const res = await apiGet<{
+      status: string;
+      contract_text: string | null;
+      error: string | null;
+      elapsed_sec: number;
+      model: string;
+    }>(`/ec/generate/result/${job_id}`, { signal: opts.signal });
+
+    if (res.status === 'done' && res.contract_text != null) {
+      return {
+        contract_text: res.contract_text,
+        elapsed_sec: res.elapsed_sec,
+        model: res.model,
+      };
+    }
+    if (res.status === 'error') {
+      throw new ApiCallError(500, res.error || '계약서 생성에 실패했어요. 다시 시도해 주세요.');
+    }
+    if (Date.now() - startedAt > MAX_WAIT_MS) {
+      throw new ApiCallError(504, '계약서 생성이 너무 오래 걸려요. 잠시 후 다시 시도해 주세요.');
+    }
+  }
 }
 
 /** 5단계(부가): 결과 페이지에서 사용자가 던지는 후속 질문에 LLM 이 답변. */
