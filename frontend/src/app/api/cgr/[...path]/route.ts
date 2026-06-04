@@ -97,11 +97,16 @@ async function handler(
   }
 
   // 응답 body·헤더 forward
+  // 주의: undici(Node fetch)는 gzip 응답을 arrayBuffer() 시 자동 압축해제한다.
+  // 따라서 body 는 압축해제된 원본인데, 업스트림의 content-encoding(gzip)과
+  // content-length(압축 크기)를 그대로 넘기면 브라우저가 압축 크기만큼만 읽고
+  // 끊어버려 'Unterminated JSON' 이 난다. 두 헤더 모두 반드시 제거하고
+  // NextResponse 가 실제 body 길이로 다시 계산하도록 둔다.
   const body = await upstream.arrayBuffer();
   const headers = new Headers();
+  const STRIP = ['content-encoding', 'transfer-encoding', 'content-length'];
   upstream.headers.forEach((v, k) => {
-    // hop-by-hop 헤더 제외
-    if (!['content-encoding', 'transfer-encoding'].includes(k.toLowerCase())) {
+    if (!STRIP.includes(k.toLowerCase())) {
       headers.set(k, v);
     }
   });
