@@ -9,6 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -1366,11 +1367,17 @@ function SuggestBlock({
   const [draft, setDraft] = useState(initialSuggest);
   const [copied, setCopied] = useState(false);
   const [applied, setApplied] = useState(hasOverride);
+  // 마지막으로 "문서에 반영" 된 값 — dirty 판정 기준. 원본(initialSuggest)이 아니라
+  // 이 값과 비교해야, 사용자가 표현을 직접 수정해 반영한 뒤에도 "✓ 반영됨" 이 뜬다.
+  const [appliedValue, setAppliedValue] = useState<string | null>(
+    hasOverride ? initialSuggest : null,
+  );
   // hasOverride 가 부모 갱신으로 바뀌면 applied 도 sync — 캐러셀에서 항목 이동 시
   // 같은 SuggestBlock 인스턴스가 다른 항목으로 props 만 바뀌는 경우 대응.
   useEffect(() => {
     setApplied(hasOverride);
-  }, [hasOverride]);
+    setAppliedValue(hasOverride ? initialSuggest : null);
+  }, [hasOverride, initialSuggest]);
   // 클릭 즉시 사용자에게 보일 토스트 — 풋터 색 변화만으론 안 보이는 케이스 대비.
   const [toast, setToast] = useState<null | { msg: string; tone: 'ok' | 'info' }>(
     null,
@@ -1443,6 +1450,7 @@ function SuggestBlock({
       return;
     }
     setApplied(true);
+    setAppliedValue(value);
     pushToast(`✓ 「${itemName}」 표준 계약서에 반영됨`, 'ok');
   };
 
@@ -1453,22 +1461,33 @@ function SuggestBlock({
     delete next[itemName];
     updateEc(caseId, { userOverrides: next });
     setApplied(false);
+    setAppliedValue(null);
     pushToast('초안으로 되돌렸어요', 'info');
   };
 
-  const dirty = draft.trim() !== initialSuggest.trim();
+  // 반영 완료 상태 = 반영된 적 있고 현재 draft 가 마지막 반영값과 동일.
+  // needsReapply = 반영 후 표현을 또 고쳐서 다시 눌러야 하는 상태.
+  const isApplied =
+    applied && appliedValue !== null && draft.trim() === appliedValue.trim();
+  const needsReapply =
+    applied && appliedValue !== null && draft.trim() !== appliedValue.trim();
 
   return (
     <div className={styles.suggestBlock}>
-      {toast && (
-        <div
-          className={`${styles.suggestToast} ${styles[`suggestToast_${toast.tone}`]}`}
-          role="status"
-          aria-live="polite"
-        >
-          {toast.msg}
-        </div>
-      )}
+      {/* 토스트는 body 로 portal — 캐러셀의 transform/overflow 안에 갇혀 안 보이던 문제 해결.
+          (transform 된 조상은 position:fixed 의 기준이 되어 화면 밖으로 밀려남) */}
+      {toast &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            className={`${styles.suggestToast} ${styles[`suggestToast_${toast.tone}`]}`}
+            role="status"
+            aria-live="polite"
+          >
+            {toast.msg}
+          </div>,
+          document.body,
+        )}
       <div className={styles.suggestHead}>
         <span
           className={`${styles.suggestSparkle} ${styles[`suggestSparkle_${tone}`]}`}
@@ -1521,7 +1540,7 @@ function SuggestBlock({
         </div>
       </div>
       {/* 적용 직후 인라인 confirmation — toast 못 봐도 카드 안에서 확실히 인지. */}
-      {applied && !dirty && (
+      {isApplied && (
         <div
           className={styles.suggestAppliedBanner}
           role="status"
@@ -1547,13 +1566,13 @@ function SuggestBlock({
       )}
       <div
         className={`${styles.suggestFooter} ${
-          applied && !dirty ? styles.suggestFooterApplied : ''
+          isApplied ? styles.suggestFooterApplied : ''
         }`}
       >
         <span className={styles.suggestFooterInfo}>
-          {applied && dirty ? (
+          {needsReapply ? (
             <>📝 표현이 수정되었어요. 다시 <strong>“문서에 반영”</strong> 을 눌러 갱신해 주세요.</>
-          ) : applied ? (
+          ) : isApplied ? (
             <>✓ <strong>이 항목은 이미 반영됨</strong> — 표현을 더 다듬어도 다시 누르면 갱신돼요.</>
           ) : (
             <>ⓘ 표현을 다듬은 뒤 <strong>“문서에 반영”</strong> 을 누르면 표준 계약서 본문에 사용돼요.</>
@@ -1562,12 +1581,12 @@ function SuggestBlock({
         <button
           type="button"
           className={`${styles.suggestFooterCta} ${
-            applied && !dirty ? styles.suggestFooterCtaApplied : ''
+            isApplied ? styles.suggestFooterCtaApplied : ''
           }`}
           onClick={handleApply}
-          disabled={!draft.trim() || (applied && !dirty)}
+          disabled={!draft.trim() || isApplied}
         >
-          {applied && !dirty ? '✓ 반영됨' : '문서에 반영 →'}
+          {isApplied ? '✓ 반영됨' : '문서에 반영 →'}
         </button>
       </div>
     </div>
