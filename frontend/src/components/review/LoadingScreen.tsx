@@ -8,25 +8,7 @@ import { useMockProgress } from '@/hooks/useMockProgress';
 import { getCase } from '@/lib/reviewStore';
 import type { EcPhase } from '@/lib/reviewStore';
 import type { DocumentType } from '@/types/review';
-import { StepProgress, type EcStep } from './StepProgress';
 import styles from './LoadingScreen.module.css';
-
-/** EC phase → 전체 4단계 중 어느 단계에 해당하는지.
- *  로딩 화면은 항상 "무언가 진행 중"이므로 최소 step 2(문서 정리)로 fallback —
- *  phase 가 잠깐 undefined 로 읽혀도 indicator 가 사라지지 않게. */
-function ecPhaseToBigStep(phase: EcPhase | undefined): EcStep {
-  switch (phase) {
-    case 'analyzing':
-      return 3;
-    case 'generating':
-    case 'contract':
-      return 4;
-    case 'extracting':
-    case 'structuring':
-    default:
-      return 2;
-  }
-}
 
 /**
  * 검토 진행 중 화면.
@@ -238,17 +220,9 @@ export function LoadingScreen({ reviewId }: LoadingScreenProps) {
   }, [reviewId, router, docType, phase]);
 
   const STEPS = config.steps;
-  // EC 풀 이식 흐름이면 전체 4단계 indicator 항상 상단에 노출 (phase 로 현재 step 결정)
-  const bigStep: EcStep | null =
-    docType === 'employment-contract' ? ecPhaseToBigStep(phase) : null;
 
   return (
     <main className={styles.page}>
-      {bigStep && (
-        <div className={styles.bigStepWrap}>
-          <StepProgress current={bigStep} reviewId={reviewId} />
-        </div>
-      )}
       <div className={styles.inner}>
         {/* 회전 로더 + 문서 아이콘 */}
         <div className={styles.loader}>

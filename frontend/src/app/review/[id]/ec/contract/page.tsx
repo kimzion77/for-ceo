@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 
 import { getCase } from '@/lib/reviewStore';
-import { StepProgress } from '@/components/review/StepProgress';
 import { downloadEcDocx } from '@/lib/api/ec';
 import { ApiCallError } from '@/lib/api/client';
 
@@ -150,7 +149,6 @@ export default function EcContractPage({
             {toast}
           </div>
         )}
-        <StepProgress current={4} reviewId={caseId} />
         <div className={styles.head}>
           {dirty && <span className={styles.dirtyBadge}>✎ 편집됨</span>}
         </div>
