@@ -1,0 +1,35 @@
+# 빌드 컨텍스트에서 제외 — 이미지 크기·빌드 시간 절감
+
+# Python 캐시
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# 프론트엔드 (별도 Vercel 배포)
+frontend/
+
+# 시크릿 — Fly secrets 로 주입, 이미지에 절대 포함 X
+backend/.streamlit/secrets.toml
+.env
+.env.local
+
+# LLM 캐시 — 런타임에 재생성 (이미지에 굳이 넣을 필요 없음, 3MB 절감)
+backend/data/llm_cache/
+
+# 문서·빌드 산출물
+docs/
+backend/docs/
+**/*.md
+.git/
+.github/
+
+# 임베딩 인덱스는 포함 (topic_index.json) — 검토에 사용될 수 있음
+# 단 재생성 가능하면 제외 고려. 현재는 포함 유지.
+
+# HWP 표준 양식 (큰 파일) 은 forms 폴더 것만 필요 — 루트 hwp 제외
+표준취업규칙(2026년, 배포).hwp
