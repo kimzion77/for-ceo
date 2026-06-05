@@ -2,6 +2,7 @@
 
 import {
   Fragment,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -64,6 +65,12 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
   const [activeFindingIndex, setActiveFindingIndex] = useState(0);
   /** 좌(요약 칩·본문 마크) ↔ 우(상세 카드) 동기화용 focus 인덱스 (0-based, sortedResults 기준). */
   const [focusedIndex, setFocusedIndex] = useState(0);
+  // 핸들러는 안정적 identity 로 — 안 그러면 자식 effect 가 매 렌더 재실행돼
+  // scrollIntoView 가 반복 호출되며 화면이 떨린다(버벅임).
+  const handleFocus = useCallback((i: number) => {
+    setFocusedIndex(i);
+    setActiveFindingIndex(i);
+  }, []);
   // 노무사회 주제 코퍼스 lazy fetch — 호버 chip 의 본문 발췌용.
   // 페이지 mount 즉시 백엔드 1회 호출. 적재 완료 시 자동 re-render.
   useTopicCorpus();
@@ -213,10 +220,7 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
             findings={sortedResults}
             board={requirementBoard}
             focusedIndex={focusedIndex}
-            onFocus={(i) => {
-              setFocusedIndex(i);
-              setActiveFindingIndex(i);
-            }}
+            onFocus={handleFocus}
           />
 
           {/* ─── 우: 결과 패널 ─── */}
@@ -257,10 +261,7 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
               caseId={caseId}
               initialOverrides={entry?.ec?.userOverrides ?? {}}
               controlledIndex={focusedIndex}
-              onIndexChange={(i) => {
-                setActiveFindingIndex(i);
-                setFocusedIndex(i);
-              }}
+              onIndexChange={handleFocus}
             />
 
             <div className={`${styles.ctaBar} noPrint`}>
@@ -1279,6 +1280,10 @@ function FindingCarousel({
     });
   };
 
+  const goPrev = () =>
+    setIndex((i) => (i - 1 + findings.length) % findings.length);
+  const goNext = () => setIndex((i) => (i + 1) % findings.length);
+
   return (
     <section className={styles.carouselSection} aria-label="항목별 상세">
       <header className={styles.carouselHead}>
@@ -1287,9 +1292,24 @@ function FindingCarousel({
           {String(index + 1).padStart(2, '0')} /{' '}
           {String(findings.length).padStart(2, '0')}
         </span>
-        <span className={styles.carouselHint}>
-          카드를 좌우로 끌어 넘겨보세요
-        </span>
+        <div className={styles.carouselNav}>
+          <button
+            type="button"
+            className={styles.carouselNavBtn}
+            onClick={goPrev}
+            aria-label="이전 항목"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            className={styles.carouselNavBtn}
+            onClick={goNext}
+            aria-label="다음 항목"
+          >
+            ›
+          </button>
+        </div>
       </header>
 
       <div

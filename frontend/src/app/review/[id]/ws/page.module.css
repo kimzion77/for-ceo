@@ -757,6 +757,32 @@
   color: #64748b;
 }
 
+/* 항목별 상세 ◀▶ 네비 (스와이프 대신 버튼) */
+.carouselNav {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+.carouselNavBtn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--color-border, #e3e2dc);
+  background: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 17px;
+  line-height: 1;
+  color: var(--color-text-muted, #5a6170);
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+.carouselNavBtn:hover {
+  border-color: var(--color-brand, #0b3d91);
+  color: var(--color-brand, #0b3d91);
+  background: var(--color-brand-soft, #e8eef9);
+}
+
 .carouselStage {
   position: relative;
   overflow: hidden;

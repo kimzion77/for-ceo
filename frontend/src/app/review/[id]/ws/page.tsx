@@ -1157,19 +1157,14 @@ function FindingCarousel({
   if (findings.length === 0) return null;
   const cur = findings[Math.min(index, findings.length - 1)];
 
+  // setPointerCapture 미사용 — 캡처하면 카드 안 링크·버튼 클릭이 먹힘(EC 와 동일 수정).
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId);
     startXRef.current = e.clientX;
   };
   const onPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (startXRef.current == null) return;
     const dx = e.clientX - startXRef.current;
     startXRef.current = null;
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch {
-      /* noop */
-    }
     if (Math.abs(dx) < SWIPE_THRESHOLD) return;
     setIndex((i) => {
       const total = findings.length;
@@ -1177,6 +1172,9 @@ function FindingCarousel({
       return (i - 1 + total) % total;
     });
   };
+  const goPrev = () =>
+    setIndex((i) => (i - 1 + findings.length) % findings.length);
+  const goNext = () => setIndex((i) => (i + 1) % findings.length);
 
   return (
     <section className={styles.carouselSection} aria-label="항목별 상세">
@@ -1186,9 +1184,24 @@ function FindingCarousel({
           {String(index + 1).padStart(2, '0')} /{' '}
           {String(findings.length).padStart(2, '0')}
         </span>
-        <span className={styles.carouselHint}>
-          카드를 좌우로 끌어 넘겨보세요
-        </span>
+        <div className={styles.carouselNav}>
+          <button
+            type="button"
+            className={styles.carouselNavBtn}
+            onClick={goPrev}
+            aria-label="이전 항목"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            className={styles.carouselNavBtn}
+            onClick={goNext}
+            aria-label="다음 항목"
+          >
+            ›
+          </button>
+        </div>
       </header>
 
       <div
