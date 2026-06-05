@@ -26,6 +26,8 @@ import { lookupLawExcerpt, type LawExcerpt } from '@/data/lawExcerpts';
 import { filterApplicableGroups } from '@/data/workerTypeRequirements';
 import { getCase, setCaseError, updateEc } from '@/lib/reviewStore';
 import { useTopicCorpus } from '@/lib/api/topics';
+import { buildMarkerHits, shortNoteForFinding } from './ecMarkers';
+import MobileEcResult from './MobileEcResult';
 
 import styles from './page.module.css';
 
@@ -111,6 +113,17 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
     [sortedResults],
   );
 
+  // 모바일(≤720px) 감지 — 모바일이면 데스크톱 2단 대신 전용 모바일 화면을 렌더.
+  // 반드시 조기 return 위에서 호출(훅 순서 고정).
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 720px)');
+    const on = () => setIsMobile(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+
   // ─── 훅 호출 끝. 이제 조기 return / 일반 분기 가능 ───
   if (!mounted) {
     // 서버·client 첫 페인트가 동일하도록 빈 컨테이너만.
@@ -167,6 +180,27 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
           </div>
         </div>
       </main>
+    );
+  }
+
+  // 모바일 전용 화면 — 데스크톱 2단 레이아웃 대신 풀스크린 모바일 뷰를 조기 렌더.
+  // (위의 훅·notFound·!analysis 가드를 모두 통과한 뒤이므로 analysis 는 non-null)
+  if (isMobile) {
+    const board = requirementBoard.stats;
+    return (
+      <MobileEcResult
+        analysis={analysis}
+        violations={violations}
+        okCount={board.ok}
+        stats={{ 부적절: board.bad, 보완필요: board.partial, 적절: board.ok }}
+        caseId={caseId}
+        filename={entry?.originalFilename || '근로계약서'}
+        imageUrl={
+          entry?.originalKind === 'image' ? entry?.originalUrl : undefined
+        }
+        extractedText={entry?.ec?.extractedText ?? ''}
+        onBackToHome={() => router.push('/history')}
+      />
     );
   }
 
@@ -500,99 +534,10 @@ interface DocPanelProps {
   onChangeMode: (m: 'split' | 'wide') => void;
 }
 
-/**
- * finding 의 본문 매칭 후보 토큰을 우선순위순으로 추출.
- * 우선순위:
- *   1) 항목명 자체 (예: "임금", "근무 장소") — 가장 의미있는 위치
- *   2) 발견내용 split — placeholder 제외, 2자 이상
- *
- * "임금" finding 이 본문의 "임금" 단어 위치를 잡도록 — 발견내용의 흔한 단어
- * (예: "근로자") 가 앞 위치에 먼저 매칭되어 마커가 엉뚱한 곳으로 가는 것 방지.
- */
-function extractCandidateTokens(item: EcAnalysisItem): string[] {
-  const tokens: string[] = [];
-  const skip = /^(미기재|없음|판독불가|해당없음|—|-)$/;
-
-  // 1) 항목명 — 공백 유지 / 공백 제거 두 변형
-  if (item.항목) {
-    const t = item.항목.trim();
-    if (t.length >= 2 && !skip.test(t)) {
-      tokens.push(t);
-      const nospace = t.replace(/\s+/g, '');
-      if (nospace !== t && nospace.length >= 2) tokens.push(nospace);
-    }
-  }
-
-  // 2) 발견내용 split — fallback
-  const found = item.발견내용 || '';
-  for (const piece of found.split(/[\s,;:·\/\n\r]+/)) {
-    const s = piece.trim();
-    if (s.length >= 2 && !skip.test(s) && !tokens.includes(s)) {
-      tokens.push(s);
-    }
-  }
-  return tokens;
-}
-
 /** db 가 실제 법령(법/법률) 이름인지. */
 function isLawDb(db: string): boolean {
   const cleanDb = db.replace(/^DB_/, '');
   return /(법|법률)$/.test(cleanDb);
-}
-
-interface MarkerHit {
-  index: number;
-  length: number;
-  token: string;
-  finding: EcAnalysisItem;
-  /** 캐러셀 인덱스(1-based) — 좌측 본문 마커와 우측 항목별 상세 카드 번호가 일치. */
-  no: number;
-}
-
-/**
- * findings 는 캐러셀과 동일한 정렬(부적절→보완필요→적절) 순으로 들어와야 한다.
- * 각 finding 의 배열 인덱스를 그대로 마커 번호로 사용해 캐러셀과 일대일 매칭.
- */
-function buildMarkerHits(
-  text: string,
-  findings: EcAnalysisItem[],
-): MarkerHit[] {
-  const used: Array<[number, number]> = [];
-  const hits: MarkerHit[] = [];
-  findings.forEach((f, idx) => {
-    const tokens = extractCandidateTokens(f);
-    let best: { index: number; length: number; token: string } | null = null;
-    // 우선순위순 (항목명 → 발견내용) — 첫 매칭이 곧 채택. 위치는 우선 아님.
-    for (const tok of tokens) {
-      const i = text.indexOf(tok);
-      if (i < 0) continue;
-      const overlaps = used.some(
-        ([s, e]) => !(i + tok.length <= s || i >= e),
-      );
-      if (overlaps) continue;
-      best = { index: i, length: tok.length, token: tok };
-      break;
-    }
-    if (best) {
-      hits.push({ ...best, finding: f, no: idx + 1 });
-      used.push([best.index, best.index + best.length]);
-    }
-  });
-  // 본문 흐름대로 렌더하기 위해 위치순 정렬. 단 번호(no)는 변경 X — 캐러셀과 동기화.
-  hits.sort((a, b) => a.index - b.index);
-  return hits;
-}
-
-/** finding 의 짧은 한 줄 라벨 (Note 용).
- *  '부적절' 을 무조건 '미기재' 로 표기하던 버그 수정 — 발견내용이 실제로
- *  비었을 때만 '미기재', 값이 있으면(예: 최저임금 미달) '부적절' 로 표기. */
-function shortNoteForFinding(f: EcAnalysisItem): string {
-  const found = (f.발견내용 || '').trim();
-  const isMissing =
-    !found || /^(미기재|없음|누락|미작성|판독불가|해당없음|미상|—|-)$/.test(found);
-  if (f.적절성 === '부적절') return isMissing ? `${f.항목} 미기재` : `${f.항목} 부적절`;
-  if (f.적절성 === '보완필요') return `${f.항목} 보완 필요`;
-  return f.항목;
 }
 
 /**
