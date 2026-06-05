@@ -41,8 +41,11 @@ export function useMockProgress(opts: UseMockProgressOptions = {}): ProgressStat
     const id = window.setInterval(() => {
       const elapsed = Date.now() - startedAt;
       const ratio = Math.min(elapsed / totalDurationMs, 1);
-      // 선형 — "전반적으로 쭈우욱" 동일 속도로 올라감
-      setProgress(Math.round(ratio * 100));
+      // 선형 — "전반적으로 쭈우욱" 동일 속도로 올라감.
+      // 단조 증가 보장: 단계 전환으로 totalDurationMs 가 바뀌어 effect 가
+      // 재시작돼도 progress 가 거꾸로 내려가지 않게 max 로 클램프.
+      const next = Math.round(ratio * 100);
+      setProgress((prev) => (next > prev ? next : prev));
       if (ratio >= 1) {
         window.clearInterval(id);
       }
