@@ -797,19 +797,36 @@ function DocPanel({
     };
   }, [mode, findings, safeIdx]);
 
-  // 좌측 문서 스와이프 — 페이지(이미지↔텍스트) 넘김. (수평 우세 + 60px + 선택중 무시)
-  const swipeStart = useRef<{ x: number; y: number } | null>(null);
+  // 좌측 문서 스와이프 — 수평 드래그 감지 순간에만 선택 끄고 캡처 (클릭/스크롤/선택 무충돌).
+  const dragRef = useRef<{ x: number; y: number; active: boolean; pid: number } | null>(
+    null,
+  );
   const onDocPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    swipeStart.current = { x: e.clientX, y: e.clientY };
+    dragRef.current = { x: e.clientX, y: e.clientY, active: false, pid: e.pointerId };
+  };
+  const onDocPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current;
+    if (!d || pages.length < 2) return;
+    const dx = e.clientX - d.x;
+    const dy = e.clientY - d.y;
+    if (!d.active && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) {
+      d.active = true;
+      try {
+        e.currentTarget.setPointerCapture(d.pid);
+      } catch {
+        /* noop */
+      }
+      if (docBodyRef.current) docBodyRef.current.style.userSelect = 'none';
+      window.getSelection()?.removeAllRanges?.();
+    }
   };
   const onDocPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
-    const s = swipeStart.current;
-    swipeStart.current = null;
-    if (!s || pages.length < 2) return;
-    const dx = e.clientX - s.x;
-    const dy = e.clientY - s.y;
-    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-    if ((window.getSelection()?.toString().length ?? 0) > 0) return;
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (docBodyRef.current) docBodyRef.current.style.userSelect = '';
+    if (!d || !d.active || pages.length < 2) return;
+    const dx = e.clientX - d.x;
+    if (Math.abs(dx) < 50) return;
     if (dx < 0) next();
     else prev();
   };
@@ -876,6 +893,7 @@ function DocPanel({
         className={`${styles.docBody} ${mode === 'wide' ? styles.docBodyWide : ''}`}
         ref={docBodyRef}
         onPointerDown={onDocPointerDown}
+        onPointerMove={onDocPointerMove}
         onPointerUp={onDocPointerUp}
       >
         {pages[safeIdx].title === '원본 이미지' ||

@@ -788,19 +788,37 @@ function DocPanel({
   }, [mode, findings, safeIdx]);
 
   // 좌측 문서 스와이프 — 페이지(이미지↔텍스트) 넘김.
-  // 텍스트 선택·마크 클릭과 충돌 방지: 수평 우세 + 60px 임계 + 선택중이면 무시.
-  const swipeStart = useRef<{ x: number; y: number } | null>(null);
+  // 핵심: 수평 드래그를 "감지한 순간"에만 텍스트 선택을 끄고 캡처 → 클릭/세로
+  // 스크롤/텍스트선택과 충돌하지 않으면서 수평 스와이프만 페이지 전환.
+  const dragRef = useRef<{ x: number; y: number; active: boolean; pid: number } | null>(
+    null,
+  );
   const onDocPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    swipeStart.current = { x: e.clientX, y: e.clientY };
+    dragRef.current = { x: e.clientX, y: e.clientY, active: false, pid: e.pointerId };
+  };
+  const onDocPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current;
+    if (!d || pages.length < 2) return;
+    const dx = e.clientX - d.x;
+    const dy = e.clientY - d.y;
+    if (!d.active && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) {
+      d.active = true; // 수평 드래그 확정
+      try {
+        e.currentTarget.setPointerCapture(d.pid);
+      } catch {
+        /* noop */
+      }
+      if (docBodyRef.current) docBodyRef.current.style.userSelect = 'none';
+      window.getSelection()?.removeAllRanges?.();
+    }
   };
   const onDocPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
-    const s = swipeStart.current;
-    swipeStart.current = null;
-    if (!s || pages.length < 2) return;
-    const dx = e.clientX - s.x;
-    const dy = e.clientY - s.y;
-    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return; // 수평 스와이프만
-    if ((window.getSelection()?.toString().length ?? 0) > 0) return; // 텍스트 선택 중이면 무시
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (docBodyRef.current) docBodyRef.current.style.userSelect = '';
+    if (!d || !d.active || pages.length < 2) return;
+    const dx = e.clientX - d.x;
+    if (Math.abs(dx) < 50) return;
     if (dx < 0) next();
     else prev();
   };
@@ -867,6 +885,7 @@ function DocPanel({
         className={`${styles.docBody} ${mode === 'wide' ? styles.docBodyWide : ''}`}
         ref={docBodyRef}
         onPointerDown={onDocPointerDown}
+        onPointerMove={onDocPointerMove}
         onPointerUp={onDocPointerUp}
       >
         {pages[safeIdx].title === '원본 이미지' ||
