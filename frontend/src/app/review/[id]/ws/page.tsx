@@ -681,6 +681,8 @@ function buildRealPages(
             alt={filename}
             className={styles.docImage}
             onError={onImageError}
+            draggable={false}
+            onDragStart={(e) => e.preventDefault()}
           />
         </div>
       ),
