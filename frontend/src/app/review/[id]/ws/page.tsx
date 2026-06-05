@@ -2,6 +2,7 @@
 
 import {
   Fragment,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -59,6 +60,16 @@ export default function WsResultPage({ params }: { params: { id: string } }) {
   const [genError, setGenError] = useState<string | null>(null);
   /** 캐러셀의 현재 활성 항목 인덱스 — ChatPanel 컨텍스트로 사용. */
   const [activeFindingIndex, setActiveFindingIndex] = useState(0);
+  /** 좌(요약 칩·본문 마크) ↔ 우(상세 카드) 동기화용 focus 인덱스 (0-based, sortedResults 기준). */
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  // 핸들러는 안정적 identity 로 — 안 그러면 자식 effect 가 매 렌더 재실행돼
+  // scrollIntoView 가 반복 호출되며 화면이 떨린다(버벅임).
+  const handleFocus = useCallback((i: number) => {
+    setFocusedIndex(i);
+    setActiveFindingIndex(i);
+  }, []);
+  /** 보기 모드 — 'split'(나란히: 좌 명세서+우 상세) / 'wide'(검토 보기: 전체폭+거터). */
+  const [reviewMode, setReviewMode] = useState<'split' | 'wide'>('split');
   // 노무사회 주제 코퍼스 lazy fetch — 호버 chip 의 본문 발췌용.
   // 페이지 mount 즉시 백엔드 1회 호출. 적재 완료 시 자동 re-render.
   useTopicCorpus();
@@ -88,6 +99,13 @@ export default function WsResultPage({ params }: { params: { id: string } }) {
     () => buildRequirementBoard(businessSize, workerTypes, sortedResults),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [businessSize, workerTypes.join(','), sortedResults],
+  );
+
+  // 위반·보완만 단일 목록으로 — 칩·본문 마크·우측 카드가 모두 이 목록을 공유해
+  // 번호·내용이 100% 일치한다. (적절 항목은 통계에만 노출, 본문/카드엔 미표시)
+  const violations = useMemo(
+    () => sortedResults.filter((r) => r.적절성 !== '적절'),
+    [sortedResults],
   );
 
   // ─── 훅 호출 끝. 이제 조기 return / 일반 분기 가능 ───
@@ -203,7 +221,9 @@ export default function WsResultPage({ params }: { params: { id: string } }) {
   return (
     <main className={styles.page}>
       <div className={`${styles.layout} printAvoidBreak`}>
-        <div className={`${styles.split} printStack`}>
+        <div
+          className={`${styles.split} ${reviewMode === 'wide' ? styles.splitWide : ''} printStack`}
+        >
           {/* ─── 좌: 업로드된 문서 패널 ─── */}
           <DocPanel
             filename={entry?.originalFilename || '임금명세서'}
@@ -211,12 +231,20 @@ export default function WsResultPage({ params }: { params: { id: string } }) {
               entry?.originalKind === 'image' ? entry?.originalUrl : undefined
             }
             extractedText={entry?.ws?.extractedText ?? ''}
-            findings={sortedResults}
+            findings={violations}
             board={requirementBoard}
+            focusedIndex={focusedIndex}
+            onFocus={handleFocus}
+            mode={reviewMode}
+            onChangeMode={setReviewMode}
           />
 
-          {/* ─── 우: 결과 패널 ─── */}
-          <section className={styles.resultPanel} aria-label="검토 결과">
+          {/* ─── 우: 결과 패널 (검토 보기 모드에선 숨김 — 좌측이 전체폭) ─── */}
+          <section
+            className={styles.resultPanel}
+            aria-label="검토 결과"
+            hidden={reviewMode === 'wide'}
+          >
             <header className={styles.metaRow}>
               <span className={styles.stepBadge}>임금명세서 · 베타</span>
               <span className={styles.metaFilename}>
@@ -249,10 +277,11 @@ export default function WsResultPage({ params }: { params: { id: string } }) {
             />
 
             <FindingCarousel
-              findings={sortedResults}
+              findings={violations}
               caseId={caseId}
               initialOverrides={entry?.ws?.userOverrides ?? {}}
-              onIndexChange={setActiveFindingIndex}
+              controlledIndex={focusedIndex}
+              onIndexChange={handleFocus}
             />
 
             <div className={`${styles.ctaBar} noPrint`}>
@@ -297,7 +326,7 @@ export default function WsResultPage({ params }: { params: { id: string } }) {
         <div className="noPrint">
           <ChatPanel
             analysis={(analysis as unknown as Record<string, unknown>) ?? null}
-            focusedItem={sortedResults[activeFindingIndex]?.항목}
+            focusedItem={violations[activeFindingIndex]?.항목}
             docLabel="임금명세서"
             quickPrompts={[
               '주휴수당이 뭔가요?',
@@ -472,6 +501,13 @@ interface DocPanelProps {
   /** 분석 결과 — 본문에서 위반 위치를 찾아 Circle 마커로 강조하기 위함. */
   findings: EcAnalysisItem[];
   board: RequirementBoard;
+  /** 현재 focus 된 항목 인덱스(0-based, findings 기준) — 본문 마크·칩 강조. */
+  focusedIndex: number;
+  /** 칩·본문 마크 클릭 시 부모에 focus 알림. */
+  onFocus: (index: number) => void;
+  /** 보기 모드 — 'split'(나란히) / 'wide'(검토 보기, 전체폭+거터). */
+  mode: 'split' | 'wide';
+  onChangeMode: (m: 'split' | 'wide') => void;
 }
 
 /**
@@ -557,9 +593,14 @@ function buildMarkerHits(
   return hits;
 }
 
-/** finding 의 짧은 한 줄 라벨 (Note 용). */
+/** finding 의 짧은 한 줄 라벨 (Note 용).
+ *  '부적절' 을 무조건 '미기재' 로 표기하던 버그 수정 — 발견내용이 실제로
+ *  비었을 때만 '미기재', 값이 있으면(예: 최저임금 미달) '부적절' 로 표기. */
 function shortNoteForFinding(f: EcAnalysisItem): string {
-  if (f.적절성 === '부적절') return `${f.항목} 미기재`;
+  const found = (f.발견내용 || '').trim();
+  const isMissing =
+    !found || /^(미기재|없음|누락|미작성|판독불가|해당없음|미상|—|-)$/.test(found);
+  if (f.적절성 === '부적절') return isMissing ? `${f.항목} 미기재` : `${f.항목} 부적절`;
   if (f.적절성 === '보완필요') return `${f.항목} 보완 필요`;
   return f.항목;
 }
@@ -585,63 +626,36 @@ function renderTextWithMarkers(
     if (h.index > cur) {
       out.push(<Fragment key={`t-${cur}`}>{text.slice(cur, h.index)}</Fragment>);
     }
-    // 2) Circle 마커 — 칩 안 글자는 항목명 (예: "근로자 정보", "임금", "근무지")
-    //    매칭된 본문 토큰("서울시", "9,160" 등) 자체는 칩 다음에 그대로 둠.
+    // 2) 번호 동그라미(vnum) — data-vno 로 focus 토글·클릭을 effect 에서 처리.
+    //    인라인 라벨(Note)은 제거 — 요약은 상단 칩 줄띠 + 우측 카드가 담당(가독성↑).
     const tone = toneOf(h.finding.적절성);
+    const toneCls =
+      tone === 'bad' ? 'bad' : tone === 'partial' ? 'warn' : 'ok';
     out.push(
-      <CircleMarker
-        key={`m-${idx}-${h.index}`}
-        no={h.no}
-        tone={tone}
-        text={h.finding.항목}
-      />,
+      <span
+        key={`vn-${idx}-${h.index}`}
+        className={`${styles.vnum} ${styles[`vnum_${toneCls}`]}`}
+        data-vno={h.no}
+      >
+        {h.no}
+      </span>,
     );
-    // 3) 매칭된 본문 토큰을 칩 바로 뒤에 plain text 로 유지 (예: 서울시 강남구 …)
+    // 3) 매칭된 본문 토큰을 색 하이라이트(mark)로 감싸 위치를 보이게. 라벨은 없음.
     out.push(
-      <Fragment key={`tok-${idx}-${h.index}`}>
+      <mark
+        key={`mk-${idx}-${h.index}`}
+        className={`${styles.vioMark} ${styles[`vioMark_${toneCls}`]}`}
+        data-vno={h.no}
+      >
         {text.slice(h.index, h.index + h.length)}
-      </Fragment>,
+      </mark>,
     );
     cur = h.index + h.length;
-    // 4) 마커 다음, 같은 줄의 끝까지 텍스트를 그대로 출력
-    const nlIdx = text.indexOf('\n', cur);
-    const lineEnd = nlIdx >= 0 ? nlIdx : text.length;
-    if (lineEnd > cur) {
-      out.push(
-        <Fragment key={`rest-${idx}-${cur}`}>
-          {text.slice(cur, lineEnd)}
-        </Fragment>,
-      );
-      cur = lineEnd;
-    }
-    // 5) Note 는 그 줄의 끝(=다음 \n 직전)에 인라인 — 본문 흐름 안 끊김
-    if (h.finding.적절성 !== '적절') {
-      out.push(
-        <Note key={`n-${idx}`} tone={tone}>
-          ← {shortNoteForFinding(h.finding)}
-        </Note>,
-      );
-    }
   });
   if (cur < text.length) {
     out.push(<Fragment key={`t-${cur}`}>{text.slice(cur)}</Fragment>);
   }
   return out;
-}
-
-/** 위반/보완 한 줄 안내 (해당 줄의 끝에 인라인). */
-function Note({
-  tone,
-  children,
-}: {
-  tone: 'ok' | 'partial' | 'bad';
-  children: ReactNode;
-}) {
-  return (
-    <span className={`${styles.lineNote} ${styles[`lineNote_${tone}`]}`}>
-      {children}
-    </span>
-  );
 }
 
 /**
@@ -694,6 +708,10 @@ function DocPanel({
   extractedText,
   findings,
   board,
+  focusedIndex,
+  onFocus,
+  mode,
+  onChangeMode,
 }: DocPanelProps) {
   // blob: URL 이 만료(새로고침 등) 되면 img 가 onError 발생 → 그때부터 이미지 페이지 제거.
   const [imageBroken, setImageBroken] = useState(false);
@@ -715,6 +733,69 @@ function DocPanel({
   const prev = () =>
     setPageIdx((i) => (i - 1 + pages.length) % pages.length);
   const next = () => setPageIdx((i) => (i + 1) % pages.length);
+
+  // 본문 마크/번호 ↔ focus 동기화 (데모 방식: DOM classList 토글 + 클릭 핸들러 + 스크롤).
+  // 본문은 메모이즈된 정적 노드라 onClick 을 effect 에서 위임 — 매 렌더 재생성 안 함.
+  const docBodyRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const root = docBodyRef.current;
+    if (!root) return;
+    const nodes = root.querySelectorAll<HTMLElement>('[data-vno]');
+    const focusNo = focusedIndex + 1;
+    nodes.forEach((el) => {
+      const n = Number(el.dataset.vno);
+      el.classList.toggle(styles.vnumFocus, el.tagName === 'SPAN' && n === focusNo);
+      el.classList.toggle(styles.vioMarkFocus, el.tagName === 'MARK' && n === focusNo);
+      // 클릭 → 부모에 focus 통보 (idempotent — 매번 재할당해도 OK)
+      el.onclick = () => onFocus(n - 1);
+    });
+    // 현재 focus 된 마크를 가운데로 스크롤 (나란히 모드에서만 — wide 는 전체 흐름)
+    if (mode !== 'wide') {
+      const target = root.querySelector<HTMLElement>(`mark[data-vno="${focusNo}"]`);
+      if (target) target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  }, [focusedIndex, safeIdx, findings, onFocus, mode]);
+
+  // 검토 보기(wide) — 본문 각 번호의 Y 위치를 읽어 우측 거터에 라벨을 줄별 정렬.
+  const [gutter, setGutter] = useState<
+    { no: number; top: number; tone: 'bad' | 'warn'; label: string }[]
+  >([]);
+  useEffect(() => {
+    const root = docBodyRef.current;
+    if (!root || mode !== 'wide') {
+      setGutter([]);
+      return;
+    }
+    const compute = () => {
+      const rootRect = root.getBoundingClientRect();
+      const placed: number[] = [];
+      const items: { no: number; top: number; tone: 'bad' | 'warn'; label: string }[] = [];
+      findings.forEach((f, i) => {
+        const el = root.querySelector<HTMLElement>(`.${styles.vnum}[data-vno="${i + 1}"]`);
+        if (!el) return;
+        let top = el.getBoundingClientRect().top - rootRect.top + root.scrollTop;
+        // 40px 미만 겹침이면 아래로 밀어 분리
+        for (const p of [...placed].sort((a, b) => a - b)) {
+          if (Math.abs(top - p) < 40) top = p + 40;
+        }
+        placed.push(top);
+        items.push({
+          no: i + 1,
+          top,
+          tone: f.적절성 === '부적절' ? 'bad' : 'warn',
+          label: shortNoteForFinding(f),
+        });
+      });
+      setGutter(items);
+    };
+    // 레이아웃 안정화 후 측정 (폰트·이미지 로드 반영)
+    const raf = requestAnimationFrame(compute);
+    window.addEventListener('resize', compute);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', compute);
+    };
+  }, [mode, findings, safeIdx]);
 
   return (
     <aside className={styles.docPanel} aria-label="업로드된 문서">
@@ -747,12 +828,37 @@ function DocPanel({
               </button>
             </>
           )}
+          {/* 나란히 / 검토 보기 토글 */}
+          <div className={styles.viewToggle}>
+            <button
+              type="button"
+              className={`${styles.viewToggleBtn} ${mode === 'split' ? styles.viewToggleOn : ''}`}
+              onClick={() => onChangeMode('split')}
+            >
+              나란히
+            </button>
+            <button
+              type="button"
+              className={`${styles.viewToggleBtn} ${mode === 'wide' ? styles.viewToggleOn : ''}`}
+              onClick={() => onChangeMode('wide')}
+            >
+              검토 보기
+            </button>
+          </div>
         </div>
       </header>
 
-      <CompactSummary board={board} />
+      <ViolationChipStrip
+        findings={findings}
+        board={board}
+        focusedIndex={focusedIndex}
+        onFocus={onFocus}
+      />
 
-      <div className={styles.docBody}>
+      <div
+        className={`${styles.docBody} ${mode === 'wide' ? styles.docBodyWide : ''}`}
+        ref={docBodyRef}
+      >
         {pages[safeIdx].title === '원본 이미지' ||
         pages[safeIdx].title === '추출 텍스트' ? (
           /* 실데이터: 페이지 자체가 스크롤 컨테이너를 갖고 있음 */
@@ -761,12 +867,100 @@ function DocPanel({
           /* mock 페이지: 종이 카드로 감쌈 */
           <div className={styles.docPaper}>{pages[safeIdx].body}</div>
         )}
+        {/* 검토 보기 거터 — 각 번호 줄에 라벨 정렬 */}
+        {mode === 'wide' &&
+          gutter.map((g) => (
+            <button
+              key={g.no}
+              type="button"
+              className={`${styles.gutItem} ${styles[`gutItem_${g.tone}`]} ${
+                g.no === focusedIndex + 1 ? styles.gutItemActive : ''
+              }`}
+              style={{ top: g.top }}
+              onClick={() => onFocus(g.no - 1)}
+            >
+              <span className={`${styles.gutNum} ${styles[`gutNum_${g.tone}`]}`}>
+                {g.no}
+              </span>
+              {g.label}
+            </button>
+          ))}
       </div>
 
       {pages.length > 1 && (
         <DocDots count={pages.length} active={safeIdx} onJump={setPageIdx} />
       )}
     </aside>
+  );
+}
+
+/* ════════════════════════════════════════════════════════
+ * ViolationChipStrip — 명세서 위 "요약 칩 줄띠" (위반 한눈에 보기)
+ *   본문 중간 라벨을 없애는 대신, 위반·보완을 번호순 칩으로 상단에 나열.
+ *   칩 클릭 → 본문 마크 강조·스크롤 + 우측 카드 연동.
+ * ════════════════════════════════════════════════════════ */
+function ViolationChipStrip({
+  findings,
+  board,
+  focusedIndex,
+  onFocus,
+}: {
+  findings: EcAnalysisItem[];
+  board: RequirementBoard;
+  focusedIndex: number;
+  onFocus: (index: number) => void;
+}) {
+  const [folded, setFolded] = useState(false);
+  // findings 는 sortedResults(부적절→보완필요→적절). 번호 = 인덱스+1 (본문 마크와 동일).
+  const chips = findings
+    .map((f, i) => ({ f, i }))
+    .filter(({ f }) => f.적절성 !== '적절');
+  if (chips.length === 0) {
+    return <CompactSummary board={board} />;
+  }
+  const badN = chips.filter(({ f }) => f.적절성 === '부적절').length;
+  const warnN = chips.filter(({ f }) => f.적절성 === '보완필요').length;
+  return (
+    <div className={styles.vchipStrip}>
+      <div className={styles.vchipHead}>
+        <span className={styles.vchipTitle}>
+          이 명세서의 위반·보완 {chips.length}건
+        </span>
+        <span className={styles.vchipCount}>
+          · 부적절 <strong className={styles.vchipCountBad}>{badN}</strong> · 보완필요{' '}
+          <strong className={styles.vchipCountWarn}>{warnN}</strong>
+        </span>
+        <button
+          type="button"
+          className={styles.vchipFold}
+          onClick={() => setFolded((v) => !v)}
+        >
+          {folded ? '펼치기 ▸' : '접기 ▾'}
+        </button>
+      </div>
+      {!folded && (
+        <div className={styles.vchipList}>
+          {chips.map(({ f, i }) => {
+            const toneCls = f.적절성 === '부적절' ? 'bad' : 'warn';
+            return (
+              <button
+                key={f.항목 + i}
+                type="button"
+                className={`${styles.vchip} ${styles[`vchip_${toneCls}`]} ${
+                  i === focusedIndex ? styles.vchipActive : ''
+                }`}
+                onClick={() => onFocus(i)}
+              >
+                <span className={`${styles.vchipNum} ${styles[`vchipNum_${toneCls}`]}`}>
+                  {i + 1}
+                </span>
+                {shortNoteForFinding(f)}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1137,6 +1331,8 @@ interface FindingCarouselProps {
   findings: EcAnalysisItem[];
   caseId: string;
   initialOverrides: Record<string, string>;
+  /** 외부 focus(좌측 칩·본문) 와 동기화할 인덱스. 바뀌면 캐러셀이 그 항목으로 이동. */
+  controlledIndex?: number;
   /** 활성 항목 인덱스를 부모에게 알림 — ChatPanel 의 focusedItem 컨텍스트로 사용. */
   onIndexChange?: (index: number) => void;
 }
@@ -1145,6 +1341,7 @@ function FindingCarousel({
   findings,
   caseId,
   initialOverrides,
+  controlledIndex,
   onIndexChange,
 }: FindingCarouselProps) {
   const [index, setIndex] = useState(0);
@@ -1153,6 +1350,17 @@ function FindingCarousel({
   useEffect(() => {
     onIndexChange?.(index);
   }, [index, onIndexChange]);
+  // 외부 focus(좌측 칩·본문 클릭)로 인덱스 동기화
+  useEffect(() => {
+    if (
+      typeof controlledIndex === 'number' &&
+      controlledIndex >= 0 &&
+      controlledIndex !== index
+    ) {
+      setIndex(controlledIndex);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [controlledIndex]);
 
   if (findings.length === 0) return null;
   const cur = findings[Math.min(index, findings.length - 1)];

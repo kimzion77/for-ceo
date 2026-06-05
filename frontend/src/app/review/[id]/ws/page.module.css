@@ -39,6 +39,37 @@
   min-height: 720px;
 }
 
+.splitWide {
+  grid-template-columns: 1fr;
+}
+
+/* 나란히 / 검토 보기 토글 */
+.viewToggle {
+  display: inline-flex;
+  background: #faf9f6;
+  border: 1px solid var(--color-border, #e3e2dc);
+  border-radius: 9px;
+  padding: 3px;
+  gap: 2px;
+  margin-left: 8px;
+}
+.viewToggleBtn {
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: #5a6170;
+  padding: 5px 11px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.viewToggleOn {
+  background: #fff;
+  color: #1a1d24;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
 @media (max-width: 1024px) {
   .split {
     grid-template-columns: 1fr;
@@ -1947,3 +1978,205 @@ a.lawHoverChip:hover {
   cursor: help;
   line-height: 1.4;
 }
+
+/* ════════════════════════════════════════════════════════
+ * 검토 보기(wide) — 전체폭 본문 + 우측 라벨 거터
+ * ════════════════════════════════════════════════════════ */
+.docBodyWide {
+  position: relative;
+  overflow: visible;
+  padding-right: 310px;
+}
+.docBodyWide .docExtractedScroll {
+  overflow: visible;
+  max-height: none;
+}
+.docBodyWide .docExtractedText {
+  font-size: 14px;
+  line-height: 2.05;
+}
+.gutItem {
+  position: absolute;
+  width: 282px;
+  right: 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 7px 11px;
+  border-radius: 9px;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 600;
+  text-align: left;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+  transition: box-shadow 0.12s;
+}
+.gutItem_bad {
+  background: #fbecea;
+  color: #7e241d;
+}
+.gutItem_warn {
+  background: #fbf1e3;
+  color: #7c4a0b;
+}
+.gutItemActive {
+  box-shadow: 0 0 0 2px currentColor inset;
+}
+.gutNum {
+  display: inline-grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+.gutNum_bad { background: #c0362c; }
+.gutNum_warn { background: #c4730e; }
+
+/* 모바일 — 거터 공간 없음: 검토 보기에서도 라벨 거터는 숨기고 칩 줄띠로 대체 */
+@media (max-width: 720px) {
+  .docBodyWide {
+    padding-right: 18px;
+  }
+  .gutItem {
+    display: none;
+  }
+}
+
+/* ── 본문 번호 동그라미 ── */
+.vnum {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  vertical-align: middle;
+  margin: 0 2px;
+  cursor: pointer;
+  user-select: none;
+  transition: box-shadow 0.12s, transform 0.05s;
+}
+.vnum_bad { background: #c0362c; }
+.vnum_warn { background: #c4730e; }
+.vnum_ok { background: #1f8a5b; }
+.vnumFocus {
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.12);
+  transform: scale(1.08);
+}
+
+/* ── 본문 위반 토큰 하이라이트 ── */
+.vioMark {
+  padding: 1px 1px;
+  border-radius: 3px;
+  background: transparent;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.vioMark_bad {
+  background: rgba(192, 54, 44, 0.1);
+  border-bottom: 2px solid #e07268;
+}
+.vioMark_warn {
+  background: rgba(196, 115, 14, 0.1);
+  border-bottom: 2px solid #e0ae63;
+}
+.vioMark_ok {
+  background: rgba(31, 138, 91, 0.1);
+  border-bottom: 2px solid #79c4a0;
+}
+.vioMarkFocus {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+}
+.vioMark_bad.vioMarkFocus { background: rgba(192, 54, 44, 0.22); }
+.vioMark_warn.vioMarkFocus { background: rgba(196, 115, 14, 0.22); }
+
+/* ── 요약 칩 줄띠 ── */
+.vchipStrip {
+  background: var(--color-bg, #faf9f6);
+  border-bottom: 1px solid var(--color-border);
+  padding: 12px 16px;
+}
+.vchipHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+  flex-wrap: wrap;
+}
+.vchipTitle {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--color-text-strong);
+}
+.vchipCount {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+.vchipCountBad { color: #c0362c; }
+.vchipCountWarn { color: #c4730e; }
+.vchipFold {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+.vchipFold:hover { color: var(--color-brand); }
+.vchipList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.vchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px 5px 6px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: #fff;
+  font-family: inherit;
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.vchip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 9px rgba(0, 0, 0, 0.1);
+}
+.vchip_bad { color: #7e241d; border-color: #e07268; }
+.vchip_warn { color: #7c4a0b; border-color: #e0ae63; }
+.vchipActive {
+  box-shadow: 0 0 0 2px currentColor inset;
+}
+.vchipNum {
+  display: inline-grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+.vchipNum_bad { background: #c0362c; }
+.vchipNum_warn { background: #c4730e; }
