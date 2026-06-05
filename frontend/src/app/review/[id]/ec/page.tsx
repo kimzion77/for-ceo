@@ -787,6 +787,24 @@ function DocPanel({
     };
   }, [mode, findings, safeIdx]);
 
+  // 좌측 문서 스와이프 — 페이지(이미지↔텍스트) 넘김.
+  // 텍스트 선택·마크 클릭과 충돌 방지: 수평 우세 + 60px 임계 + 선택중이면 무시.
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
+  const onDocPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    swipeStart.current = { x: e.clientX, y: e.clientY };
+  };
+  const onDocPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const s = swipeStart.current;
+    swipeStart.current = null;
+    if (!s || pages.length < 2) return;
+    const dx = e.clientX - s.x;
+    const dy = e.clientY - s.y;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return; // 수평 스와이프만
+    if ((window.getSelection()?.toString().length ?? 0) > 0) return; // 텍스트 선택 중이면 무시
+    if (dx < 0) next();
+    else prev();
+  };
+
   return (
     <aside className={styles.docPanel} aria-label="업로드된 문서">
       <header className={styles.docHead}>
@@ -848,6 +866,8 @@ function DocPanel({
       <div
         className={`${styles.docBody} ${mode === 'wide' ? styles.docBodyWide : ''}`}
         ref={docBodyRef}
+        onPointerDown={onDocPointerDown}
+        onPointerUp={onDocPointerUp}
       >
         {pages[safeIdx].title === '원본 이미지' ||
         pages[safeIdx].title === '추출 텍스트' ? (
