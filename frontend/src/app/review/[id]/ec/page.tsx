@@ -547,9 +547,14 @@ function buildMarkerHits(
   return hits;
 }
 
-/** finding 의 짧은 한 줄 라벨 (Note 용). */
+/** finding 의 짧은 한 줄 라벨 (Note 용).
+ *  '부적절' 을 무조건 '미기재' 로 표기하던 버그 수정 — 발견내용이 실제로
+ *  비었을 때만 '미기재', 값이 있으면(예: 최저임금 미달) '부적절' 로 표기. */
 function shortNoteForFinding(f: EcAnalysisItem): string {
-  if (f.적절성 === '부적절') return `${f.항목} 미기재`;
+  const found = (f.발견내용 || '').trim();
+  const isMissing =
+    !found || /^(미기재|없음|누락|미작성|판독불가|해당없음|미상|—|-)$/.test(found);
+  if (f.적절성 === '부적절') return isMissing ? `${f.항목} 미기재` : `${f.항목} 부적절`;
   if (f.적절성 === '보완필요') return `${f.항목} 보완 필요`;
   return f.항목;
 }
@@ -584,6 +589,7 @@ function renderTextWithMarkers(
         no={h.no}
         tone={tone}
         text={h.finding.항목}
+        compact
       />,
     );
     // 3) 매칭된 본문 토큰을 칩 바로 뒤에 plain text 로 유지 (예: 서울시 강남구 …)
@@ -765,12 +771,27 @@ function CircleMarker({
   tone,
   text,
   note,
+  compact = false,
 }: {
   no: number;
   tone: 'ok' | 'partial' | 'bad';
   text: string;
   note?: string;
+  /** compact=true 면 본문엔 번호 동그라미만 (항목명 칩 숨김) — 가독성 ↑ */
+  compact?: boolean;
 }) {
+  // compact 모드 — 작은 번호 배지만 (본문 흐름 안 깨짐). 항목명은 줄 끝 Note 가 담당.
+  if (compact) {
+    return (
+      <span
+        className={`${styles.circleNum} ${styles[`circleNum_${tone}`]}`}
+        aria-label={`${no}번 표시: ${text}`}
+        title={text}
+      >
+        {no}
+      </span>
+    );
+  }
   return (
     <span className={styles.circleWrap}>
       <span
