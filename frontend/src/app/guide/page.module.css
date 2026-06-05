@@ -444,6 +444,13 @@
   text-align: center;
 }
 
+/* 모바일 — 상하 패딩 72px 이 화면을 잡아먹어 입력창이 밑으로 밀리던 것 완화 */
+@media (max-width: 480px) {
+  .chatLanding {
+    padding: 36px 16px;
+  }
+}
+
 .chatLandingIcon {
   width: 56px;
   height: 56px;
@@ -2226,6 +2233,26 @@
 
 .docTabBtn:hover {
   color: var(--color-text-strong);
+}
+
+/* 모바일 — 5탭이 한 줄에 안 들어가 줄바꿈·뭉개지던 것 → 가로 스크롤 */
+@media (max-width: 480px) {
+  .docTabBar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 14px;
+    scrollbar-width: none;
+  }
+  .docTabBar::-webkit-scrollbar {
+    display: none;
+  }
+  .docTabBtn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    padding: 9px 12px;
+    font-size: 13px;
+  }
 }
 
 .docTabBtnActive,

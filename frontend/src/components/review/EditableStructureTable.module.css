@@ -117,3 +117,70 @@
 .extras li:last-child {
   margin-bottom: 0;
 }
+
+/* ─── 모바일(≤640px) — 3열 표를 행별 카드로 쌓기 ───
+   좁은 화면에서 항목/내용/비고가 한 줄에 욱여넣어져 입력칸이 너무
+   좁아지던 문제 해결. 헤더는 숨기고, 각 행을 세로 카드로 펼침. */
+@media (max-width: 640px) {
+  .table,
+  .table tbody {
+    display: block;
+    width: 100%;
+  }
+  /* thead 시각적으로만 숨김 (접근성 유지) */
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .table tbody tr {
+    display: block;
+    padding: 12px 14px;
+  }
+  .table td {
+    display: block;
+    width: 100%;
+  }
+  .cellKey {
+    padding: 0 0 8px;
+    font-size: 13.5px;
+    font-weight: 800;
+  }
+  .cellInput {
+    padding: 0 0 10px;
+  }
+  .table tbody tr td.cellInput:last-child {
+    padding-bottom: 0;
+  }
+  /* 내용/비고 라벨 — 어떤 칸인지 표시 */
+  .table td.cellInput:nth-of-type(2)::before {
+    content: '내용';
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+    margin-bottom: 4px;
+  }
+  .table td.cellInput:nth-of-type(3)::before {
+    content: '비고';
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+    margin-bottom: 4px;
+  }
+  /* iOS 입력 포커스 시 자동 확대 방지 (16px 미만이면 줌됨) */
+  .input {
+    font-size: 16px;
+    padding: 10px 12px;
+  }
+  .inputNote {
+    font-size: 14px;
+  }
+}
