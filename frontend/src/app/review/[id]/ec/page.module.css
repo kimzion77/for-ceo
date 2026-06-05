@@ -1245,6 +1245,25 @@
   animation: suggestCtaPulse 0.85s ease-out 1;
 }
 
+/* 반영 중 스피너 — 버튼 안에서 뱅글뱅글 */
+.suggestSpinner {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  vertical-align: -2px;
+  margin-right: 2px;
+  animation: suggestSpin 0.6s linear infinite;
+}
+
+@keyframes suggestSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .suggestFooterApplied {
   background: #ecfdf5 !important;
   border-top-color: #a7f3d0 !important;

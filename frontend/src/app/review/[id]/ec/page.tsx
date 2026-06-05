@@ -1141,20 +1141,18 @@ function FindingCarousel({
   if (findings.length === 0) return null;
   const cur = findings[Math.min(index, findings.length - 1)];
 
+  // 주의: setPointerCapture 를 쓰지 않는다. 캡처하면 카드 안의 법령 링크·버튼
+  // 클릭이 스테이지 div 로 먹혀 <a> 가 navigate 하지 않는다. startX 만 기록하고
+  // pointerup 의 이동량으로 스와이프를 판정 — 이동이 작으면(=클릭) 아무것도 안 해서
+  // 자식 요소의 클릭이 자연스럽게 발생한다.
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId);
     startXRef.current = e.clientX;
   };
   const onPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (startXRef.current == null) return;
     const dx = e.clientX - startXRef.current;
     startXRef.current = null;
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch {
-      /* noop */
-    }
-    if (Math.abs(dx) < SWIPE_THRESHOLD) return;
+    if (Math.abs(dx) < SWIPE_THRESHOLD) return; // 클릭 — 자식(링크/버튼)에 맡김
     setIndex((i) => {
       const total = findings.length;
       if (dx < 0) return (i + 1) % total;
@@ -1367,6 +1365,9 @@ function SuggestBlock({
   const [draft, setDraft] = useState(initialSuggest);
   const [copied, setCopied] = useState(false);
   const [applied, setApplied] = useState(hasOverride);
+  // 반영 진행 표시 — 클릭 시 잠깐 스피너 돌고 체크로 전환 (사용자 가시 피드백)
+  const [applying, setApplying] = useState(false);
+  const applyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 마지막으로 "문서에 반영" 된 값 — dirty 판정 기준. 원본(initialSuggest)이 아니라
   // 이 값과 비교해야, 사용자가 표현을 직접 수정해 반영한 뒤에도 "✓ 반영됨" 이 뜬다.
   const [appliedValue, setAppliedValue] = useState<string | null>(
@@ -1378,6 +1379,12 @@ function SuggestBlock({
     setApplied(hasOverride);
     setAppliedValue(hasOverride ? initialSuggest : null);
   }, [hasOverride, initialSuggest]);
+  // 언마운트(카드 전환) 시 진행 중 타이머 정리 — setState-after-unmount 방지
+  useEffect(() => {
+    return () => {
+      if (applyTimerRef.current) clearTimeout(applyTimerRef.current);
+    };
+  }, []);
   // 클릭 즉시 사용자에게 보일 토스트 — 풋터 색 변화만으론 안 보이는 케이스 대비.
   const [toast, setToast] = useState<null | { msg: string; tone: 'ok' | 'info' }>(
     null,
@@ -1449,9 +1456,16 @@ function SuggestBlock({
       );
       return;
     }
-    setApplied(true);
-    setAppliedValue(value);
-    pushToast(`✓ 「${itemName}」 표준 계약서에 반영됨`, 'ok');
+    // 저장은 즉시 끝났지만, 사용자가 "반영됨"을 눈으로 확인할 수 있게
+    // 짧게 스피너를 돌린 뒤 체크로 전환한다.
+    setApplying(true);
+    if (applyTimerRef.current) clearTimeout(applyTimerRef.current);
+    applyTimerRef.current = setTimeout(() => {
+      setApplying(false);
+      setApplied(true);
+      setAppliedValue(value);
+      pushToast(`✓ 「${itemName}」 표준 계약서에 반영됨`, 'ok');
+    }, 600);
   };
 
   const handleReset = () => {
@@ -1584,9 +1598,17 @@ function SuggestBlock({
             isApplied ? styles.suggestFooterCtaApplied : ''
           }`}
           onClick={handleApply}
-          disabled={!draft.trim() || isApplied}
+          disabled={!draft.trim() || isApplied || applying}
         >
-          {isApplied ? '✓ 반영됨' : '문서에 반영 →'}
+          {applying ? (
+            <>
+              <span className={styles.suggestSpinner} aria-hidden /> 반영 중…
+            </>
+          ) : isApplied ? (
+            '✓ 반영됨'
+          ) : (
+            '문서에 반영 →'
+          )}
         </button>
       </div>
     </div>
