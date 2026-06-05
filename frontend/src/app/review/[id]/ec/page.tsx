@@ -71,6 +71,8 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
     setFocusedIndex(i);
     setActiveFindingIndex(i);
   }, []);
+  /** 보기 모드 — 'split'(나란히: 좌 계약서+우 상세) / 'wide'(검토 보기: 전체폭+거터). */
+  const [reviewMode, setReviewMode] = useState<'split' | 'wide'>('split');
   // 노무사회 주제 코퍼스 lazy fetch — 호버 chip 의 본문 발췌용.
   // 페이지 mount 즉시 백엔드 1회 호출. 적재 완료 시 자동 re-render.
   useTopicCorpus();
@@ -100,6 +102,13 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
     () => buildRequirementBoard(businessSize, workerTypes, sortedResults),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [businessSize, workerTypes.join(','), sortedResults],
+  );
+
+  // 위반·보완만 단일 목록으로 — 칩·본문 마크·우측 카드가 모두 이 목록을 공유해
+  // 번호·내용이 100% 일치한다. (적절 항목은 통계에만 노출, 본문/카드엔 미표시)
+  const violations = useMemo(
+    () => sortedResults.filter((r) => r.적절성 !== '적절'),
+    [sortedResults],
   );
 
   // ─── 훅 호출 끝. 이제 조기 return / 일반 분기 가능 ───
@@ -209,7 +218,9 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
     <main className={styles.page}>
       <SiteHeader />
       <div className={`${styles.layout} printAvoidBreak`}>
-        <div className={`${styles.split} printStack`}>
+        <div
+          className={`${styles.split} ${reviewMode === 'wide' ? styles.splitWide : ''} printStack`}
+        >
           {/* ─── 좌: 업로드된 문서 패널 ─── */}
           <DocPanel
             filename={entry?.originalFilename || '근로계약서'}
@@ -217,14 +228,20 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
               entry?.originalKind === 'image' ? entry?.originalUrl : undefined
             }
             extractedText={entry?.ec?.extractedText ?? ''}
-            findings={sortedResults}
+            findings={violations}
             board={requirementBoard}
             focusedIndex={focusedIndex}
             onFocus={handleFocus}
+            mode={reviewMode}
+            onChangeMode={setReviewMode}
           />
 
-          {/* ─── 우: 결과 패널 ─── */}
-          <section className={styles.resultPanel} aria-label="검토 결과">
+          {/* ─── 우: 결과 패널 (검토 보기 모드에선 숨김 — 좌측이 전체폭) ─── */}
+          <section
+            className={styles.resultPanel}
+            aria-label="검토 결과"
+            hidden={reviewMode === 'wide'}
+          >
             <header className={styles.metaRow}>
               <span className={styles.stepBadge}>근로계약서 · Step 3</span>
               <span className={styles.metaFilename}>
@@ -257,7 +274,7 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
             />
 
             <FindingCarousel
-              findings={sortedResults}
+              findings={violations}
               caseId={caseId}
               initialOverrides={entry?.ec?.userOverrides ?? {}}
               controlledIndex={focusedIndex}
@@ -306,7 +323,7 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
         <div className="noPrint">
           <ChatPanel
             analysis={analysis}
-            focusedItem={sortedResults[activeFindingIndex]?.항목}
+            focusedItem={violations[activeFindingIndex]?.항목}
           />
         </div>
       </div>
@@ -478,6 +495,9 @@ interface DocPanelProps {
   focusedIndex: number;
   /** 칩·본문 마크 클릭 시 부모에 focus 알림. */
   onFocus: (index: number) => void;
+  /** 보기 모드 — 'split'(나란히) / 'wide'(검토 보기, 전체폭+거터). */
+  mode: 'split' | 'wide';
+  onChangeMode: (m: 'split' | 'wide') => void;
 }
 
 /**
@@ -680,6 +700,8 @@ function DocPanel({
   board,
   focusedIndex,
   onFocus,
+  mode,
+  onChangeMode,
 }: DocPanelProps) {
   // blob: URL 이 만료(새로고침 등) 되면 img 가 onError 발생 → 그때부터 이미지 페이지 제거.
   const [imageBroken, setImageBroken] = useState(false);
@@ -717,10 +739,53 @@ function DocPanel({
       // 클릭 → 부모에 focus 통보 (idempotent — 매번 재할당해도 OK)
       el.onclick = () => onFocus(n - 1);
     });
-    // 현재 focus 된 마크를 가운데로 스크롤
-    const target = root.querySelector<HTMLElement>(`mark[data-vno="${focusNo}"]`);
-    if (target) target.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  }, [focusedIndex, safeIdx, findings, onFocus]);
+    // 현재 focus 된 마크를 가운데로 스크롤 (나란히 모드에서만 — wide 는 전체 흐름)
+    if (mode !== 'wide') {
+      const target = root.querySelector<HTMLElement>(`mark[data-vno="${focusNo}"]`);
+      if (target) target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  }, [focusedIndex, safeIdx, findings, onFocus, mode]);
+
+  // 검토 보기(wide) — 본문 각 번호의 Y 위치를 읽어 우측 거터에 라벨을 줄별 정렬.
+  const [gutter, setGutter] = useState<
+    { no: number; top: number; tone: 'bad' | 'warn'; label: string }[]
+  >([]);
+  useEffect(() => {
+    const root = docBodyRef.current;
+    if (!root || mode !== 'wide') {
+      setGutter([]);
+      return;
+    }
+    const compute = () => {
+      const rootRect = root.getBoundingClientRect();
+      const placed: number[] = [];
+      const items: { no: number; top: number; tone: 'bad' | 'warn'; label: string }[] = [];
+      findings.forEach((f, i) => {
+        const el = root.querySelector<HTMLElement>(`.${styles.vnum}[data-vno="${i + 1}"]`);
+        if (!el) return;
+        let top = el.getBoundingClientRect().top - rootRect.top + root.scrollTop;
+        // 40px 미만 겹침이면 아래로 밀어 분리
+        for (const p of [...placed].sort((a, b) => a - b)) {
+          if (Math.abs(top - p) < 40) top = p + 40;
+        }
+        placed.push(top);
+        items.push({
+          no: i + 1,
+          top,
+          tone: f.적절성 === '부적절' ? 'bad' : 'warn',
+          label: shortNoteForFinding(f),
+        });
+      });
+      setGutter(items);
+    };
+    // 레이아웃 안정화 후 측정 (폰트·이미지 로드 반영)
+    const raf = requestAnimationFrame(compute);
+    window.addEventListener('resize', compute);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', compute);
+    };
+  }, [mode, findings, safeIdx]);
 
   return (
     <aside className={styles.docPanel} aria-label="업로드된 문서">
@@ -753,6 +818,23 @@ function DocPanel({
               </button>
             </>
           )}
+          {/* 나란히 / 검토 보기 토글 */}
+          <div className={styles.viewToggle}>
+            <button
+              type="button"
+              className={`${styles.viewToggleBtn} ${mode === 'split' ? styles.viewToggleOn : ''}`}
+              onClick={() => onChangeMode('split')}
+            >
+              나란히
+            </button>
+            <button
+              type="button"
+              className={`${styles.viewToggleBtn} ${mode === 'wide' ? styles.viewToggleOn : ''}`}
+              onClick={() => onChangeMode('wide')}
+            >
+              검토 보기
+            </button>
+          </div>
         </div>
       </header>
 
@@ -763,7 +845,10 @@ function DocPanel({
         onFocus={onFocus}
       />
 
-      <div className={styles.docBody} ref={docBodyRef}>
+      <div
+        className={`${styles.docBody} ${mode === 'wide' ? styles.docBodyWide : ''}`}
+        ref={docBodyRef}
+      >
         {pages[safeIdx].title === '원본 이미지' ||
         pages[safeIdx].title === '추출 텍스트' ? (
           /* 실데이터: 페이지 자체가 스크롤 컨테이너를 갖고 있음 */
@@ -772,6 +857,24 @@ function DocPanel({
           /* mock 페이지: 종이 카드로 감쌈 */
           <div className={styles.docPaper}>{pages[safeIdx].body}</div>
         )}
+        {/* 검토 보기 거터 — 각 번호 줄에 라벨 정렬 */}
+        {mode === 'wide' &&
+          gutter.map((g) => (
+            <button
+              key={g.no}
+              type="button"
+              className={`${styles.gutItem} ${styles[`gutItem_${g.tone}`]} ${
+                g.no === focusedIndex + 1 ? styles.gutItemActive : ''
+              }`}
+              style={{ top: g.top }}
+              onClick={() => onFocus(g.no - 1)}
+            >
+              <span className={`${styles.gutNum} ${styles[`gutNum_${g.tone}`]}`}>
+                {g.no}
+              </span>
+              {g.label}
+            </button>
+          ))}
       </div>
 
       {pages.length > 1 && (

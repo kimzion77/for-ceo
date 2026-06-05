@@ -39,6 +39,38 @@
   min-height: 720px;
 }
 
+/* 검토 보기(wide) — 전체폭 1단 (우측 상세 패널은 hidden) */
+.splitWide {
+  grid-template-columns: 1fr;
+}
+
+/* 나란히 / 검토 보기 토글 */
+.viewToggle {
+  display: inline-flex;
+  background: #faf9f6;
+  border: 1px solid var(--color-border, #e3e2dc);
+  border-radius: 9px;
+  padding: 3px;
+  gap: 2px;
+  margin-left: 8px;
+}
+.viewToggleBtn {
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: #5a6170;
+  padding: 5px 11px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.viewToggleOn {
+  background: #fff;
+  color: #1a1d24;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
 @media (max-width: 1024px) {
   .split {
     grid-template-columns: 1fr;
@@ -344,6 +376,74 @@
   color: #0f1b2d;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* ── 검토 보기(wide) — 본문 전체 흐름 + 우측 거터 ── */
+.docBodyWide {
+  position: relative;
+  overflow: visible;
+  padding-right: 310px;
+}
+.docBodyWide .docExtractedScroll {
+  overflow: visible;
+  max-height: none;
+}
+.docBodyWide .docExtractedText {
+  font-size: 14px;
+  line-height: 2.05;
+}
+.gutItem {
+  position: absolute;
+  width: 282px;
+  right: 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 7px 11px;
+  border-radius: 9px;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 600;
+  text-align: left;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+  transition: box-shadow 0.12s;
+}
+.gutItem_bad {
+  background: #fbecea;
+  color: #7e241d;
+}
+.gutItem_warn {
+  background: #fbf1e3;
+  color: #7c4a0b;
+}
+.gutItemActive {
+  box-shadow: 0 0 0 2px currentColor inset;
+}
+.gutNum {
+  display: inline-grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+.gutNum_bad { background: #c0362c; }
+.gutNum_warn { background: #c4730e; }
+
+/* 모바일 — 거터 공간 없음: 검토 보기에서도 라벨 거터는 숨기고 칩 줄띠로 대체 */
+@media (max-width: 720px) {
+  .docBodyWide {
+    padding-right: 18px;
+  }
+  .gutItem {
+    display: none;
+  }
 }
 
 .docRawText {
