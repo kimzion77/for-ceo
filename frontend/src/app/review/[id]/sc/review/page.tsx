@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-import { postScAnalyze } from '@/lib/api/sc';
+import MobileOcrConfirm from '@/components/review/mobile/MobileOcrConfirm';
+import { useIsMobileViewport } from '@/components/review/mobile/MobileReviewApp';
+import { postScAnalyze, postScStructure } from '@/lib/api/sc';
 import type { ScStructuredData } from '@/lib/api/sc';
 import { ApiCallError } from '@/lib/api/client';
 import { getCase, setCaseError, updateSc } from '@/lib/reviewStore';
@@ -83,6 +85,9 @@ export default function ScReviewPage({ params }: { params: { id: string } }) {
     }
   }, [caseId, router]);
 
+  // 모바일(≤720px) — 줄 단위 OCR 확인 화면으로 분기 (훅은 조기 return 전에)
+  const isMobile = useIsMobileViewport();
+
   const originalUrl = initialEntry?.originalUrl;
   const originalKind = initialEntry?.originalKind;
   const extractedText = initialEntry?.sc?.extractedText ?? '';
@@ -110,6 +115,74 @@ export default function ScReviewPage({ params }: { params: { id: string } }) {
       </main>
     );
   }
+  // ── 모바일 (≤720px) — 줄 단위 OCR 확인 화면 ──
+  // 텍스트가 수정됐으면 재구조화(postScStructure) 후 분석, 아니면 기존 structuredData 재사용.
+  // phase: 'structuring' → 'analyzing' → 'result' 순서로 LoadingScreen 이 라우팅을 이끈다
+  // ('structuring'/'analyzing' 은 라우팅하지 않고 로딩 유지, 'result' 에서 결과 페이지로).
+  if (isMobile && initialEntry.sc?.extractedText) {
+    const originalText = initialEntry.sc.extractedText;
+    const existingSd = initialEntry.sc.structuredData;
+
+    const startMobileAnalyze = (edited: string) => {
+      setSubmitting(true);
+      updateSc(caseId, {
+        phase: 'structuring',
+        extractedText: edited,
+        errorMessage: undefined,
+      });
+      router.push(`/review/${caseId}/loading`);
+      // 백그라운드 — 페이지 이탈 후에도 promise 는 살아있다.
+      (async () => {
+        let sd = existingSd;
+        // 수정됐거나 기존 구조화 결과가 없으면 재구조화
+        if (edited !== originalText || !sd || Object.keys(sd).length === 0) {
+          const out = await postScStructure(edited);
+          const next = out?.structured_data;
+          if (!next || typeof next !== 'object' || Object.keys(next).length === 0) {
+            throw new Error(
+              '구조화 결과가 비어있어요. OCR 텍스트가 짧거나 형식이 표준 계약서가 아닐 수 있습니다.',
+            );
+          }
+          sd = next;
+        }
+        updateSc(caseId, {
+          phase: 'analyzing',
+          structuredData: sd,
+          workerSubtype,
+        });
+        const out = await postScAnalyze(sd, { workerSubtype, businessSize });
+        updateSc(caseId, { phase: 'result', analysisResult: out.analysis_result });
+      })().catch((err) => {
+        const msg =
+          err instanceof ApiCallError
+            ? err.detail
+            : err instanceof Error
+              ? err.message
+              : String(err);
+        // setCaseError 는 entry 를 새로 만들며 sc 를 비우므로,
+        // 패치에 텍스트·컨텍스트를 다시 실어 재시도 가능 상태를 보존.
+        setCaseError(caseId, msg);
+        updateSc(caseId, {
+          phase: 'review',
+          errorMessage: msg,
+          extractedText: edited,
+          workerSubtype,
+          businessSize,
+        });
+      });
+    };
+
+    return (
+      <MobileOcrConfirm
+        initialText={originalText}
+        submitting={submitting}
+        onSubmit={startMobileAnalyze}
+        onBack={() => router.push('/')}
+        errorMessage={initialEntry.sc?.errorMessage}
+      />
+    );
+  }
+
   if (!structured) {
     const phase = initialEntry.sc?.phase;
     const isProgress = phase === 'extracting' || phase === 'structuring' || phase === 'analyzing';

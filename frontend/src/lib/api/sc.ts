@@ -10,7 +10,61 @@
  * 표준 양식이 고용노동부 자료실에 외부 URL 로 제공되므로 가이드 페이지의
  * `form_template.download_url` 로 안내합니다.
  */
-import { apiPostForm, apiPostJson } from './client';
+import { ApiCallError, apiGet, apiPostForm, apiPostJson } from './client';
+
+/** 폴링 sleep — AbortSignal 지원. */
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(resolve, ms);
+    if (signal) {
+      signal.addEventListener(
+        'abort',
+        () => {
+          clearTimeout(t);
+          reject(new DOMException('Aborted', 'AbortError'));
+        },
+        { once: true },
+      );
+    }
+  });
+}
+
+/**
+ * 공통 폴링 헬퍼 — start 로 job_id 받고 result 를 폴링.
+ *
+ * 동기 단일 요청은 Render cold start + LLM 시간이 합쳐져 Vercel 60초 함수
+ * 타임아웃에 걸려 실패했다 (ec.ts 와 동일 문제·동일 해법):
+ *   1) POST .../start 로 job_id 만 즉시 받고 (백엔드는 백그라운드 스레드 실행)
+ *   2) GET .../result/{job_id} 를 짧게 폴링 — 각 요청 1초 미만이라 타임아웃 무관
+ */
+async function pollJob<T>(
+  resultPath: (jobId: string) => string,
+  jobId: string,
+  pick: (res: Record<string, unknown>) => T | undefined,
+  opts: { signal?: AbortSignal; label?: string } = {},
+): Promise<T> {
+  const POLL_MS = 2000;
+  const MAX_WAIT_MS = 6 * 60 * 1000;
+  const startedAt = Date.now();
+  for (;;) {
+    await sleep(POLL_MS, opts.signal);
+    const res = await apiGet<Record<string, unknown>>(resultPath(jobId), {
+      signal: opts.signal,
+    });
+    const status = res.status as string;
+    if (status === 'done') {
+      const v = pick(res);
+      if (v !== undefined && v !== null) return v;
+      throw new ApiCallError(500, `${opts.label ?? '작업'} 결과가 비어있어요. 다시 시도해 주세요.`);
+    }
+    if (status === 'error') {
+      throw new ApiCallError(500, (res.error as string) || `${opts.label ?? '작업'}에 실패했어요. 다시 시도해 주세요.`);
+    }
+    if (Date.now() - startedAt > MAX_WAIT_MS) {
+      throw new ApiCallError(504, `${opts.label ?? '작업'}이 너무 오래 걸려요. 잠시 후 다시 시도해 주세요.`);
+    }
+  }
+}
 
 /** 슬롯의 한 값 — value + (LLM 또는 사용자 메모) */
 export interface ScSlotValue {
@@ -86,29 +140,58 @@ export interface ScAnalyzeOut {
   model: string;
 }
 
-/** 1단계: 파일 → 텍스트 (이미지면 OCR). */
+/** 1단계: 파일 → 텍스트 (이미지면 OCR) — 비동기 잡(start + poll). */
 export async function postScExtract(
   file: File,
   opts: { signal?: AbortSignal } = {},
 ): Promise<ScExtractOut> {
   const form = new FormData();
   form.append('file', file);
-  return apiPostForm<ScExtractOut>('/sc/extract', form, { signal: opts.signal });
+  const { job_id } = await apiPostForm<{ job_id: string }>('/sc/extract/start', form, {
+    signal: opts.signal,
+  });
+  return pollJob<ScExtractOut>(
+    (id) => `/sc/extract/result/${id}`,
+    job_id,
+    (res) =>
+      res.extracted_text != null
+        ? ({
+            extracted_text: res.extracted_text as string,
+            filename: (res.filename as string) ?? '',
+            elapsed_sec: (res.elapsed_sec as number) ?? 0,
+            model: (res.model as string) ?? '',
+          } as ScExtractOut)
+        : undefined,
+    { signal: opts.signal, label: '문서 추출' },
+  );
 }
 
-/** 2단계: 텍스트 → 4섹션·16슬롯 구조화 JSON. */
+/** 2단계: 텍스트 → 4섹션·16슬롯 구조화 JSON — 비동기 잡(start + poll). */
 export async function postScStructure(
   extractedText: string,
   opts: { signal?: AbortSignal } = {},
 ): Promise<ScStructureOut> {
-  return apiPostJson<ScStructureOut>(
-    '/sc/structure',
+  const { job_id } = await apiPostJson<{ job_id: string }>(
+    '/sc/structure/start',
     { extracted_text: extractedText },
     { signal: opts.signal },
   );
+  return pollJob<ScStructureOut>(
+    (id) => `/sc/structure/result/${id}`,
+    job_id,
+    (res) =>
+      res.structured_data != null
+        ? ({
+            structured_data: res.structured_data as unknown as ScStructuredData,
+            elapsed_sec: (res.elapsed_sec as number) ?? 0,
+            model: (res.model as string) ?? '',
+          } as ScStructureOut)
+        : undefined,
+    { signal: opts.signal, label: '문서 정리' },
+  );
 }
 
-/** 3단계: 구조화 데이터 + 컨텍스트 → 16 슬롯 위반 분석. */
+/** 3단계: 구조화 데이터 + 컨텍스트 → 16 슬롯 위반 분석 — 비동기 잡(start + poll). */
 export async function postScAnalyze(
   structuredData: ScStructuredData,
   opts: {
@@ -117,13 +200,26 @@ export async function postScAnalyze(
     signal?: AbortSignal;
   } = {},
 ): Promise<ScAnalyzeOut> {
-  return apiPostJson<ScAnalyzeOut>(
-    '/sc/analyze',
+  const { job_id } = await apiPostJson<{ job_id: string }>(
+    '/sc/analyze/start',
     {
       structured_data: structuredData,
       worker_subtype: opts.workerSubtype ?? '',
       business_size: opts.businessSize ?? '',
     },
     { signal: opts.signal },
+  );
+  return pollJob<ScAnalyzeOut>(
+    (id) => `/sc/analyze/result/${id}`,
+    job_id,
+    (res) =>
+      res.analysis_result != null
+        ? ({
+            analysis_result: res.analysis_result as unknown as ScAnalysisResult,
+            elapsed_sec: (res.elapsed_sec as number) ?? 0,
+            model: (res.model as string) ?? '',
+          } as ScAnalyzeOut)
+        : undefined,
+    { signal: opts.signal, label: '검토 분석' },
   );
 }

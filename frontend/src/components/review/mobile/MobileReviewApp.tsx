@@ -71,6 +71,11 @@ export interface MobileReviewAppProps {
   ) => void;
   /** 결과 화면에서 ← 시. */
   onBack?: () => void;
+  /** 내 수정본에서 "표준 문서 만들기" — 담은 항목을 반영한 표준 문서 생성 흐름
+   *  (EC: 표준 근로계약서 생성→다운로드). 없으면 복사 내보내기만 노출. */
+  onGenerate?: () => void;
+  /** onGenerate 버튼 라벨 (기본 '표준 문서 만들기'). */
+  generateLabel?: string;
 }
 
 type Screen = 'result' | 'doc' | 'revision';
@@ -97,6 +102,15 @@ export function useIsMobileViewport(maxWidthPx = 720): boolean {
  * ════════════════════════════════════════════════════════ */
 
 const toneLabel = (t: 'bad' | 'warn') => (t === 'bad' ? '부적절' : '보완필요');
+
+/** LLM 응답의 마크다운 볼드(**…**)를 <strong> 으로 렌더 — 중요 부분 강조. */
+function renderBold(text: string): ReactNode {
+  if (!text || !text.includes('**')) return text;
+  const parts = text.split(/\*\*([^*]+)\*\*/g);
+  return parts.map((p, i) =>
+    i % 2 === 1 ? <strong key={i}>{p}</strong> : <Fragment key={i}>{p}</Fragment>,
+  );
+}
 
 function BackIcon() {
   return (
@@ -155,6 +169,8 @@ export default function MobileReviewApp({
   initialAdded,
   onPersist,
   onBack,
+  onGenerate,
+  generateLabel,
 }: MobileReviewAppProps) {
   const [screen, setScreen] = useState<Screen>('result');
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -441,7 +457,9 @@ export default function MobileReviewApp({
                   </div>
                 </div>
               </div>
-              {verdict.summary && <div className={styles.vdesc}>{verdict.summary}</div>}
+              {verdict.summary && (
+                <div className={styles.vdesc}>{renderBold(verdict.summary)}</div>
+              )}
               <div className={styles.vstats}>
                 <div className={styles.vstat}>
                   <div className={`${styles.vstatV} ${styles.vstatVBad}`}>{badCount}</div>
@@ -698,13 +716,32 @@ export default function MobileReviewApp({
           </div>
           {addedCount > 0 && (
             <div className={styles.fab}>
-              <button
-                type="button"
-                className={`${styles.btn} ${styles.btnPrimary}`}
-                onClick={onExport}
-              >
-                수정본 내보내기
-              </button>
+              {onGenerate ? (
+                <>
+                  <button
+                    type="button"
+                    className={`${styles.btn} ${styles.btnGhost}`}
+                    onClick={onExport}
+                  >
+                    복사
+                  </button>
+                  <button
+                    type="button"
+                    className={`${styles.btn} ${styles.btnPrimary}`}
+                    onClick={onGenerate}
+                  >
+                    {generateLabel ?? '표준 문서 만들기'}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className={`${styles.btn} ${styles.btnPrimary}`}
+                  onClick={onExport}
+                >
+                  수정본 내보내기
+                </button>
+              )}
             </div>
           )}
         </>
@@ -745,7 +782,7 @@ export default function MobileReviewApp({
               {cur.why && (
                 <>
                   <div className={styles.secT}>왜 고쳐야 하나요?</div>
-                  <div className={styles.why}>{cur.why}</div>
+                  <div className={styles.why}>{renderBold(cur.why)}</div>
                 </>
               )}
               {cur.law && (

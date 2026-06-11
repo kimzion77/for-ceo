@@ -1,0 +1,265 @@
+/* ─────────────────────────────────────────────
+ *  MobileOcrConfirm — 모바일 OCR 추출 내용 확인 화면
+ *  앱바 + 안내 배너 + 줄 단위 탭-수정 목록 + 하단 고정 CTA
+ * ───────────────────────────────────────────── */
+
+.root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+}
+
+/* ── 앱바 ── */
+.appBar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 10px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.backBtn {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: var(--r-md);
+  color: var(--color-text);
+}
+
+.backBtn:active {
+  background: var(--color-surface-muted);
+}
+
+.appBarTitle {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* ── 안내 배너 ── */
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 12px 16px 4px;
+  padding: 12px 14px;
+  background: var(--color-brand-soft);
+  border-radius: var(--r-lg);
+}
+
+.bannerIcon {
+  flex: none;
+  display: flex;
+  margin-top: 2px;
+  color: var(--color-brand);
+}
+
+.bannerText {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--color-text);
+}
+
+.bannerText strong {
+  font-weight: 700;
+  color: var(--color-brand-strong);
+}
+
+/* ── 줄 단위 목록 ── */
+.lines {
+  flex: 1;
+  margin: 12px 12px 16px;
+  padding: 4px 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+/* 한 줄 (읽기 상태) — 전체가 탭 타깃 */
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--color-surface-muted);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.row:last-child,
+.rowEditing:last-child {
+  border-bottom: none;
+}
+
+.row:active {
+  background: var(--color-surface-muted);
+}
+
+/* 빈 줄 — 얇은 여백 줄 (여전히 탭하면 수정 가능) */
+.rowEmpty {
+  min-height: 26px;
+}
+
+.rowEmpty .lineNo,
+.rowEmpty .lineText {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+/* 의심 줄 — 노란 소프트 배경 */
+.rowSuspect {
+  background: var(--risk-warn-soft);
+}
+
+.rowSuspect:active {
+  background: var(--risk-warn-soft);
+  filter: brightness(0.97);
+}
+
+.lineNo {
+  flex: none;
+  width: 26px;
+  padding-top: 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--color-text-subtle);
+  text-align: right;
+  user-select: none;
+}
+
+.lineText {
+  flex: 1;
+  padding: 11px 0;
+  font-size: 15px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  color: var(--color-text);
+}
+
+/* '의심' 배지 — 우측, 주황/적색 텍스트 */
+.suspectBadge {
+  flex: none;
+  margin: 11px 0 0 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--risk-violation-text);
+  background: var(--color-surface);
+  border: 1px solid var(--risk-violation-border);
+  border-radius: var(--r-pill);
+  user-select: none;
+}
+
+/* ── 편집 상태 ── */
+.rowEditing {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--color-surface-muted);
+  background: var(--color-surface);
+}
+
+.editorWrap {
+  flex: 1;
+  padding: 6px 0 8px;
+}
+
+.editor {
+  display: block;
+  width: 100%;
+  /* 16px 미만이면 iOS·인앱 브라우저가 자동 확대(줌) — 16px 고정 */
+  font-size: 16px;
+  font-family: inherit;
+  line-height: 1.55;
+  padding: 10px 12px;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-brand);
+  border-radius: var(--r-md);
+  resize: none;
+  overflow: hidden;
+}
+
+.editor:focus {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.editActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.doneBtn {
+  min-height: 44px;
+  padding: 8px 20px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-brand);
+  background: var(--color-brand-soft);
+  border: none;
+  border-radius: var(--r-md);
+}
+
+.doneBtn:active {
+  filter: brightness(0.95);
+}
+
+/* ── 하단 고정 CTA ── */
+.ctaBar {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+}
+
+.error {
+  margin-bottom: 10px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--risk-missing-text);
+  white-space: pre-line;
+}
+
+.cta {
+  display: block;
+  width: 100%;
+  min-height: 52px;
+  padding: 14px 16px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--color-brand);
+  border: none;
+  border-radius: var(--r-lg);
+}
+
+.cta:active {
+  background: var(--color-brand-strong);
+}
+
+.cta:disabled {
+  opacity: 0.6;
+}

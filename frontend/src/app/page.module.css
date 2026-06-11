@@ -83,8 +83,9 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #eeebe4;
-  color: #1a1d24;
+  /* 앱 공통 배경 토큰 사용 — 시안의 베이지(#EEEBE4)는 기존 화면들과 톤이 달라 제외 */
+  background: var(--color-bg);
+  color: var(--color-text-strong, #1a1d24);
 }
 
 /* ── STEP 1: select (시안 .home-hero) ── */
@@ -291,7 +292,11 @@
   bottom: 0;
   z-index: 15;
   padding: 18px;
-  background: linear-gradient(180deg, rgba(238, 235, 228, 0), #eeebe4 28%);
+  background: linear-gradient(
+    180deg,
+    rgba(245, 247, 250, 0),
+    var(--color-bg) 28%
+  );
 }
 
 .mCtaBtn {

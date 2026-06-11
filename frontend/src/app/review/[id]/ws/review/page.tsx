@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
+import MobileOcrConfirm from '@/components/review/mobile/MobileOcrConfirm';
+import { useIsMobileViewport } from '@/components/review/mobile/MobileReviewApp';
 import { postWsAnalyze } from '@/lib/api/ws';
 import { ApiCallError } from '@/lib/api/client';
 import { getCase, setCaseError, updateWs } from '@/lib/reviewStore';
@@ -33,6 +35,9 @@ export default function WsReviewPage({ params }: { params: { id: string } }) {
     setEntry(e);
     if (e?.ws?.extractedText) setText(e.ws.extractedText);
   }, [caseId]);
+
+  // 모바일(≤720px) — 줄 단위 OCR 확인 화면으로 분기 (훅은 조기 return 전에)
+  const isMobile = useIsMobileViewport();
 
   if (!mounted) {
     return <main className={styles.page} aria-hidden />;
@@ -68,8 +73,8 @@ export default function WsReviewPage({ params }: { params: { id: string } }) {
 
   const ws = entry.ws;
 
-  const startAnalyze = () => {
-    const edited = text;
+  // 모바일·데스크톱이 동일 분석 흐름을 공유 — 수정 최종본만 인자로 받음.
+  const startAnalyzeWith = (edited: string) => {
     setSubmitting(true);
     // 수정 최종본을 store 에 저장 + phase='analyzing' → 즉시 로딩 페이지로.
     // LoadingScreen 이 ws.phase='result' 가 되면 결과 페이지로 라우팅한다.
@@ -120,6 +125,21 @@ export default function WsReviewPage({ params }: { params: { id: string } }) {
         });
       });
   };
+
+  const startAnalyze = () => startAnalyzeWith(text);
+
+  // ── 모바일 (≤720px) — 줄 단위 OCR 확인 화면 ──
+  if (isMobile) {
+    return (
+      <MobileOcrConfirm
+        initialText={ws.extractedText ?? ''}
+        submitting={submitting}
+        onSubmit={(t) => startAnalyzeWith(t)}
+        onBack={() => router.push('/')}
+        errorMessage={ws.errorMessage}
+      />
+    );
+  }
 
   return (
     <main className={styles.page}>

@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 import EditableStructureTable from '@/components/review/EditableStructureTable';
-import { postEcAnalyze } from '@/lib/api/ec';
+import MobileOcrConfirm from '@/components/review/mobile/MobileOcrConfirm';
+import { useIsMobileViewport } from '@/components/review/mobile/MobileReviewApp';
+import { postEcAnalyze, postEcStructure } from '@/lib/api/ec';
 import { ApiCallError } from '@/lib/api/client';
 import type { EcStructuredData } from '@/lib/api/types';
 import { getCase, setCaseError, updateEc } from '@/lib/reviewStore';
@@ -48,6 +50,9 @@ export default function EcReviewPage({ params }: { params: { id: string } }) {
     }
   }, [caseId, router]);
 
+  // 모바일(≤720px) — 줄 단위 OCR 확인 화면으로 분기 (훅은 조기 return 전에)
+  const isMobile = useIsMobileViewport();
+
   // 좌측 패널: 원본 이미지 우선, 없으면 OCR 추출 텍스트.
   // blob URL revoke 는 다음 페이지가 같은 URL 을 못 읽는 버그 방지 위해 일부러 안 함.
   const originalUrl = initialEntry?.originalUrl;
@@ -78,6 +83,70 @@ export default function EcReviewPage({ params }: { params: { id: string } }) {
           </div>
         </div>
       </main>
+    );
+  }
+
+  // ── 모바일 (≤720px) — 줄 단위 OCR 확인 화면 ──
+  // 텍스트가 수정됐으면 재구조화(postEcStructure) 후 분석, 아니면 기존 structuredData 재사용.
+  // phase: 'structuring' → 'analyzing' → 'result' 순서로 LoadingScreen 이 라우팅을 이끈다
+  // ('structuring'/'analyzing' 은 라우팅하지 않고 로딩 유지, 'result' 에서 결과 페이지로).
+  if (isMobile && initialEntry.ec?.extractedText) {
+    const originalText = initialEntry.ec.extractedText;
+    const existingSd = initialEntry.ec.structuredData;
+
+    const startMobileAnalyze = (edited: string) => {
+      setSubmitting(true);
+      updateEc(caseId, {
+        phase: 'structuring',
+        extractedText: edited,
+        errorMessage: undefined,
+      });
+      router.push(`/review/${caseId}/loading`);
+      // 백그라운드 — 페이지 이탈 후에도 promise 는 살아있다.
+      (async () => {
+        let sd = existingSd;
+        // 수정됐거나 기존 구조화 결과가 없으면 재구조화
+        if (edited !== originalText || !sd || Object.keys(sd).length === 0) {
+          const out = await postEcStructure(edited);
+          const next = out?.structured_data;
+          if (!next || typeof next !== 'object' || Object.keys(next).length === 0) {
+            throw new Error(
+              '계약서 구조화 결과가 비어있어요. OCR 텍스트가 짧거나 형식이 표준 계약서가 아닐 수 있습니다.',
+            );
+          }
+          sd = next;
+        }
+        updateEc(caseId, { phase: 'analyzing', structuredData: sd });
+        const out = await postEcAnalyze(sd, businessSize, workerTypes);
+        updateEc(caseId, { phase: 'result', analysisResult: out.analysis_result });
+      })().catch((err) => {
+        const msg =
+          err instanceof ApiCallError
+            ? err.detail
+            : err instanceof Error
+              ? err.message
+              : String(err);
+        // setCaseError 는 entry 를 새로 만들며 ec 를 비우므로,
+        // 패치에 텍스트·컨텍스트를 다시 실어 재시도 가능 상태를 보존.
+        setCaseError(caseId, msg);
+        updateEc(caseId, {
+          phase: 'review',
+          errorMessage: msg,
+          extractedText: edited,
+          businessSize,
+          workerTypes,
+        });
+      });
+    };
+
+    return (
+      <MobileOcrConfirm
+        initialText={originalText}
+        submitting={submitting}
+        onSubmit={startMobileAnalyze}
+        onBack={() => router.push('/')}
+        errorMessage={initialEntry.ec?.errorMessage}
+      />
     );
   }
 

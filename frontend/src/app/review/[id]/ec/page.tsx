@@ -216,41 +216,14 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
   const verdictKey = (analysis.overallStatus || '보완필요').trim();
   const verdictStyle = VERDICT_STYLES[verdictKey] ?? VERDICT_STYLES.보완필요;
 
-  // ─── 모바일 — 결과 단계 전용 풀스크린 앱 (데스크톱 레이아웃 미렌더) ───
-  if (isMobile) {
-    const mobileTone: 'bad' | 'warn' | 'ok' =
-      verdictKey === '위험' ? 'bad' : verdictKey === '적정' ? 'ok' : 'warn';
-    return (
-      <MobileReviewApp
-        docLabel="근로계약서"
-        filename={entry?.originalFilename || '근로계약서'}
-        verdict={{
-          word: verdictKey,
-          tone: mobileTone,
-          summary: (analysis.overallOpinion || '')
-            .replace(/<meta[^>]*>/g, '')
-            .replace(/\s{2,}/g, ' ')
-            .trim(),
-        }}
-        findings={mobileFindings}
-        okCount={requirementBoard.stats.ok}
-        extractedText={entry?.ec?.extractedText}
-        imageUrl={entry?.originalKind === 'image' ? entry?.originalUrl : undefined}
-        initialDrafts={mobileInitialDrafts}
-        initialAdded={mobileInitialAdded}
-        onPersist={handleMobilePersist}
-        onBack={() => router.push('/')}
-      />
-    );
-  }
-
+  // 표준 계약서 생성 — 데스크톱 CTA 와 모바일 '내 수정본 → 표준 계약서 만들기' 가 공유.
   const handleGenerate = () => {
     setGenerating(true);
     setGenError(null);
     updateEc(caseId, { phase: 'generating', errorMessage: undefined });
     router.push(`/review/${caseId}/loading`);
 
-    // 사용자가 "문서에 반영" 으로 저장한 보완 표현이 있으면:
+    // 사용자가 "문서에 반영"(데스크톱)/"수정본에 담기"(모바일)로 저장한 보완 표현:
     //  1) analysis.results 의 `개선권고` 를 덮어쓰기 (LLM 이 분석 컨텍스트에서 보도록)
     //  2) 동시에 user_overrides 를 별도로 전달 → 백엔드 generate 프롬프트의
     //     "사용자 직접 작성 보완 표현 (반드시 그대로 사용)" 섹션에 강조 노출.
@@ -282,6 +255,36 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
         updateEc(caseId, { phase: 'result', errorMessage: msg });
       });
   };
+
+  // ─── 모바일 — 결과 단계 전용 풀스크린 앱 (데스크톱 레이아웃 미렌더) ───
+  if (isMobile) {
+    const mobileTone: 'bad' | 'warn' | 'ok' =
+      verdictKey === '위험' ? 'bad' : verdictKey === '적정' ? 'ok' : 'warn';
+    return (
+      <MobileReviewApp
+        docLabel="근로계약서"
+        filename={entry?.originalFilename || '근로계약서'}
+        verdict={{
+          word: verdictKey,
+          tone: mobileTone,
+          summary: (analysis.overallOpinion || '')
+            .replace(/<meta[^>]*>/g, '')
+            .replace(/\s{2,}/g, ' ')
+            .trim(),
+        }}
+        findings={mobileFindings}
+        okCount={requirementBoard.stats.ok}
+        extractedText={entry?.ec?.extractedText}
+        imageUrl={entry?.originalKind === 'image' ? entry?.originalUrl : undefined}
+        initialDrafts={mobileInitialDrafts}
+        initialAdded={mobileInitialAdded}
+        onPersist={handleMobilePersist}
+        onBack={() => router.push('/')}
+        onGenerate={handleGenerate}
+        generateLabel="표준 계약서 만들기"
+      />
+    );
+  }
 
   const elapsedSec = 0; // 백엔드에 누적값이 따로 없어 메타에 보조 라벨로 둠
 

@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
+import MobileOcrConfirm from '@/components/review/mobile/MobileOcrConfirm';
+import { useIsMobileViewport } from '@/components/review/mobile/MobileReviewApp';
 import { postReviewWorkRules } from '@/lib/api/review';
 import { ApiCallError } from '@/lib/api/client';
 import {
@@ -40,6 +42,9 @@ export default function WrReviewPage({ params }: { params: { id: string } }) {
     setEntry(e);
     if (e?.wr?.extractedText) setText(e.wr.extractedText);
   }, [caseId]);
+
+  // 모바일(≤720px) — 줄 단위 OCR 확인 화면으로 분기 (훅은 조기 return 전에)
+  const isMobile = useIsMobileViewport();
 
   if (!mounted) {
     return <main className={styles.page} aria-hidden />;
@@ -85,8 +90,8 @@ export default function WrReviewPage({ params }: { params: { id: string } }) {
     workerTypes: [],
   };
 
-  const startAnalyze = () => {
-    const edited = text;
+  // 모바일·데스크톱이 동일 분석 흐름을 공유 — 수정 최종본만 인자로 받음.
+  const startAnalyzeWith = (edited: string) => {
     const context = wr.context ?? FALLBACK_CONTEXT;
     setSubmitting(true);
     // phase='analyzing' → 즉시 로딩 페이지로. LoadingScreen 은 wr 'analyzing' 을
@@ -129,6 +134,21 @@ export default function WrReviewPage({ params }: { params: { id: string } }) {
         });
       });
   };
+
+  const startAnalyze = () => startAnalyzeWith(text);
+
+  // ── 모바일 (≤720px) — 줄 단위 OCR 확인 화면 ──
+  if (isMobile) {
+    return (
+      <MobileOcrConfirm
+        initialText={wr.extractedText ?? ''}
+        submitting={submitting}
+        onSubmit={(t) => startAnalyzeWith(t)}
+        onBack={() => router.push('/')}
+        errorMessage={wr.errorMessage}
+      />
+    );
+  }
 
   return (
     <main className={styles.page}>

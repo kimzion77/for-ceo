@@ -11,8 +11,69 @@
  * EC analyze 와 동일한 출력 스키마(`{riskLevel, overallStatus, results[], ...}`)
  * 라서 프론트 UI 컴포넌트(MetaHoverChip · LawHover · SuggestBlock · ChatPanel) 재사용 가능.
  */
-import { apiGet, apiPostForm, apiPostJson, apiPostJsonBlob, triggerDownload } from './client';
+import {
+  ApiCallError,
+  apiGet,
+  apiPostForm,
+  apiPostJson,
+  apiPostJsonBlob,
+  triggerDownload,
+} from './client';
 import type { EcAnalysisResult } from './types';
+
+/** 폴링 sleep — AbortSignal 지원. */
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(resolve, ms);
+    if (signal) {
+      signal.addEventListener(
+        'abort',
+        () => {
+          clearTimeout(t);
+          reject(new DOMException('Aborted', 'AbortError'));
+        },
+        { once: true },
+      );
+    }
+  });
+}
+
+/**
+ * 공통 폴링 헬퍼 — start 로 job_id 받고 result 를 폴링.
+ *
+ * 동기 단일 요청은 Render cold start + LLM 시간이 합쳐져 Vercel 60초 함수
+ * 타임아웃에 걸려 실패했다 (ec.ts 와 동일 문제·동일 해법):
+ *   1) POST .../start 로 job_id 만 즉시 받고 (백엔드는 백그라운드 스레드 실행)
+ *   2) GET .../result/{job_id} 를 짧게 폴링 — 각 요청 1초 미만이라 타임아웃 무관
+ */
+async function pollJob<T>(
+  resultPath: (jobId: string) => string,
+  jobId: string,
+  pick: (res: Record<string, unknown>) => T | undefined,
+  opts: { signal?: AbortSignal; label?: string } = {},
+): Promise<T> {
+  const POLL_MS = 2000;
+  const MAX_WAIT_MS = 6 * 60 * 1000;
+  const startedAt = Date.now();
+  for (;;) {
+    await sleep(POLL_MS, opts.signal);
+    const res = await apiGet<Record<string, unknown>>(resultPath(jobId), {
+      signal: opts.signal,
+    });
+    const status = res.status as string;
+    if (status === 'done') {
+      const v = pick(res);
+      if (v !== undefined && v !== null) return v;
+      throw new ApiCallError(500, `${opts.label ?? '작업'} 결과가 비어있어요. 다시 시도해 주세요.`);
+    }
+    if (status === 'error') {
+      throw new ApiCallError(500, (res.error as string) || `${opts.label ?? '작업'}에 실패했어요. 다시 시도해 주세요.`);
+    }
+    if (Date.now() - startedAt > MAX_WAIT_MS) {
+      throw new ApiCallError(504, `${opts.label ?? '작업'}이 너무 오래 걸려요. 잠시 후 다시 시도해 주세요.`);
+    }
+  }
+}
 
 // ─────────────────────────────────────────────────────
 // 응답 타입 — 백엔드 Pydantic 모델과 1:1
@@ -89,14 +150,30 @@ export interface WsInspectOut {
 // 클라이언트 함수
 // ─────────────────────────────────────────────────────
 
-/** 1단계: 파일 → 텍스트 (이미지면 OCR). */
+/** 1단계: 파일 → 텍스트 (이미지면 OCR) — 비동기 잡(start + poll). */
 export async function postWsExtract(
   file: File,
   opts: { signal?: AbortSignal } = {},
 ): Promise<WsExtractOut> {
   const form = new FormData();
   form.append('file', file);
-  return apiPostForm<WsExtractOut>('/ws/extract', form, { signal: opts.signal });
+  const { job_id } = await apiPostForm<{ job_id: string }>('/ws/extract/start', form, {
+    signal: opts.signal,
+  });
+  return pollJob<WsExtractOut>(
+    (id) => `/ws/extract/result/${id}`,
+    job_id,
+    (res) =>
+      res.extracted_text != null
+        ? ({
+            extracted_text: res.extracted_text as string,
+            filename: (res.filename as string) ?? '',
+            elapsed_sec: (res.elapsed_sec as number) ?? 0,
+            model: (res.model as string) ?? '',
+          } as WsExtractOut)
+        : undefined,
+    { signal: opts.signal, label: '문서 추출' },
+  );
 }
 
 /** 2단계: 임금명세서 원문 + 컨텍스트 → 11 슬롯 위반 분석 (LLM). */
@@ -118,7 +195,22 @@ export async function postWsAnalyze(
   },
   opts: { signal?: AbortSignal } = {},
 ): Promise<WsAnalyzeOut> {
-  return apiPostJson<WsAnalyzeOut>('/ws/analyze', body, opts);
+  const { job_id } = await apiPostJson<{ job_id: string }>('/ws/analyze/start', body, {
+    signal: opts.signal,
+  });
+  return pollJob<WsAnalyzeOut>(
+    (id) => `/ws/analyze/result/${id}`,
+    job_id,
+    (res) =>
+      res.analysis_result != null
+        ? ({
+            analysis_result: res.analysis_result as unknown as EcAnalysisResult,
+            elapsed_sec: (res.elapsed_sec as number) ?? 0,
+            model: (res.model as string) ?? '',
+          } as WsAnalyzeOut)
+        : undefined,
+    { signal: opts.signal, label: '검토 분석' },
+  );
 }
 
 /** 3단계 (beta 다음): 구조화 payslip → 계산형 룰엔진. */
