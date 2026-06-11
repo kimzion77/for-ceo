@@ -1,0 +1,395 @@
+/* 표준근로계약서 양식 — A4 종이 카드 재현. */
+
+.paper {
+  max-width: 800px;
+  margin: 0 auto;
+  background: #ffffff;
+  border: 1px solid var(--color-border, #d6dbe3);
+  border-radius: var(--r-lg, 12px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.06);
+  padding: 44px 48px 52px;
+  color: #1e293b;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.8;
+  word-break: keep-all;
+}
+
+.formTitle {
+  text-align: center;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 6px;
+  margin: 0 0 26px;
+  color: #0f172a;
+}
+
+.intro {
+  margin: 0 0 22px;
+  line-height: 2.1;
+}
+
+.introText,
+.inlineText {
+  margin: 0 4px;
+}
+
+/* ── 조항 목록 ── */
+
+.clauses {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.clause {
+  line-height: 2;
+}
+
+.clauseLabel {
+  font-weight: 700;
+  margin-right: 8px;
+  white-space: nowrap;
+}
+
+.subList {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0 0 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.subLine {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-left: 14px;
+}
+
+.subList .subLine {
+  padding-left: 0;
+}
+
+.subLabel {
+  white-space: nowrap;
+  color: #334155;
+}
+
+/* ── 입력 칸 — 실제 서식의 밑줄 빈칸 모양 ── */
+
+.fieldWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.areaWrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.field {
+  border: none;
+  border-bottom: 1px solid #94a3b8;
+  border-radius: 0;
+  background: transparent;
+  padding: 1px 6px 2px;
+  font: inherit;
+  font-size: 14px;
+  color: #0f172a;
+  outline: none;
+  transition: border-color 0.15s, background-color 0.15s;
+  min-width: 0;
+}
+
+.field:focus {
+  border-bottom: 2px solid var(--color-brand, #2a6fdb);
+  background: rgba(42, 111, 219, 0.05);
+}
+
+.area {
+  flex: 1 1 auto;
+  border: none;
+  border-bottom: 1px solid #94a3b8;
+  border-radius: 0;
+  background: transparent;
+  padding: 1px 6px 2px;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.8;
+  color: #0f172a;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  min-width: 0;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.area:focus {
+  border-bottom: 2px solid var(--color-brand, #2a6fdb);
+  background: rgba(42, 111, 219, 0.05);
+}
+
+/* 칸 너비 단계 */
+.w_sm {
+  width: 90px;
+}
+.w_md {
+  width: 170px;
+}
+.w_lg {
+  width: 300px;
+}
+.w_xl {
+  width: 420px;
+  max-width: 100%;
+}
+.w_full {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 200px;
+}
+
+/* ── 보완됨/확인필요 플래그 ── */
+
+.flagFix .field,
+.flagFix .area,
+.flagFix.fieldWrap .field,
+.flagFix.areaWrap .area {
+  border-left: 3px solid #059669;
+  background: rgba(5, 150, 105, 0.06);
+  padding-left: 8px;
+}
+
+.flagWarn .field,
+.flagWarn .area {
+  border-left: 3px solid #d97706;
+  background: rgba(217, 119, 6, 0.06);
+  padding-left: 8px;
+}
+
+.chip {
+  flex: 0 0 auto;
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 999px;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.chipFix {
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #6ee7b7;
+}
+
+.chipWarn {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+/* ── 사회보험 체크박스 ── */
+
+.checkRow {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+  padding: 6px 0 0 14px;
+}
+
+.checkItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  user-select: none;
+  min-height: 32px;
+}
+
+.checkItem input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--color-brand, #2a6fdb);
+  cursor: pointer;
+}
+
+/* ── 작성일·서명란 ── */
+
+.dateRow {
+  margin: 34px 0 26px;
+  text-align: center;
+}
+
+.dateRow .field {
+  text-align: center;
+}
+
+.signBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.signNotice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.signGroup {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.signParty {
+  font-weight: 700;
+  white-space: nowrap;
+  line-height: 2;
+}
+
+.signRows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.signRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.signLabel {
+  min-width: 72px;
+  white-space: nowrap;
+  color: #334155;
+}
+
+/* ── 모바일 ── */
+
+@media (max-width: 720px) {
+  .paper {
+    max-width: none;
+    border-radius: 10px;
+    padding: 24px 16px 32px;
+    font-size: 14px;
+  }
+
+  .formTitle {
+    font-size: 18px;
+    letter-spacing: 4px;
+    margin-bottom: 18px;
+  }
+
+  /* iOS 줌 방지 — 입력 폰트 16px 이상 */
+  .field,
+  .area {
+    font-size: 16px;
+    min-height: 32px;
+  }
+
+  .clauseLabel {
+    display: block;
+    white-space: normal;
+    margin-bottom: 2px;
+  }
+
+  /* 모든 칸 너비 단계 → 가로폭 채움 (필드 스택) */
+  .w_sm,
+  .w_md,
+  .w_lg,
+  .w_xl,
+  .w_full {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .fieldWrap {
+    display: flex;
+    width: 100%;
+  }
+
+  .subLine {
+    padding-left: 6px;
+  }
+
+  .checkRow {
+    gap: 12px 18px;
+    padding-left: 4px;
+  }
+
+  .checkItem {
+    min-height: 44px;
+  }
+
+  .checkItem input {
+    width: 20px;
+    height: 20px;
+  }
+
+  .signGroup {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .signLabel {
+    min-width: 64px;
+  }
+}
+
+/* ── 인쇄 — 종이가 페이지를 가득 채우고 검토 보조 표시는 숨김 ── */
+
+@media print {
+  .paper {
+    max-width: none;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+    font-size: 12.5px;
+  }
+
+  .chip,
+  .signNotice {
+    display: none !important;
+  }
+
+  .flagFix .field,
+  .flagFix .area,
+  .flagWarn .field,
+  .flagWarn .area {
+    border-left: none;
+    background: transparent;
+    padding-left: 6px;
+  }
+
+  .field,
+  .area {
+    border-bottom: 1px solid #475569;
+    background: transparent !important;
+  }
+}

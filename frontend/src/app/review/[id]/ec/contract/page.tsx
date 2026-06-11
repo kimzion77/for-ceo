@@ -1,8 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 
+import ContractFormView, {
+  buildContractText,
+  buildEcFormModel,
+  type ContractFormState,
+} from '@/components/review/ContractFormView';
 import { getCase } from '@/lib/reviewStore';
 import { downloadEcDocx } from '@/lib/api/ec';
 import { ApiCallError } from '@/lib/api/client';
@@ -10,11 +15,16 @@ import { ApiCallError } from '@/lib/api/client';
 import styles from './page.module.css';
 
 /**
- * Step4 — LLM 이 생성한 표준 근로계약서 본문 페이지.
+ * Step4 — 표준 근로계약서 페이지.
  *
- * 본문은 `<textarea>` 로 사용자가 직접 다듬을 수 있고,
- * 다운로드·인쇄·복사 모두 편집된 최종 텍스트를 사용한다.
- * "원본으로 되돌리기" 로 LLM 초안 재호출 없이 원본 복원 가능.
+ * 두 가지 보기:
+ * - **양식 보기 (기본)** — 고용노동부 표준 서식 모양 그대로 렌더, 사용자의
+ *   계약 내용(structuredData)을 결정적으로 칸에 채움. 부적절/보완필요 칸은
+ *   표준 문구(또는 사용자 담은 표현)로 보완 + '보완됨' 표시. 모든 칸 편집 가능.
+ * - **텍스트 보기** — 기존 LLM 생성 본문 textarea (그대로 유지).
+ *
+ * 다운로드·복사·인쇄는 항상 현재 보기의 최신 편집본을 사용한다.
+ * 훅 순서 주의 — 모든 훅은 조기 return 위에서 호출 (이전 hook-order 버그 재발 금지).
  */
 export default function EcContractPage({
   params,
@@ -22,6 +32,8 @@ export default function EcContractPage({
   params: { id: string };
 }) {
   const caseId = params.id;
+
+  // ─── HOOK ORDER — 모든 훅은 조기 return 보다 위 ───
   const [mounted, setMounted] = useState(false);
   const [entry, setEntry] = useState<ReturnType<typeof getCase>>(null);
   const [draft, setDraft] = useState<string>('');
@@ -29,6 +41,11 @@ export default function EcContractPage({
   const [copied, setCopied] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [downloadingDocx, setDownloadingDocx] = useState(false);
+  /** 보기 모드 — 양식(기본) / 텍스트. structuredData 없으면 텍스트로 강제. */
+  const [view, setView] = useState<'form' | 'text'>('form');
+  /** 양식 편집 상태 — null 이면 자동 채움(초기값) 그대로. */
+  const [formState, setFormState] = useState<ContractFormState | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -39,12 +56,41 @@ export default function EcContractPage({
     originalRef.current = text;
   }, [caseId]);
 
+  /**
+   * 양식 모델 — structuredData/analysis/userOverrides 만으로 결정적 채움.
+   * generatedContract(LLM 자유 텍스트)는 절대 파싱하지 않는다.
+   */
+  const formModel = useMemo(() => {
+    const ec = entry?.ec;
+    if (!ec?.structuredData) return null;
+    try {
+      return buildEcFormModel(
+        ec.structuredData,
+        ec.analysisResult ?? null,
+        ec.userOverrides ?? {},
+      );
+    } catch {
+      return null;
+    }
+  }, [entry]);
+
+  const activeView: 'form' | 'text' =
+    formModel && view === 'form' ? 'form' : 'text';
+  const effectiveForm = formState ?? formModel?.state ?? null;
+
+  /** 다운로드·복사에 쓰일 현재 보기의 텍스트. */
+  const activeText =
+    activeView === 'form' && effectiveForm
+      ? buildContractText(effectiveForm)
+      : draft;
+
   const filenameBase =
     (entry?.originalFilename || '근로계약서')
       .replace(/\.[^.]+$/, '')
       .trim() || '근로계약서';
 
   const dirty = draft.trim() !== originalRef.current.trim();
+  const formDirty = formState !== null;
 
   const pushToast = (msg: string) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -53,8 +99,8 @@ export default function EcContractPage({
   };
 
   const handleDownload = useCallback(() => {
-    if (!draft) return;
-    const blob = new Blob([draft], { type: 'text/plain;charset=utf-8' });
+    if (!activeText) return;
+    const blob = new Blob([activeText], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -64,16 +110,14 @@ export default function EcContractPage({
     a.remove();
     URL.revokeObjectURL(url);
     pushToast('✓ 텍스트 파일로 저장됨');
-  }, [draft, filenameBase]);
-
-  const [downloadingDocx, setDownloadingDocx] = useState(false);
+  }, [activeText, filenameBase]);
 
   const handleDownloadDocx = useCallback(async () => {
-    if (!draft) return;
+    if (!activeText) return;
     setDownloadingDocx(true);
     try {
       await downloadEcDocx({
-        contract_text: draft,
+        contract_text: activeText,
         filename: `${filenameBase}_표준양식.docx`,
       });
       pushToast('✓ Word 문서로 저장됨');
@@ -88,7 +132,7 @@ export default function EcContractPage({
     } finally {
       setDownloadingDocx(false);
     }
-  }, [draft, filenameBase]);
+  }, [activeText, filenameBase]);
 
   const handlePrint = useCallback(() => {
     if (typeof window === 'undefined') return;
@@ -96,13 +140,13 @@ export default function EcContractPage({
   }, []);
 
   const handleCopy = useCallback(async () => {
-    if (!draft) return;
+    if (!activeText) return;
     try {
       if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(draft);
+        await navigator.clipboard.writeText(activeText);
       } else {
         const ta = document.createElement('textarea');
-        ta.value = draft;
+        ta.value = activeText;
         ta.style.position = 'fixed';
         ta.style.left = '-9999px';
         document.body.appendChild(ta);
@@ -115,18 +159,25 @@ export default function EcContractPage({
     } catch {
       /* noop */
     }
-  }, [draft]);
+  }, [activeText]);
 
   const handleReset = () => {
-    setDraft(originalRef.current);
-    pushToast('LLM 원본으로 되돌렸어요');
+    if (activeView === 'form') {
+      setFormState(null);
+      pushToast('자동 입력값으로 되돌렸어요');
+    } else {
+      setDraft(originalRef.current);
+      pushToast('LLM 원본으로 되돌렸어요');
+    }
   };
+
+  // ─── 조기 return — 훅은 모두 위에서 끝남 ───
 
   if (!mounted) {
     return <main className={styles.page} aria-hidden />;
   }
 
-  if (!originalRef.current) {
+  if (!originalRef.current && !formModel) {
     return (
       <main className={styles.page}>
         <div className={styles.layout}>
@@ -150,15 +201,65 @@ export default function EcContractPage({
           </div>
         )}
         <div className={styles.head}>
-          {dirty && <span className={styles.dirtyBadge}>✎ 편집됨</span>}
+          {activeView === 'text' && dirty && (
+            <span className={styles.dirtyBadge}>✎ 편집됨</span>
+          )}
+          {activeView === 'form' && formDirty && (
+            <span className={styles.dirtyBadge}>✎ 편집됨</span>
+          )}
         </div>
         <h1 className={styles.title}>표준 근로계약서</h1>
         <div className={styles.subtitle}>
-          <strong>분석 결과의 보완사항</strong>을 반영해 LLM 이 생성한{' '}
-          <strong>초안</strong>이에요. 본문을 클릭해{' '}
-          <strong>사업장 정보·금액·날짜를 직접 채워 넣을 수 있고</strong>, 수정한 내용 그대로
-          다운로드·복사·인쇄됩니다.
+          {activeView === 'form' ? (
+            <>
+              <strong>고용노동부 표준 서식</strong>에 검토하신 계약 내용을{' '}
+              <strong>그대로 채워 넣은 양식</strong>이에요.{' '}
+              <span className={styles.legendFix}>보완됨</span> 칸은
+              부적절·보완필요 판정을 표준 문구(또는 직접 담은 표현)로 채운
+              것이고, <span className={styles.legendWarn}>확인필요</span> 칸은
+              직접 확인 후 입력이 필요해요. 모든 칸은 클릭해서 수정할 수
+              있습니다.
+            </>
+          ) : (
+            <>
+              <strong>분석 결과의 보완사항</strong>을 반영해 LLM 이 생성한{' '}
+              <strong>초안</strong>이에요. 본문을 클릭해{' '}
+              <strong>사업장 정보·금액·날짜를 직접 채워 넣을 수 있고</strong>,
+              수정한 내용 그대로 다운로드·복사·인쇄됩니다.
+            </>
+          )}
         </div>
+
+        {formModel && (
+          <div
+            className={styles.toggleBar}
+            role="tablist"
+            aria-label="계약서 보기 방식"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeView === 'form'}
+              className={`${styles.toggleBtn} ${
+                activeView === 'form' ? styles.toggleActive : ''
+              }`}
+              onClick={() => setView('form')}
+            >
+              양식 보기
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeView === 'text'}
+              className={`${styles.toggleBtn} ${
+                activeView === 'text' ? styles.toggleActive : ''
+              }`}
+              onClick={() => setView('text')}
+            >
+              텍스트 보기
+            </button>
+          </div>
+        )}
 
         <div className={styles.actions}>
           <button
@@ -173,16 +274,16 @@ export default function EcContractPage({
           <button
             type="button"
             className={styles.btnSecondary}
-            onClick={handleDownload}
+            onClick={handlePrint}
           >
-            ⬇ 텍스트 (.txt)
+            🖨 인쇄 / PDF
           </button>
           <button
             type="button"
             className={styles.btnSecondary}
-            onClick={handlePrint}
+            onClick={handleDownload}
           >
-            🖨 인쇄 / PDF
+            ⬇ 텍스트 (.txt)
           </button>
           <button
             type="button"
@@ -191,13 +292,16 @@ export default function EcContractPage({
           >
             {copied ? '✓ 복사됨' : '📋 클립보드 복사'}
           </button>
-          {dirty && (
+          {((activeView === 'form' && formDirty) ||
+            (activeView === 'text' && dirty)) && (
             <button
               type="button"
               className={styles.btnSecondary}
               onClick={handleReset}
             >
-              ↺ 원본으로 되돌리기
+              {activeView === 'form'
+                ? '↺ 자동입력으로 되돌리기'
+                : '↺ 원본으로 되돌리기'}
             </button>
           )}
           <Link href={`/review/${caseId}/ec`} className={styles.btnSecondary}>
@@ -205,20 +309,35 @@ export default function EcContractPage({
           </Link>
         </div>
 
-        <textarea
-          className={styles.contractEditor}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          spellCheck={false}
-          aria-label="표준 근로계약서 본문 (편집 가능)"
-        />
+        {activeView === 'form' && effectiveForm && formModel ? (
+          <ContractFormView
+            value={effectiveForm}
+            flags={formModel.flags}
+            onChange={setFormState}
+          />
+        ) : (
+          <textarea
+            className={styles.contractEditor}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            spellCheck={false}
+            placeholder="생성된 계약서 본문이 없어요. [양식 보기]를 사용해 주세요."
+            aria-label="표준 근로계약서 본문 (편집 가능)"
+          />
+        )}
 
         <div className={styles.copyHint}>
           ※ 표준 양식은 참고용입니다. 사업장 실정에 맞게 사업주·근로자가 협의하여 확정·서명해 주세요.
-          {dirty && (
+          {activeView === 'text' && dirty && (
             <>
               {' '}
               <strong>현재 편집본이 다운로드·복사에 그대로 사용됩니다.</strong>
+            </>
+          )}
+          {activeView === 'form' && (
+            <>
+              {' '}
+              <strong>양식에 입력한 내용 그대로 다운로드·복사·인쇄됩니다.</strong>
             </>
           )}
         </div>
