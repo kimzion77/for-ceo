@@ -179,6 +179,11 @@ export default function ScReviewPage({ params }: { params: { id: string } }) {
         onSubmit={startMobileAnalyze}
         onBack={() => router.push('/')}
         errorMessage={initialEntry.sc?.errorMessage}
+        imageUrl={
+          initialEntry.originalKind === 'image'
+            ? initialEntry.originalUrl
+            : undefined
+        }
       />
     );
   }

@@ -146,6 +146,9 @@ export default function WrReviewPage({ params }: { params: { id: string } }) {
         onSubmit={(t) => startAnalyzeWith(t)}
         onBack={() => router.push('/')}
         errorMessage={wr.errorMessage}
+        imageUrl={
+          entry.originalKind === 'image' ? entry.originalUrl : undefined
+        }
       />
     );
   }

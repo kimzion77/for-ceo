@@ -156,6 +156,11 @@ export default function EcReviewPage({ params }: { params: { id: string } }) {
         onSubmit={startMobileAnalyze}
         onBack={() => router.push('/')}
         errorMessage={initialEntry.ec?.errorMessage}
+        imageUrl={
+          initialEntry.originalKind === 'image'
+            ? initialEntry.originalUrl
+            : undefined
+        }
         headerExtra={
           classify ? (
             <ClassifyConfirm

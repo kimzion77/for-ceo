@@ -1,6 +1,7 @@
 /* ─────────────────────────────────────────────
- *  MobileOcrConfirm — 모바일 OCR 추출 내용 확인 화면
- *  앱바 + 안내 배너 + 줄 단위 탭-수정 목록 + 하단 고정 CTA
+ *  MobileOcrConfirm — 모바일 OCR 추출 내용 확인 (원본 대조형)
+ *  앱바 + 안내 배너 + 탭 토글 + 상태줄 + 종이 카드(단어 하이라이트)
+ *  + 수정 팝오버(하단 미니시트) + 하단 고정 CTA
  * ───────────────────────────────────────────── */
 
 .root {
@@ -72,162 +73,210 @@
 
 .bannerText strong {
   font-weight: 700;
-  color: var(--color-brand-strong);
+  /* '노란색으로 표시된 곳' — 본문 하이라이트와 같은 노란 배경으로 즉시 연결 */
+  background: var(--risk-warn-soft);
+  border-radius: 4px;
+  padding: 0 3px;
+  color: var(--risk-warn-text);
 }
 
-/* ── 부가 콘텐츠 (headerExtra) — 배너와 줄 목록 사이 ── */
+/* ── 부가 콘텐츠 (headerExtra) ── */
 .headerExtra {
   margin: 12px 16px 0;
 }
 
-/* ── 줄 단위 목록 ── */
-.lines {
+/* ── 탭 토글 (세그먼트) — 원본 이미지가 있을 때만 ── */
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin: 12px 16px 0;
+  padding: 4px;
+  background: var(--color-surface-muted);
+  border-radius: var(--r-lg);
+}
+
+.tab,
+.tabActive {
   flex: 1;
-  margin: 12px 12px 16px;
-  padding: 4px 0;
+  min-height: 40px;
+  padding: 8px 10px;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  border-radius: calc(var(--r-lg) - 4px);
+  background: none;
+  color: var(--color-text-muted);
+}
+
+.tabActive {
+  background: var(--color-surface);
+  color: var(--color-brand);
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── 상태줄 — 확인 필요 카운터 ── */
+.statusLine {
+  margin: 12px 18px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.statusLine strong {
+  font-weight: 700;
+  color: var(--risk-warn-text);
+}
+
+.statusWarn {
+  font-weight: 700;
+  color: var(--risk-warn-text);
+}
+
+.statusOk {
+  font-weight: 700;
+  color: var(--risk-ok-text);
+}
+
+/* ── 본문 ── */
+.body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin: 8px 12px 16px;
+}
+
+/* 종이 카드 — 추출 텍스트 흐름 렌더 */
+.paper {
+  padding: 16px 14px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--r-lg);
-  overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
-/* 한 줄 (읽기 상태) — 전체가 탭 타깃 */
-.row {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  width: 100%;
-  min-height: 44px;
-  padding: 0 12px;
-  background: none;
-  border: none;
-  border-bottom: 1px solid var(--color-surface-muted);
-  text-align: left;
-  font: inherit;
-  color: inherit;
-}
-
-.row:last-child,
-.rowEditing:last-child {
-  border-bottom: none;
-}
-
-.row:active {
-  background: var(--color-surface-muted);
-}
-
-/* 빈 줄 — 얇은 여백 줄 (여전히 탭하면 수정 가능) */
-.rowEmpty {
-  min-height: 26px;
-}
-
-.rowEmpty .lineNo,
-.rowEmpty .lineText {
-  padding-top: 5px;
-  padding-bottom: 5px;
-}
-
-/* 의심 줄 — 노란 소프트 배경 */
-.rowSuspect {
-  background: var(--risk-warn-soft);
-}
-
-.rowSuspect:active {
-  background: var(--risk-warn-soft);
-  filter: brightness(0.97);
-}
-
-.lineNo {
-  flex: none;
-  width: 26px;
-  padding-top: 12px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--color-text-subtle);
-  text-align: right;
-  user-select: none;
-}
-
-.lineText {
-  flex: 1;
-  padding: 11px 0;
+.paperLine {
   font-size: 15px;
-  line-height: 1.55;
+  line-height: 1.9;
   white-space: pre-wrap;
   color: var(--color-text);
 }
 
-/* '의심' 배지 — 우측, 주황/적색 텍스트 */
-.suspectBadge {
-  flex: none;
-  margin: 11px 0 0 4px;
-  padding: 2px 8px;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.4;
-  color: var(--risk-violation-text);
-  background: var(--color-surface);
-  border: 1px solid var(--risk-violation-border);
-  border-radius: var(--r-pill);
-  user-select: none;
+/* 의심 단어 — 노란 인라인 하이라이트 (둥근 모서리 + 점선 밑줄) */
+.wordSuspect,
+.wordFixed {
+  display: inline;
+  margin: 0;
+  padding: 1px 4px;
+  font: inherit;
+  line-height: inherit;
+  color: inherit;
+  border: none;
+  border-radius: 5px;
+  text-align: inherit;
+  white-space: pre-wrap;
 }
 
-/* ── 편집 상태 ── */
-.rowEditing {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 0 12px;
-  border-bottom: 1px solid var(--color-surface-muted);
-  background: var(--color-surface);
+.wordSuspect {
+  background: var(--risk-warn-soft);
+  color: var(--risk-warn-text);
+  font-weight: 600;
+  text-decoration: underline dashed var(--risk-warn);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
 }
 
-.editorWrap {
-  flex: 1;
-  padding: 6px 0 8px;
+.wordSuspect:active {
+  background: var(--risk-warn-border);
 }
 
-.editor {
-  display: block;
-  width: 100%;
-  /* 16px 미만이면 iOS·인앱 브라우저가 자동 확대(줌) — 16px 고정 */
-  font-size: 16px;
-  font-family: inherit;
-  line-height: 1.55;
-  padding: 10px 12px;
-  color: var(--color-text);
-  background: var(--color-surface);
-  border: 1.5px solid var(--color-brand);
-  border-radius: var(--r-md);
-  resize: none;
-  overflow: hidden;
+/* 수정됨 — 연한 초록 */
+.wordFixed {
+  background: var(--risk-ok-soft);
+  color: var(--risk-ok-text);
+  font-weight: 600;
+  text-decoration: underline solid var(--risk-ok-border);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
 }
 
-.editor:focus {
-  outline: none;
-  box-shadow: var(--shadow-focus);
+.wordFixed:active {
+  background: var(--risk-ok-border);
 }
 
-.editActions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 6px;
-}
-
-.doneBtn {
+/* 전체 텍스트 직접 편집 토글 — 종이 아래 작은 텍스트 버튼 */
+.rawToggle {
+  align-self: center;
+  margin-top: 10px;
   min-height: 44px;
-  padding: 8px 20px;
-  font-size: 14px;
-  font-weight: 700;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  font-weight: 600;
   color: var(--color-brand);
-  background: var(--color-brand-soft);
+  background: none;
   border: none;
   border-radius: var(--r-md);
 }
 
-.doneBtn:active {
-  filter: brightness(0.95);
+.rawToggle:active {
+  background: var(--color-brand-soft);
+}
+
+/* ── 전체 텍스트 직접 편집 폴백 ── */
+.rawPane {
+  display: flex;
+  flex-direction: column;
+}
+
+.rawEditor {
+  width: 100%;
+  min-height: 55dvh;
+  padding: 14px;
+  /* 16px 미만이면 iOS·인앱 브라우저가 자동 확대(줌) — 16px 고정 */
+  font-size: 16px;
+  font-family: inherit;
+  line-height: 1.7;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-brand);
+  border-radius: var(--r-lg);
+  resize: none;
+  overflow: hidden;
+}
+
+.rawEditor:focus {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+/* ── 원본 이미지 모드 ── */
+.imagePane {
+  display: flex;
+  flex-direction: column;
+}
+
+.imageCaption {
+  margin: 0 4px 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.imageScroll {
+  /* 살짝 어두운 컨테이너 — 종이(이미지)가 도드라지게 */
+  padding: 10px;
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-lg);
+  overflow: auto;
+}
+
+.image {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-md);
 }
 
 /* ── 하단 고정 CTA ── */
@@ -235,7 +284,7 @@
   position: sticky;
   bottom: 0;
   z-index: 20;
-  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  padding: 12px 16px calc(10px + env(safe-area-inset-bottom, 0px));
   background: var(--color-surface);
   border-top: 1px solid var(--color-border);
 }
@@ -267,4 +316,100 @@
 
 .cta:disabled {
   opacity: 0.6;
+}
+
+.ctaCaption {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--color-text-subtle);
+}
+
+/* ── 단어 수정 팝오버 — 하단 미니시트 ── */
+.popBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(15, 27, 45, 0.35);
+}
+
+.popSheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  background: var(--color-surface);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  box-shadow: var(--shadow-lg);
+}
+
+.popHint {
+  margin-bottom: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--risk-warn-text);
+}
+
+.popHintIcon {
+  font-weight: 700;
+}
+
+.popInput {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  /* 16px 미만이면 모바일 브라우저 자동 줌 — 16px 고정 */
+  font-size: 16px;
+  font-family: inherit;
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-brand);
+  border-radius: var(--r-md);
+}
+
+.popInput:focus {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.popActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.popClose {
+  flex: none;
+  min-height: 48px;
+  padding: 10px 18px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: var(--color-surface-muted);
+  border: none;
+  border-radius: var(--r-md);
+}
+
+.popClose:active {
+  filter: brightness(0.95);
+}
+
+.popFix {
+  flex: 1;
+  min-height: 48px;
+  padding: 10px 18px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--color-brand);
+  border: none;
+  border-radius: var(--r-md);
+}
+
+.popFix:active {
+  background: var(--color-brand-strong);
 }
