@@ -742,6 +742,23 @@ def _search_guide_context(query: str, *, per_table: int = 4) -> tuple[str, list[
             )
         blocks.append("\n".join(lines))
 
+    # 8) 가이드 FAQ (guide_item) — 노무제공자 공통 표준계약서 등 주제별 안내
+    rows = _like_search(
+        "SELECT category, title, key_points, related_laws, note "
+        "FROM guide_item WHERE excluded_from_service = 0 ",
+        ["category", "title", "key_points", "note"],
+        "guide_item",
+    )
+    if rows:
+        sources.append("가이드 FAQ")
+        lines = ["[가이드 FAQ]"]
+        for r in rows:
+            lines.append(
+                f"- [{r['category']}] {r['title']}: {r.get('key_points','')[:400]} "
+                f"(근거 {r.get('related_laws','')})"
+            )
+        blocks.append("\n".join(lines))
+
     return "\n\n".join(blocks), sources
 
 

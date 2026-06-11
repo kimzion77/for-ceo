@@ -369,15 +369,30 @@ _SC_SLOTS_PATH = (
 )
 
 
+_STANDARD_SC_PATH = (
+    Path(__file__).resolve().parents[3]
+    / "data"
+    / "standards"
+    / "공통표준계약서_2023.txt"
+)
+
+
 @lru_cache(maxsize=1)
 def _load_standard_sc() -> str | None:
-    """노무제공자 계약서 표준 기준 합성 — 수정본 생성의 준용 기준.
+    """노무제공자 계약서 수정본 생성의 준용 기준.
 
-    고용노동부 권고 표준 노무제공계약서 '파일'은 레포에 없으므로, 슬롯
-    카탈로그(atomic_slots_sc.yaml)의 필수 기재 항목·기재 내용·시정 예시를
-    표준 기준 텍스트로 합성해 주입한다. (실제 표준 양식 파일 확보 시
-    data/standards/ 에 두고 이 함수만 교체하면 됨)
+    1순위: 고용노동부 「공통 표준계약서」(2023.12) 전문 — data/standards/.
+       특고·플랫폼종사자·프리랜서 등 노무제공자와 사업주 간 계약의 공식
+       표준 양식 (법적 의무는 아니나 공정계약 권고 기준).
+    2순위(폴백): 슬롯 카탈로그(atomic_slots_sc.yaml)의 필수 기재 기준 합성.
     """
+    try:
+        text = _STANDARD_SC_PATH.read_text(encoding="utf-8").strip()
+        if text:
+            return text
+    except Exception:
+        pass
+    # 폴백 — 슬롯 카탈로그 합성
     try:
         import yaml
 
