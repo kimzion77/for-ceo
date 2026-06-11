@@ -619,7 +619,10 @@ def _search_guide_context(query: str, *, per_table: int = 4) -> tuple[str, list[
                 like_clauses.append(f"{col} LIKE ?")
                 params.append(f"%{tk}%")
         where = " OR ".join(like_clauses)
-        full_sql = f"{sql_select} WHERE ({where}) LIMIT {max_n}"
+        # sql_select 에 이미 WHERE 가 있으면 AND 로 이어붙임 — 'WHERE … WHERE …'
+        # SQL 오류로 해당 테이블 검색이 조용히 빈 결과가 되던 버그 수정.
+        joiner = "AND" if " where " in sql_select.lower() else "WHERE"
+        full_sql = f"{sql_select} {joiner} ({where}) LIMIT {max_n}"
         try:
             return _query_all(full_sql, tuple(params))
         except Exception:
