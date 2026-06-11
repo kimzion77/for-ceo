@@ -11,7 +11,6 @@ import {
   HELP_OSHA,
   HELP_SHIFT,
   HELP_WORKENV,
-  HELP_WORKER_TYPES,
 } from './workplaceHelp';
 import styles from './WorkplaceForm.module.css';
 
@@ -172,8 +171,6 @@ export function WorkplaceForm({
 
   // 근로 환경 섹션은 취업규칙(work-rules) 검사에서만 사용
   const showWorkEnv = documentType === 'work-rules';
-  // EC 다중 worker types — 근로계약서 전용 (연소자·외국인 등 다양한 슬롯 분기 필요).
-  const showWorkerTypesMulti = documentType === 'employment-contract';
   // WS 전용 단순화된 컨텍스트
   const showWsContext = documentType === 'wage-statement';
 
@@ -213,21 +210,10 @@ export function WorkplaceForm({
           </div>
         </div>
 
-        {/* 근로자 유형 — 근로계약서는 AI 1차 분류가 대신 판단 (다음 단계에서 사용자 확인).
+        {/* 근로자 유형 (근로계약서) — 홈 폼에서는 묻지 않는다.
+            AI 1차 분류가 판단하고, 사용자는 추출 확인 화면에서 [맞아요/아니에요]로
+            확인만 하며, 아니에요일 때만 그 화면에서 직접 선택(ClassifyConfirm 칩).
             workerTypes 상태·기본값은 레거시 경로 fallback 으로 그대로 유지. */}
-        {showWorkerTypesMulti && (
-          <div className={styles.field}>
-            <div className={styles.label}>
-              <Term def={HELP_WORKER_TYPES} hideDelay={500} width={360}>
-                근로자 유형
-              </Term>
-            </div>
-            <p className={styles.aiNote}>
-              근로자 유형은 업로드한 계약서를 보고 AI가 먼저 판단해요. 다음
-              단계에서 확인만 하면 됩니다.
-            </p>
-          </div>
-        )}
 
         {/* 임금명세서 전용 — 계약 유형 단일 선택 (4옵션) */}
         {showWsContext && (
