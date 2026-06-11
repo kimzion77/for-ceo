@@ -10,7 +10,14 @@
  * 표준 양식이 고용노동부 자료실에 외부 URL 로 제공되므로 가이드 페이지의
  * `form_template.download_url` 로 안내합니다.
  */
-import { ApiCallError, apiGet, apiPostForm, apiPostJson } from './client';
+import {
+  ApiCallError,
+  apiGet,
+  apiPostForm,
+  apiPostJson,
+  apiPostJsonBlob,
+  triggerDownload,
+} from './client';
 
 /** 폴링 sleep — AbortSignal 지원. */
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
@@ -222,4 +229,59 @@ export async function postScAnalyze(
         : undefined,
     { signal: opts.signal, label: '검토 분석' },
   );
+}
+
+/** 수정본 생성 — 사용자가 담은 수정 항목 1건. */
+export interface ScCorrection {
+  /** 항목명 (예: 보수, 산재보험). */
+  name: string;
+  /** 현재 표현 (원문 발견 내용). */
+  now: string;
+  /** 수정 문구 (사용자 확정 표현). */
+  fix: string;
+}
+
+export interface ScGenerateOut {
+  revised_text: string;
+  elapsed_sec: number;
+  model: string;
+}
+
+/**
+ * 4단계: 원문 + 수정 목록 → 수정본 전문 — 비동기 잡(start + poll).
+ *
+ * 철학: 문제없는 내용은 원문 그대로 두고, 사용자가 담은 항목만 교체·추가.
+ */
+export async function postScGenerate(
+  originalText: string,
+  corrections: ScCorrection[],
+  opts: { signal?: AbortSignal } = {},
+): Promise<ScGenerateOut> {
+  const { job_id } = await apiPostJson<{ job_id: string }>(
+    '/sc/generate/start',
+    { original_text: originalText, corrections },
+    { signal: opts.signal },
+  );
+  return pollJob<ScGenerateOut>(
+    (id) => `/sc/generate/result/${id}`,
+    job_id,
+    (res) =>
+      res.revised_text != null
+        ? ({
+            revised_text: res.revised_text as string,
+            elapsed_sec: (res.elapsed_sec as number) ?? 0,
+            model: (res.model as string) ?? '',
+          } as ScGenerateOut)
+        : undefined,
+    { signal: opts.signal, label: '수정본 생성' },
+  );
+}
+
+/** 수정본 본문 → .docx 다운로드 — 호출 즉시 사용자 다운로드 트리거. */
+export async function downloadScDocx(
+  body: { contract_text: string; filename?: string },
+): Promise<void> {
+  const fname = body.filename ?? '노무제공자_계약서_수정본.docx';
+  const { blob, filename } = await apiPostJsonBlob('/sc/generate-docx', body);
+  triggerDownload(blob, filename ?? fname);
 }

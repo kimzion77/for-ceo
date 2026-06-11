@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-import { getCase } from '@/lib/reviewStore';
+import { getCase, setCaseError, updateSc } from '@/lib/reviewStore';
+import { postScGenerate } from '@/lib/api/sc';
 import type { ScAnalysisFinding, ScAnalysisResult } from '@/lib/api/sc';
+import { ApiCallError } from '@/lib/api/client';
 import ChatPanel from '@/components/review/ChatPanel';
 import MobileReviewApp, {
   useIsMobileViewport,
@@ -84,6 +86,28 @@ export default function ScResultPage({ params }: { params: { id: string } }) {
       }));
   }, [result]);
 
+  // ─── 모바일 수정본 영속화 — 담은 항목만 userOverrides 로 저장 (EC 와 동일 패턴) ───
+  const scOverrides = entry?.sc?.userOverrides;
+  const mobileInitialDrafts = useMemo(
+    () => ({ ...(scOverrides ?? {}) }),
+    [scOverrides],
+  );
+  const mobileInitialAdded = useMemo(() => {
+    const m: Record<string, boolean> = {};
+    for (const k of Object.keys(scOverrides ?? {})) m[k] = true;
+    return m;
+  }, [scOverrides]);
+  const handleMobilePersist = useCallback(
+    (drafts: Record<string, string>, added: Record<string, boolean>) => {
+      const ov: Record<string, string> = {};
+      for (const f of mobileFindings) {
+        if (added[f.key]) ov[f.key] = drafts[f.key] ?? f.fix;
+      }
+      updateSc(caseId, { userOverrides: ov });
+    },
+    [mobileFindings, caseId],
+  );
+
   if (!mounted) return <main className={styles.page} aria-hidden />;
 
   if (!result) {
@@ -101,8 +125,35 @@ export default function ScResultPage({ params }: { params: { id: string } }) {
     );
   }
 
+  // 수정본 생성 — 원문은 그대로, 사용자가 담은 수정 항목만 반영해 전문 출력.
+  const handleGenerate = () => {
+    // 담은 항목은 onPersist 가 store 의 userOverrides 로 즉시 영속화 — 호출
+    // 시점의 최신 값을 store 에서 읽는다 (EC handleGenerate 와 동일 패턴).
+    const overrides = getCase(caseId)?.sc?.userOverrides ?? {};
+    const corrections = mobileFindings
+      .filter((f) => overrides[f.key] !== undefined)
+      .map((f) => ({ name: f.name, now: f.now, fix: overrides[f.key] ?? f.fix }));
+
+    updateSc(caseId, { phase: 'generating', errorMessage: undefined });
+    router.push(`/review/${caseId}/loading`);
+
+    postScGenerate(entry?.sc?.extractedText ?? '', corrections)
+      .then((out) => {
+        updateSc(caseId, { phase: 'contract', generatedText: out.revised_text });
+      })
+      .catch((err) => {
+        const msg =
+          err instanceof ApiCallError
+            ? err.detail
+            : err instanceof Error
+              ? err.message
+              : String(err);
+        setCaseError(caseId, msg);
+        updateSc(caseId, { phase: 'result', errorMessage: msg });
+      });
+  };
+
   // ─── 모바일 — 결과 단계 전용 풀스크린 앱 (데스크톱 레이아웃 미렌더) ───
-  // SC store 에는 userOverrides 가 없어 onPersist 는 생략 (세션 내 메모리만).
   if (isMobile) {
     const overallStatus = (result.overallStatus || '').trim();
     const mobileTone: 'bad' | 'warn' | 'ok' =
@@ -120,7 +171,12 @@ export default function ScResultPage({ params }: { params: { id: string } }) {
         okCount={stats.적절}
         extractedText={entry?.sc?.extractedText}
         imageUrl={entry?.originalKind === 'image' ? entry?.originalUrl : undefined}
+        initialDrafts={mobileInitialDrafts}
+        initialAdded={mobileInitialAdded}
+        onPersist={handleMobilePersist}
         onBack={() => router.push('/')}
+        onGenerate={handleGenerate}
+        generateLabel="수정본 계약서 만들기"
       />
     );
   }

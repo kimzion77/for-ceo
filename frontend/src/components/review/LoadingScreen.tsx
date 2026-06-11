@@ -197,6 +197,12 @@ export function LoadingScreen({ reviewId }: LoadingScreenProps) {
         router.replace(`/review/${reviewId}/sc/review`);
         return;
       }
+      // 수정본 완료 — 'result' 보다 먼저 체크 (둘 다 거쳐가는 흐름에서 contract 우선).
+      if (scPhase === 'contract') {
+        window.clearInterval(id);
+        router.replace(`/review/${reviewId}/sc/contract`);
+        return;
+      }
       if (scPhase === 'result') {
         window.clearInterval(id);
         router.replace(`/review/${reviewId}/sc`);
@@ -215,6 +221,16 @@ export function LoadingScreen({ reviewId }: LoadingScreenProps) {
         window.clearInterval(id);
         router.replace(`/review/${reviewId}/wr/review`);
         return;
+      }
+      // 취업규칙 수정본 — 완료 시 contract 페이지로, 생성 중에는 status='done'
+      // (기존 분석 완료) 분기가 결과 페이지로 되돌리지 않게 여기서 홀드.
+      if (wrPhase === 'contract') {
+        window.clearInterval(id);
+        router.replace(`/review/${reviewId}/wr/contract`);
+        return;
+      }
+      if (wrPhase === 'generating') {
+        return; // 생성 진행 중 — 폴링 유지
       }
 
       // 취업규칙 등 단일 호출 흐름

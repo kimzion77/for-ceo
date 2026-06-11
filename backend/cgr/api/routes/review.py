@@ -11,8 +11,10 @@ import time
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
+from cgr import revise
 from cgr.api import jobs
 from cgr.api.auth import require_api_key
 from cgr.api.schemas import (
@@ -25,6 +27,7 @@ from cgr.api.schemas import (
     WorkplaceContextIn,
 )
 from cgr.config import get_llm_model
+from cgr.docx_export import DOCX_MIMETYPE, text_to_docx
 from cgr.ec import review_ec_file
 from cgr.models import WorkplaceContext
 from cgr.penalty_parser import format_for_user
@@ -37,6 +40,23 @@ router = APIRouter(prefix="/review", tags=["review"])
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _CATALOG_PATH = _PROJECT_ROOT / "data" / "slots" / "atomic_slots_v0.yaml"
+_STANDARD_WR_PATH = _PROJECT_ROOT / "data" / "standards" / "표준취업규칙_2026.txt"
+
+
+from functools import lru_cache  # noqa: E402
+
+
+@lru_cache(maxsize=1)
+def _load_standard_work_rules() -> str | None:
+    """고용노동부 표준취업규칙(2026) 전문 — 수정본 생성 시 준용 기준으로 주입.
+
+    파일이 없어도(과거 배포 이미지 등) 수정본 생성 자체는 동작해야 하므로
+    None 을 반환하고 revise 는 표준 없이 진행한다.
+    """
+    try:
+        return _STANDARD_WR_PATH.read_text(encoding="utf-8")
+    except Exception:
+        return None
 
 
 def _finding_to_out(f, ar_title: str) -> FindingOut:
@@ -357,6 +377,132 @@ def _run_employment_contract(
         skipped=report.skipped,
         elapsed_sec=report.elapsed_sec,
         findings=findings_out,
+    )
+
+
+# ─────────────────────────────────────────────
+# 수정본 생성 — 원문 보존 + 사용자 수정 목록만 반영 (start + poll)
+#
+#   POST /api/v1/review/generate/start       → {job_id} 즉시 반환, 백그라운드 생성
+#   GET  /api/v1/review/generate/result/{j}  → {status, revised_text, ...} 폴링
+#   POST /api/v1/review/generate-docx        → 본문 → .docx 다운로드
+#
+# 철학: 문제없는 조항은 두고, 사용자가 담은 수정 항목만 교체·추가해 전문 출력.
+# 주의: GET /review/{case_id} (단일 세그먼트) 보다 먼저 선언 — 경로 충돌 방지.
+# ─────────────────────────────────────────────
+class CorrectionIn(BaseModel):
+    name: str = Field(..., description="항목명 (예: 제24조 연차유급휴가)")
+    now: str = Field(default="", description="현재 표현 (원문 발견 내용)")
+    fix: str = Field(..., description="수정 문구 (사용자 확정 표현)")
+
+
+class GenerateIn(BaseModel):
+    original_text: str = Field(..., description="추출된 취업규칙 원문 전체")
+    corrections: list[CorrectionIn] = Field(
+        ..., description="사용자가 수정본에 담은 항목 목록"
+    )
+
+
+class GenerateResultOut(BaseModel):
+    status: str = Field(..., description="pending | done | error")
+    revised_text: str | None = None
+    error: str | None = None
+    elapsed_sec: float = 0.0
+    model: str = ""
+
+
+@router.post(
+    "/generate/start",
+    response_model=ReviewJobStartOut,
+    summary="비동기 취업규칙 수정본 생성 시작 — job_id 반환",
+    description=(
+        "원문은 그대로 유지하고, 사용자가 담은 수정 항목만 반영한 "
+        "'취업규칙 수정본' 전문을 생성합니다."
+    ),
+    dependencies=[Depends(require_api_key)],
+)
+def post_generate_start(body: GenerateIn):
+    original_text = body.original_text
+    corrections = [c.model_dump() for c in body.corrections]
+    standard = _load_standard_work_rules()
+
+    def _do() -> str:
+        return revise.run(
+            "취업규칙", original_text, corrections, standard_text=standard
+        )
+
+    return ReviewJobStartOut(job_id=jobs.start_job(_do))
+
+
+@router.get(
+    "/generate/result/{job_id}",
+    response_model=GenerateResultOut,
+    summary="비동기 취업규칙 수정본 생성 결과 폴링",
+    dependencies=[Depends(require_api_key)],
+)
+def get_generate_result(job_id: str):
+    job = jobs.get_job(job_id)
+    if job is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="생성 작업을 찾을 수 없어요. 작업이 만료됐거나 서버가 재시작됐을 수 있어요. 다시 시도해 주세요.",
+        )
+    return GenerateResultOut(
+        status=job["status"],
+        revised_text=job["result"],
+        error=job["error"],
+        elapsed_sec=job["elapsed"],
+        model=get_llm_model(),
+    )
+
+
+class GenerateDocxIn(BaseModel):
+    contract_text: str = Field(
+        ..., description="이미 생성된 수정본 본문 (혹은 사용자가 편집한 내용)"
+    )
+    filename: str = Field(
+        default="취업규칙_수정본.docx",
+        description="다운로드 파일명 (Content-Disposition)",
+    )
+
+
+@router.post(
+    "/generate-docx",
+    summary="취업규칙 수정본 본문 → .docx 변환·다운로드",
+    description="수정본 본문을 .docx 로 변환. 한글 폰트(맑은 고딕)·A4·표준 여백.",
+    dependencies=[Depends(require_api_key)],
+    response_class=Response,
+)
+def post_generate_docx(body: GenerateDocxIn):
+    try:
+        docx_bytes = text_to_docx(
+            body.contract_text,
+            title="취업규칙 수정본",
+            subtitle="영세사업장 자율점검 서비스 — 사용자 확정 수정안 반영",
+            footer_note=(
+                "※ 본 문서는 AI 자율점검 결과를 반영한 수정본입니다. "
+                "법적 효력은 사업장·노무사 검토 후 확정됩니다."
+            ),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"docx 변환 실패: {type(e).__name__}: {e}",
+        )
+    # 한글 파일명 — RFC 6266 (filename*=UTF-8) 방식
+    from urllib.parse import quote
+
+    fname_quoted = quote(body.filename, safe="")
+    headers = {
+        "Content-Disposition": (
+            f"attachment; filename=\"document.docx\"; "
+            f"filename*=UTF-8''{fname_quoted}"
+        ),
+    }
+    return Response(
+        content=docx_bytes,
+        media_type=DOCX_MIMETYPE,
+        headers=headers,
     )
 
 

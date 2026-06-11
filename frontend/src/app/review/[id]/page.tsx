@@ -22,7 +22,9 @@ import MobileReviewApp, {
 } from '@/components/review/mobile/MobileReviewApp';
 
 import { SAMPLE_RESULT } from '@/data/sample';
-import { getCase } from '@/lib/reviewStore';
+import { getCase, setCaseError, updateWr } from '@/lib/reviewStore';
+import { postWrGenerate } from '@/lib/api/review';
+import { ApiCallError } from '@/lib/api/client';
 import { RISK_ORDER } from '@/styles/tokens';
 import type { ReviewResult } from '@/types/review';
 
@@ -44,17 +46,20 @@ export default function ReviewResultPage({
 
   // store 에서 실제 결과 로드. demo 또는 결과 없으면 SAMPLE_RESULT fallback.
   const [result, setResult] = useState<ReviewResult>(SAMPLE_RESULT);
+  // case entry — 수정본 생성 와이어링(원문·userOverrides)에 사용.
+  const [entry, setEntry] = useState<ReturnType<typeof getCase>>(null);
 
   useEffect(() => {
     if (params.id === 'demo') return; // demo 는 항상 mock 사용
-    const entry = getCase(params.id);
-    if (!entry) return;
+    const e = getCase(params.id);
+    if (!e) return;
+    setEntry(e);
     // 근로계약서 풀 이식 — phase 에 따라 분기.
-    if (entry.documentType === 'employment-contract' || entry.ec) {
-      const phase = entry.ec?.phase;
+    if (e.documentType === 'employment-contract' || e.ec) {
+      const phase = e.ec?.phase;
       if (phase === 'review' || phase === 'extracting' || phase === 'structuring') {
         router.replace(`/review/${params.id}/ec/review`);
-      } else if (phase === 'contract' && entry.ec?.generatedContract) {
+      } else if (phase === 'contract' && e.ec?.generatedContract) {
         router.replace(`/review/${params.id}/ec/contract`);
       } else {
         router.replace(`/review/${params.id}/ec`);
@@ -62,8 +67,8 @@ export default function ReviewResultPage({
       return;
     }
     // 취업규칙 (기존 흐름)
-    if (entry.status === 'done' && entry.result?.doc === 'work-rules') {
-      setResult(entry.result.data);
+    if (e.status === 'done' && e.result?.doc === 'work-rules') {
+      setResult(e.result.data);
     }
   }, [params.id, router]);
 
@@ -165,8 +170,64 @@ export default function ReviewResultPage({
     return { word: summary.verdict, tone, summary: text };
   }, [summary]);
 
+  // ─── 모바일 수정본 영속화 — 담은 항목만 userOverrides 로 저장 (EC 와 동일 패턴) ───
+  const wrOverrides = entry?.wr?.userOverrides;
+  const mobileInitialDrafts = useMemo(
+    () => ({ ...(wrOverrides ?? {}) }),
+    [wrOverrides],
+  );
+  const mobileInitialAdded = useMemo(() => {
+    const m: Record<string, boolean> = {};
+    for (const k of Object.keys(wrOverrides ?? {})) m[k] = true;
+    return m;
+  }, [wrOverrides]);
+  const handleMobilePersist = useCallback(
+    (drafts: Record<string, string>, added: Record<string, boolean>) => {
+      const ov: Record<string, string> = {};
+      for (const f of mobileFindings) {
+        if (added[f.key]) ov[f.key] = drafts[f.key] ?? f.fix;
+      }
+      updateWr(params.id, { userOverrides: ov });
+    },
+    [mobileFindings, params.id],
+  );
+
+  // 수정본 생성 — 원문은 그대로, 사용자가 담은 수정 항목만 반영해 전문 출력.
+  // 원문 텍스트(wr.extractedText)가 있는 케이스에서만 노출 (레거시 케이스 보호).
+  const wrExtractedText = entry?.wr?.extractedText;
+  const handleGenerate = () => {
+    // 담은 항목은 onPersist 가 store 의 userOverrides 로 즉시 영속화 — 호출
+    // 시점의 최신 값을 store 에서 읽는다 (EC handleGenerate 와 동일 패턴).
+    const text = getCase(params.id)?.wr?.extractedText ?? '';
+    if (!text.trim()) {
+      setCaseError(params.id, '원문 텍스트가 없어 수정본을 만들 수 없어요.');
+      return;
+    }
+    const overrides = getCase(params.id)?.wr?.userOverrides ?? {};
+    const corrections = mobileFindings
+      .filter((f) => overrides[f.key] !== undefined)
+      .map((f) => ({ name: f.name, now: f.now, fix: overrides[f.key] ?? f.fix }));
+
+    updateWr(params.id, { phase: 'generating', errorMessage: undefined });
+    router.push(`/review/${params.id}/loading`);
+
+    postWrGenerate(text, corrections)
+      .then((out) => {
+        updateWr(params.id, { phase: 'contract', generatedText: out.revised_text });
+      })
+      .catch((err) => {
+        const msg =
+          err instanceof ApiCallError
+            ? err.detail
+            : err instanceof Error
+              ? err.message
+              : String(err);
+        setCaseError(params.id, msg);
+      });
+  };
+
   // ─── 모바일 — 결과 단계 전용 풀스크린 앱 (데스크톱 레이아웃 미렌더) ───
-  // 취업규칙은 extractedText 가 store 에 없어 원문(doc) 화면 비활성. 영속화도 없음.
+  // wr.extractedText 가 있으면(확인 단계 거친 케이스) 원문 화면·수정본 생성 활성.
   if (isMobile) {
     return (
       <MobileReviewApp
@@ -175,7 +236,13 @@ export default function ReviewResultPage({
         verdict={mobileVerdict}
         findings={mobileFindings}
         okCount={summary.counts.ok ?? 0}
+        extractedText={wrExtractedText}
+        initialDrafts={mobileInitialDrafts}
+        initialAdded={mobileInitialAdded}
+        onPersist={handleMobilePersist}
         onBack={() => router.push('/')}
+        onGenerate={wrExtractedText ? handleGenerate : undefined}
+        generateLabel="수정본 취업규칙 만들기"
       />
     );
   }

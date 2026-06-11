@@ -111,6 +111,8 @@ export type ScPhase =
   | 'review' // 사용자가 16 슬롯 검토·수정
   | 'analyzing'
   | 'result'
+  | 'generating' // /sc/generate 진행 — 수정본 생성
+  | 'contract' // 수정본 완료 — /sc/contract 페이지로
   | 'error';
 
 export interface ScWorkflow {
@@ -122,6 +124,10 @@ export interface ScWorkflow {
   businessSize?: string;
   analysisResult?: ScAnalysisResult;
   errorMessage?: string;
+  /** 사용자가 결과 페이지에서 수정본에 담은 보완 표현 (항목 key → 본인 입력 텍스트). */
+  userOverrides?: Record<string, string>;
+  /** /sc/generate 결과 — 원문 보존 + 수정 항목만 반영된 수정본 전문. */
+  generatedText?: string;
 }
 
 /**
@@ -134,11 +140,15 @@ export interface ScWorkflow {
  * 결과는 기존과 동일하게 setCaseResult (status='done') → /review/[id] 라우팅.
  */
 export interface WrWorkflow {
-  phase: 'review' | 'analyzing';
+  phase: 'review' | 'analyzing' | 'generating' | 'contract';
   extractedText?: string;
   errorMessage?: string;
   /** 홈 폼에서 받은 사업장 컨텍스트 — 분석 호출 시 그대로 전달. */
   context?: WorkplaceContext;
+  /** 사용자가 결과 페이지에서 수정본에 담은 보완 표현 (항목 key → 본인 입력 텍스트). */
+  userOverrides?: Record<string, string>;
+  /** /review/generate 결과 — 원문 보존 + 수정 항목만 반영된 수정본 전문. */
+  generatedText?: string;
 }
 
 interface CaseEntry {

@@ -27,6 +27,7 @@ from cgr.config import get_llm_model
 from cgr.docx_export import DOCX_MIMETYPE, text_to_docx
 from cgr.ec.services import analyze as analyze_service
 from cgr.ec.services import chat as chat_service
+from cgr.ec.services import classify as classify_service
 from cgr.ec.services import generate as generate_service
 from cgr.ec.services import structure as structure_service
 from cgr.parsers.dispatcher import parse_to_text
@@ -149,6 +150,61 @@ def get_extract_result(job_id: str):
         error=job["error"],
         elapsed_sec=job["elapsed"],
         model=get_llm_model(),
+    )
+
+
+# ─────────────────────────────────────────────
+# 1-c) 비동기 분류 — AI 1차 근로자 유형 판별 (사용자는 확인만)
+# ─────────────────────────────────────────────
+class ClassifyIn(BaseModel):
+    extracted_text: str = Field(..., description="추출된 계약서 텍스트")
+
+
+class ClassifyResultOut(BaseModel):
+    status: str = Field(..., description="pending | done | error")
+    worker_types: list[str] | None = None
+    doc_kind: str | None = None
+    reason: str | None = None
+    error: str | None = None
+    elapsed_sec: float = 0.0
+
+
+@router.post(
+    "/classify/start",
+    response_model=JobStartOut,
+    summary="비동기 분류 시작 — 근로자 유형 AI 판별",
+    dependencies=[Depends(require_api_key)],
+)
+def post_classify_start(body: ClassifyIn):
+    text = body.extracted_text
+
+    def _do() -> dict[str, Any]:
+        return classify_service.run(text)
+
+    return JobStartOut(job_id=jobs.start_job(_do))
+
+
+@router.get(
+    "/classify/result/{job_id}",
+    response_model=ClassifyResultOut,
+    summary="비동기 분류 결과 폴링",
+    dependencies=[Depends(require_api_key)],
+)
+def get_classify_result(job_id: str):
+    job = jobs.get_job(job_id)
+    if job is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="분류 작업을 찾을 수 없어요. 다시 시도해 주세요.",
+        )
+    r = job["result"] or {}
+    return ClassifyResultOut(
+        status=job["status"],
+        worker_types=r.get("worker_types"),
+        doc_kind=r.get("doc_kind"),
+        reason=r.get("reason"),
+        error=job["error"],
+        elapsed_sec=job["elapsed"],
     )
 
 

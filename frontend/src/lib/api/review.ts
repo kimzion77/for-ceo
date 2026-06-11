@@ -5,7 +5,14 @@
  *  - 'work_rules' (기본) → ReviewFullOut (5-Bucket)
  *  - 'employment_contract' → EcReviewOut (3-Bucket)
  */
-import { ApiCallError, apiPostForm, apiGet } from './client';
+import {
+  ApiCallError,
+  apiGet,
+  apiPostForm,
+  apiPostJson,
+  apiPostJsonBlob,
+  triggerDownload,
+} from './client';
 import { mapReviewResult } from './mappers';
 import type {
   AnyReviewOut,
@@ -139,6 +146,76 @@ export async function postReviewRaw(opts: PostReviewOptions): Promise<AnyReviewO
       );
     }
   }
+}
+
+/** 취업규칙 수정본 생성 — 사용자가 담은 수정 항목 1건. */
+export interface WrCorrection {
+  /** 항목명 (예: 제24조 연차유급휴가). */
+  name: string;
+  /** 현재 표현 (원문 발견 내용). */
+  now: string;
+  /** 수정 문구 (사용자 확정 표현). */
+  fix: string;
+}
+
+export interface WrGenerateOut {
+  revised_text: string;
+  elapsed_sec: number;
+  model: string;
+}
+
+/**
+ * 취업규칙 수정본 생성 — 원문 + 수정 목록 → 수정본 전문. 비동기 잡(start + poll).
+ *
+ * 철학: 문제없는 조항은 원문 그대로 두고, 사용자가 담은 항목만 교체·추가.
+ */
+export async function postWrGenerate(
+  originalText: string,
+  corrections: WrCorrection[],
+  opts: { signal?: AbortSignal } = {},
+): Promise<WrGenerateOut> {
+  const { job_id } = await apiPostJson<{ job_id: string }>(
+    '/review/generate/start',
+    { original_text: originalText, corrections },
+    { signal: opts.signal },
+  );
+
+  const POLL_MS = 2500;
+  const MAX_WAIT_MS = 6 * 60 * 1000;
+  const startedAt = Date.now();
+  for (;;) {
+    await reviewSleep(POLL_MS, opts.signal);
+    const res = await apiGet<{
+      status: string;
+      revised_text: string | null;
+      error: string | null;
+      elapsed_sec: number;
+      model: string;
+    }>(`/review/generate/result/${job_id}`, { signal: opts.signal });
+
+    if (res.status === 'done' && res.revised_text != null) {
+      return {
+        revised_text: res.revised_text,
+        elapsed_sec: res.elapsed_sec,
+        model: res.model,
+      };
+    }
+    if (res.status === 'error') {
+      throw new ApiCallError(500, res.error || '수정본 생성에 실패했어요. 다시 시도해 주세요.');
+    }
+    if (Date.now() - startedAt > MAX_WAIT_MS) {
+      throw new ApiCallError(504, '수정본 생성이 너무 오래 걸려요. 잠시 후 다시 시도해 주세요.');
+    }
+  }
+}
+
+/** 취업규칙 수정본 본문 → .docx 다운로드 — 호출 즉시 사용자 다운로드 트리거. */
+export async function downloadWrDocx(
+  body: { contract_text: string; filename?: string },
+): Promise<void> {
+  const fname = body.filename ?? '취업규칙_수정본.docx';
+  const { blob, filename } = await apiPostJsonBlob('/review/generate-docx', body);
+  triggerDownload(blob, filename ?? fname);
 }
 
 /** legacy alias — 기존 호출처 호환. */
