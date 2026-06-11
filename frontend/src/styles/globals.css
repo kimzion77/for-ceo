@@ -130,6 +130,19 @@ body {
   min-height: 100vh;
 }
 
+/* ── 모바일 입력 자동 줌 방지 ──
+   iOS Safari·안드로이드 인앱(카카오 등) 브라우저는 font-size 16px 미만인
+   input/textarea 에 포커스하면 화면을 자동 확대(줌)한다. 줌이 유지된 채
+   다른 화면으로 이동하면 좌우가 잘려 보이는 문제의 근본 원인.
+   모바일 한정으로 모든 텍스트 입력을 16px 이상으로 강제. */
+@media (max-width: 720px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 h1,
 h2,
 h3,
