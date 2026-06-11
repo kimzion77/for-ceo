@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -38,11 +38,73 @@ import type { DocumentType } from '@/types/review';
 
 import styles from './page.module.css';
 
+/* ─────────────────────────────────────────────
+ *  모바일(≤720px) 2단계 플로 — 시안 s-home / s-upload 카드 데이터.
+ *  4종 모두 활성 (시안의 '예정' 배지는 이 앱에선 미사용).
+ * ───────────────────────────────────────────── */
+
+interface MobileDocCard {
+  id: DocumentType;
+  title: string;
+  sub: string;
+  icon: ReactNode;
+}
+
+const MOBILE_DOC_CARDS: MobileDocCard[] = [
+  {
+    id: 'employment-contract',
+    title: '근로계약서',
+    sub: '개별 근로자 계약서',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+        <rect x="4" y="3" width="16" height="18" rx="2" />
+        <path d="M8 8h8M8 12h6" />
+        <path d="M14 17l2 2 3-3" />
+      </svg>
+    ),
+  },
+  {
+    id: 'wage-statement',
+    title: '임금명세서',
+    sub: '월별 급여 명세서',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+        <path d="M5 3h14v18l-3-2-3 2-3-2-2 2V3z" />
+        <path d="M9 8h6M9 12h6" />
+      </svg>
+    ),
+  },
+  {
+    id: 'work-rules',
+    title: '취업규칙',
+    sub: '사업장 단위 규정',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+        <rect x="4" y="3" width="16" height="18" rx="2" />
+        <path d="M8 8h8M8 12h8M8 16h5" />
+      </svg>
+    ),
+  },
+  {
+    id: 'service-provider-contract',
+    title: '노무제공자 계약서',
+    sub: '특고·플랫폼 종사자 계약서',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+        <path d="M16 11c1.66 0 3-1.34 3-3s-1.34-3-3-3M8 11c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3z" />
+        <path d="M2 20c.6-3 3-5 6-5s5.4 2 6 5M14 15c2.5 0 4.5 2 5 5" />
+      </svg>
+    ),
+  },
+];
+
 /**
  * 홈 — 문서 종류 + 업로드 + 사업장 정보.
  *
  * 시안 `screens-home.jsx` 의 흐름을 그대로 옮긴 클라이언트 페이지.
  * 검토 시작은 다음 단계에서 백엔드 `POST /api/review` 로 교체.
+ * 모바일(≤720px)에선 시안 `근로계약서 검토 앱.html` 의 2단계 플로
+ * (select → upload)로 분기 — 상태·제출 로직은 데스크톱과 공유.
  */
 export default function HomePage() {
   const router = useRouter();
@@ -52,6 +114,18 @@ export default function HomePage() {
   const [files, setFiles] = useState<File[]>([]);
   const [workplace, setWorkplace] = useState<WorkplaceFormState>(DEFAULT_WORKPLACE);
   const [submitting, setSubmitting] = useState(false);
+
+  // 모바일(≤720px) 분기 — 시안 2단계 플로(select → upload).
+  // SSR 첫 페인트는 데스크톱 → 마운트 후 matchMedia 로 동기화.
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileStep, setMobileStep] = useState<'select' | 'upload'>('select');
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 720px)');
+    const sync = () => setIsMobile(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
 
   // work-rules / employment-contract / wage-statement / service-provider-contract 모두 허용.
   const docReady =
@@ -245,6 +319,149 @@ export default function HomePage() {
     }
     // 기본 — 원본 detail 그대로
     return detail;
+  }
+
+  // ───────── 모바일(≤720px) — 시안 2단계 앱 플로 ─────────
+  if (isMobile) {
+    const selectedCard =
+      MOBILE_DOC_CARDS.find((c) => c.id === docType) ?? MOBILE_DOC_CARDS[0];
+
+    if (mobileStep === 'select') {
+      return (
+        <div className={styles.mPage}>
+          {/* 시안 .home-hero */}
+          <div className={styles.mHero}>
+            <div className={styles.mLogo}>
+              <span className={styles.mLogoMark}>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" aria-hidden>
+                  <path d="M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6l8-3z" />
+                </svg>
+              </span>
+              <span className={styles.mLogoName}>
+                노동법 자율점검
+                <small>고용노동부 기준 검토</small>
+              </span>
+            </div>
+            <h1 className={styles.mTitle}>
+              우리 사업장의 노동법 서류,
+              <br />
+              <span className={styles.mTitleBrand}>스스로 점검해 보세요.</span>
+            </h1>
+            <p className={styles.mLead}>
+              서류를 올리면 위반·누락 항목을 위험도별로 정리하고, 어떻게
+              시정하면 되는지 법령 근거와 함께 안내합니다.
+            </p>
+          </div>
+
+          {/* 시안 .doctype — 4종 모두 활성 */}
+          <div className={styles.mDoctype}>
+            <div className={styles.mLab}>무엇을 검토할까요?</div>
+            {MOBILE_DOC_CARDS.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                className={styles.mDtCard}
+                onClick={() => {
+                  setDocType(c.id);
+                  setMobileStep('upload');
+                }}
+              >
+                <span className={styles.mDtIcon}>{c.icon}</span>
+                <span className={styles.mDtText}>
+                  <span className={styles.mDtTitle}>{c.title}</span>
+                  <span className={styles.mDtSub}>{c.sub}</span>
+                </span>
+                <svg
+                  className={styles.mDtChevron}
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden
+                >
+                  <path d="M9 6l6 6-6 6" />
+                </svg>
+              </button>
+            ))}
+          </div>
+
+          {/* 플로팅 노무 가이드 — select 단계에서만 노출 */}
+          <Link href="/guide" className={styles.chatFab} aria-label="노무 가이드 챗봇 열기">
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.9"
+              aria-hidden
+            >
+              <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8A8.38 8.38 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" />
+            </svg>
+            <span>노무 가이드</span>
+          </Link>
+        </div>
+      );
+    }
+
+    // mobileStep === 'upload' — 시안 s-upload
+    return (
+      <div className={styles.mPage}>
+        {/* 시안 .appbar */}
+        <div className={styles.mAppbar}>
+          <button
+            type="button"
+            className={styles.mAppbarBack}
+            onClick={() => setMobileStep('select')}
+            aria-label="문서 선택으로 돌아가기"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+          <div className={styles.mAppbarTitle}>{selectedCard.title} 올리기</div>
+        </div>
+
+        <div className={styles.mBody}>
+          {/* 선택 문서 확인 카드 — 시안 .dt-card.on */}
+          <div className={`${styles.mDtCard} ${styles.mDtCardOn}`}>
+            <span className={styles.mDtIcon}>{selectedCard.icon}</span>
+            <span className={styles.mDtText}>
+              <span className={styles.mDtTitle}>{selectedCard.title}</span>
+              <span className={styles.mDtSub}>{selectedCard.sub}</span>
+            </span>
+            <span className={styles.mDtBadge}>선택됨</span>
+          </div>
+
+          <div className={styles.mLab}>파일을 올려주세요</div>
+          <FileDropzone value={files} onChange={setFiles} />
+
+          <div className={styles.mLab}>사업장 기본 정보</div>
+          <WorkplaceForm
+            value={workplace}
+            onChange={setWorkplace}
+            documentType={docType}
+          />
+        </div>
+
+        {/* 시안 .home-cta — 하단 고정 CTA (시간 약속 카피 없음) */}
+        <div className={styles.mCta}>
+          <button
+            type="button"
+            className={styles.mCtaBtn}
+            disabled={!canSubmit}
+            onClick={startReview}
+          >
+            {submitting ? '검토 준비 중…' : '검토 시작하기'}
+          </button>
+          <div className={styles.mCtaTip}>
+            파일은 검토 후 즉시 삭제되며 회원가입이 필요 없습니다
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
