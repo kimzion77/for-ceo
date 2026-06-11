@@ -110,6 +110,43 @@ export async function postEcStructure(
   );
 }
 
+/** AI 1차 분류 결과 — 근로자 유형·문서 종류 추정. */
+export interface EcClassifyOut {
+  worker_types: string[];
+  doc_kind: string;
+  reason: string;
+}
+
+/**
+ * 2.5단계: AI 1차 분류 — 추출 텍스트로 근로자 유형(정규직·기간제 등)과
+ * 문서 종류를 먼저 판단. 사용자는 검토 페이지에서 "맞아요/아니에요" 로 확인만 한다.
+ *
+ * structure 와 병렬 호출되며, 실패해도 폼 입력값 fallback 으로 흐름이 끊기지 않는다.
+ */
+export async function postEcClassify(
+  extractedText: string,
+  opts: { signal?: AbortSignal } = {},
+): Promise<EcClassifyOut> {
+  const { job_id } = await apiPostJson<{ job_id: string }>(
+    '/ec/classify/start',
+    { extracted_text: extractedText },
+    { signal: opts.signal },
+  );
+  return pollJob<EcClassifyOut>(
+    (id) => `/ec/classify/result/${id}`,
+    job_id,
+    (res) =>
+      res.worker_types != null
+        ? {
+            worker_types: res.worker_types as string[],
+            doc_kind: (res.doc_kind as string) ?? '',
+            reason: (res.reason as string) ?? '',
+          }
+        : undefined,
+    { signal: opts.signal, label: '문서 분류' },
+  );
+}
+
 /** 폴링 sleep — AbortSignal 지원. */
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {

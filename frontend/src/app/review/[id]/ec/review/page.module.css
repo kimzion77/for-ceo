@@ -58,6 +58,11 @@
   font-weight: 700;
 }
 
+/* ─── AI 1차 분류 확인 배너 — 제목 아래·split 위 ─── */
+.classifyWrap {
+  margin-bottom: 16px;
+}
+
 /* ─── split — 좌 원본 / 우 표 ─── */
 .split {
   display: grid;

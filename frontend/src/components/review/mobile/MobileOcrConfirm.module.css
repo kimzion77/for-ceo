@@ -75,6 +75,11 @@
   color: var(--color-brand-strong);
 }
 
+/* ── 부가 콘텐츠 (headerExtra) — 배너와 줄 목록 사이 ── */
+.headerExtra {
+  margin: 12px 16px 0;
+}
+
 /* ── 줄 단위 목록 ── */
 .lines {
   flex: 1;

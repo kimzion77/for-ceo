@@ -16,7 +16,7 @@
  *  - 제출 시 onSubmit(lines.join('\n')) — 부모 페이지가 분석 흐름을 이어받음
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import styles from './MobileOcrConfirm.module.css';
 
@@ -30,6 +30,8 @@ export interface MobileOcrConfirmProps {
   submitLabel?: string;
   /** 직전 제출 실패 메시지 — CTA 위에 표시 (재시도 안내용, 선택). */
   errorMessage?: string;
+  /** 안내 배너와 줄 목록 사이에 끼우는 부가 콘텐츠 (예: AI 분류 확인 배너). */
+  headerExtra?: ReactNode;
 }
 
 /**
@@ -105,6 +107,7 @@ export default function MobileOcrConfirm({
   onBack,
   submitLabel = '이 내용으로 검토 시작',
   errorMessage,
+  headerExtra,
 }: MobileOcrConfirmProps) {
   // 줄 단위 상태 — 빈 줄도 보존 (얇은 여백 줄로 렌더, 탭하면 수정 가능)
   const [lines, setLines] = useState<string[]>(() => initialText.split('\n'));
@@ -210,6 +213,9 @@ export default function MobileOcrConfirm({
           필요해요.
         </p>
       </div>
+
+      {/* 부가 콘텐츠 — 예: AI 1차 분류 확인 배너 */}
+      {headerExtra && <div className={styles.headerExtra}>{headerExtra}</div>}
 
       {/* 줄 단위 목록 — 탭하면 그 줄만 수정 */}
       <div className={styles.lines}>

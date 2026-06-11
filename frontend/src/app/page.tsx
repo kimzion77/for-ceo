@@ -19,7 +19,7 @@ import WorkplaceForm, {
   type WorkplaceFormState,
 } from '@/components/home/WorkplaceForm';
 
-import { postEcExtract, postEcStructure } from '@/lib/api/ec';
+import { postEcClassify, postEcExtract, postEcStructure } from '@/lib/api/ec';
 import { postWsExtract } from '@/lib/api/ws';
 import { postScExtract, postScStructure } from '@/lib/api/sc';
 import { ApiCallError } from '@/lib/api/client';
@@ -167,7 +167,12 @@ export default function HomePage() {
           phase: 'structuring',
           extractedText: extracted.extracted_text,
         });
-        const structured = await postEcStructure(extracted.extracted_text);
+        // AI 1차 분류(/ec/classify)를 structure 와 병렬 실행 — 분류는 부가 정보라
+        // 실패해도 흐름을 막지 않는다 (catch → null → 폼 workerTypes fallback).
+        const [structured, cls] = await Promise.all([
+          postEcStructure(extracted.extracted_text),
+          postEcClassify(extracted.extracted_text).catch(() => null),
+        ]);
 
         // 응답 검증 — LLM 이 가끔 빈 dict 나 누락된 응답을 줄 때가 있어, 그대로 review 단계로
         // 넘어가면 사용자 화면에 "구조화 데이터가 없어요" 가 뜬다. 명시적 검증으로 catch 로 보냄.
@@ -180,11 +185,19 @@ export default function HomePage() {
 
         // 사업장 컨텍스트(폼에서 받은 것)를 ec 워크플로에 같이 박아둠.
         // 사용자가 검토 페이지에서 다시 바꿀 수 있고, analyze 호출 직전에 최신값으로 덮어씀.
+        // workerTypes(폼 값)는 분류 실패·레거시 경로의 fallback 으로 그대로 유지.
         updateEc(caseId, {
           phase: 'review',
           structuredData: sd,
           businessSize: ctx.businessSize ?? '',
           workerTypes: ctx.workerTypes,
+          classify: cls
+            ? {
+                workerTypes: cls.worker_types,
+                docKind: cls.doc_kind,
+                reason: cls.reason,
+              }
+            : undefined,
         });
         // LoadingScreen 이 status='done' 을 트리거로 다음 라우트로 보내므로,
         // EC 풀 이식에선 result 가 아닌 phase='review' 가 그 신호.

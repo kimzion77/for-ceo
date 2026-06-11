@@ -177,15 +177,6 @@ export function WorkplaceForm({
   // WS 전용 단순화된 컨텍스트
   const showWsContext = documentType === 'wage-statement';
 
-  const toggleWorker = (t: WorkerType) => {
-    const has = value.workerTypes.includes(t);
-    patch({
-      workerTypes: has
-        ? value.workerTypes.filter((x) => x !== t)
-        : [...value.workerTypes, t],
-    });
-  };
-
   return (
     <Card padding={20}>
       {/* ── 섹션 1: 사업장 기본 (모든 문서 공통) ── */}
@@ -222,32 +213,19 @@ export function WorkplaceForm({
           </div>
         </div>
 
-        {/* 근로자 유형 — 다중 선택 (근로계약서 전용) */}
+        {/* 근로자 유형 — 근로계약서는 AI 1차 분류가 대신 판단 (다음 단계에서 사용자 확인).
+            workerTypes 상태·기본값은 레거시 경로 fallback 으로 그대로 유지. */}
         {showWorkerTypesMulti && (
           <div className={styles.field}>
             <div className={styles.label}>
               <Term def={HELP_WORKER_TYPES} hideDelay={500} width={360}>
-                근로자 유형 (다중 선택)
+                근로자 유형
               </Term>
             </div>
-            <div className={styles.optionsWrap}>
-              {ALL_WORKER_TYPES.map((t) => {
-                const active = value.workerTypes.includes(t);
-                return (
-                  <label
-                    key={t}
-                    className={`${styles.option} ${active ? styles.optionActive : ''}`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={active}
-                      onChange={() => toggleWorker(t)}
-                    />
-                    {t}
-                  </label>
-                );
-              })}
-            </div>
+            <p className={styles.aiNote}>
+              근로자 유형은 업로드한 계약서를 보고 AI가 먼저 판단해요. 다음
+              단계에서 확인만 하면 됩니다.
+            </p>
           </div>
         )}
 

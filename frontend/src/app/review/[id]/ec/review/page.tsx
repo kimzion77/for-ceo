@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
+import ClassifyConfirm from '@/components/review/ClassifyConfirm';
 import EditableStructureTable from '@/components/review/EditableStructureTable';
 import MobileOcrConfirm from '@/components/review/mobile/MobileOcrConfirm';
 import { useIsMobileViewport } from '@/components/review/mobile/MobileReviewApp';
@@ -32,12 +33,16 @@ export default function EcReviewPage({ params }: { params: { id: string } }) {
   const [structured, setStructured] = useState<EcStructuredData | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // AI 1차 분류 확인 — 사용자가 확정한 근로자 유형 (ClassifyConfirm controlled value).
+  // null = 아직 마운트 전. 마운트 시 AI 분류값 → 폼값 순으로 초기화.
+  const [confirmedTypes, setConfirmedTypes] = useState<string[] | null>(null);
 
   useEffect(() => {
     setMounted(true);
     const e = getCase(caseId);
     setInitialEntry(e);
     if (e?.ec?.structuredData) setStructured(e.ec.structuredData);
+    setConfirmedTypes(e?.ec?.classify?.workerTypes ?? e?.ec?.workerTypes ?? []);
     // 구조화·분석 중이면 사용자가 직접 URL 친 경우라도 로딩 페이지로 자동 안내.
     // structuredData 가 아직 안 채워졌으면 로딩에서 phase 변화를 기다려야 함.
     const phase = e?.ec?.phase;
@@ -93,13 +98,18 @@ export default function EcReviewPage({ params }: { params: { id: string } }) {
   if (isMobile && initialEntry.ec?.extractedText) {
     const originalText = initialEntry.ec.extractedText;
     const existingSd = initialEntry.ec.structuredData;
+    const classify = initialEntry.ec.classify;
 
     const startMobileAnalyze = (edited: string) => {
       setSubmitting(true);
+      // AI 분류 확인값 우선 — 없으면(레거시·분류 실패) 폼에서 받은 workerTypes.
+      const finalTypes = confirmedTypes ?? workerTypes;
       updateEc(caseId, {
         phase: 'structuring',
         extractedText: edited,
         errorMessage: undefined,
+        workerTypes: finalTypes,
+        ...(classify ? { classify: { ...classify, confirmed: true } } : {}),
       });
       router.push(`/review/${caseId}/loading`);
       // 백그라운드 — 페이지 이탈 후에도 promise 는 살아있다.
@@ -117,7 +127,7 @@ export default function EcReviewPage({ params }: { params: { id: string } }) {
           sd = next;
         }
         updateEc(caseId, { phase: 'analyzing', structuredData: sd });
-        const out = await postEcAnalyze(sd, businessSize, workerTypes);
+        const out = await postEcAnalyze(sd, businessSize, finalTypes);
         updateEc(caseId, { phase: 'result', analysisResult: out.analysis_result });
       })().catch((err) => {
         const msg =
@@ -134,7 +144,7 @@ export default function EcReviewPage({ params }: { params: { id: string } }) {
           errorMessage: msg,
           extractedText: edited,
           businessSize,
-          workerTypes,
+          workerTypes: finalTypes,
         });
       });
     };
@@ -146,6 +156,17 @@ export default function EcReviewPage({ params }: { params: { id: string } }) {
         onSubmit={startMobileAnalyze}
         onBack={() => router.push('/')}
         errorMessage={initialEntry.ec?.errorMessage}
+        headerExtra={
+          classify ? (
+            <ClassifyConfirm
+              docKind={classify.docKind}
+              reason={classify.reason}
+              workerTypes={classify.workerTypes}
+              value={confirmedTypes ?? []}
+              onChange={setConfirmedTypes}
+            />
+          ) : undefined
+        }
       />
     );
   }
@@ -252,6 +273,9 @@ export default function EcReviewPage({ params }: { params: { id: string } }) {
     if (!structured) return;
     setSubmitting(true);
     setError(null);
+    // AI 분류 확인값 우선 — 없으면(레거시·분류 실패) 폼에서 받은 workerTypes.
+    const finalTypes = confirmedTypes ?? workerTypes;
+    const classify = initialEntry?.ec?.classify;
     // 검토 페이지에서 사용자가 수정한 최종본을 store 에 저장하고,
     // phase 를 'analyzing' 으로 박은 뒤 즉시 로딩 페이지로 이동.
     // LoadingScreen 이 phase 를 보고 "분석 단계" UI 를 띄우다가
@@ -260,10 +284,12 @@ export default function EcReviewPage({ params }: { params: { id: string } }) {
       phase: 'analyzing',
       structuredData: structured,
       errorMessage: undefined,
+      workerTypes: finalTypes,
+      ...(classify ? { classify: { ...classify, confirmed: true } } : {}),
     });
     router.push(`/review/${caseId}/loading`);
     // 백그라운드 fetch — 페이지 이탈 후에도 promise 는 살아있다.
-    postEcAnalyze(structured, businessSize, workerTypes)
+    postEcAnalyze(structured, businessSize, finalTypes)
       .then((out) => {
         updateEc(caseId, {
           phase: 'result',
@@ -292,6 +318,19 @@ export default function EcReviewPage({ params }: { params: { id: string } }) {
           <strong>직접 고치면</strong> 분석이 <strong>더 정확</strong>해져요.
           수정이 끝나면 아래 <strong>“분석 시작”</strong>을 눌러 주세요.
         </div>
+
+        {/* AI 1차 분류 확인 — 분류 결과가 있을 때만 (레거시·분류 실패 시 기존 흐름) */}
+        {initialEntry.ec?.classify && (
+          <div className={styles.classifyWrap}>
+            <ClassifyConfirm
+              docKind={initialEntry.ec.classify.docKind}
+              reason={initialEntry.ec.classify.reason}
+              workerTypes={initialEntry.ec.classify.workerTypes}
+              value={confirmedTypes ?? []}
+              onChange={setConfirmedTypes}
+            />
+          </div>
+        )}
 
         <div className={styles.split}>
           <aside className={styles.docPanel} aria-label="업로드된 문서 원본">

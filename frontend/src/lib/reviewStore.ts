@@ -45,6 +45,17 @@ export interface EcWorkflow {
   /** 사용자가 입력한 컨텍스트 (Step2 에서 확정). */
   businessSize?: string;
   workerTypes?: string[];
+  /**
+   * AI 1차 분류 결과 (/ec/classify) — 검토 페이지에서 사용자가 "맞아요/아니에요" 로
+   * 확인한다. confirmed=true 는 분석 시작 시점에 박힌다. 분류 실패 시 undefined
+   * (폼에서 받은 workerTypes 가 fallback).
+   */
+  classify?: {
+    workerTypes: string[];
+    docKind: string;
+    reason?: string;
+    confirmed?: boolean;
+  };
   /** /ec/analyze 결과 (Step3 페이지가 사용). */
   analysisResult?: EcAnalysisResult;
   /** /ec/generate 결과 (Step4 페이지가 사용). */

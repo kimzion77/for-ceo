@@ -52,6 +52,17 @@
   flex-wrap: wrap;
 }
 
+/* 근로자 유형 — AI 1차 분류 안내 노트 (EC 전용, 체크박스 대체) */
+.aiNote {
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+  background: var(--color-brand-soft);
+  border-radius: 8px;
+}
+
 .options {
   display: flex;
   gap: 6px;
