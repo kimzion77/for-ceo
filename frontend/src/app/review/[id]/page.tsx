@@ -124,12 +124,22 @@ export default function ReviewResultPage({
               ? f.penalty.omission[0] ?? f.penalty.violation[0]
               : f.penalty.violation[0] ?? f.penalty.omission[0]
             : undefined;
+          // 취업규칙은 부적절/보완필요 대신 기존 5-bucket 표현(누락·위반·주의·검토필요) 유지.
+          const statusLabel =
+            f.status === 'MISSING'
+              ? '누락'
+              : f.status === 'VIOLATION'
+                ? '위반'
+                : f.status === 'WARN'
+                  ? '주의'
+                  : '검토필요';
           return {
             key: f.id,
             tone:
               f.status === 'VIOLATION' || f.status === 'MISSING'
                 ? ('bad' as const)
                 : ('warn' as const),
+            statusLabel,
             name: `${f.article} ${f.articleTitle}`.trim() || f.title,
             reason: f.title,
             why: f.reason,

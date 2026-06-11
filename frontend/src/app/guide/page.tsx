@@ -634,9 +634,21 @@ function GuideChatTab({ overview: _overview }: { overview: GuideOverview | null 
   }, [intent, forms.length]);
 
   useEffect(() => {
-    if (listRef.current) {
-      listRef.current.scrollTop = listRef.current.scrollHeight;
+    const list = listRef.current;
+    if (!list) return;
+    const last = messages[messages.length - 1];
+    if (last?.role === 'assistant') {
+      // AI 답변 도착 — 답변의 '첫 부분'이 보이게 해당 말풍선 상단으로 스크롤.
+      // (맨 아래로 내리면 긴 답변의 끝부터 보여 사용자가 거슬러 올라가야 함)
+      const bubbles = list.querySelectorAll('[data-chat-msg]');
+      const target = bubbles[bubbles.length - 1] as HTMLElement | undefined;
+      if (target) {
+        list.scrollTop = Math.max(0, target.offsetTop - 12);
+        return;
+      }
     }
+    // 사용자가 질문을 보냈거나 로딩 중 — 기존처럼 맨 아래(입력 흐름 유지)
+    list.scrollTop = list.scrollHeight;
   }, [messages, pending]);
 
   const send = async (text: string) => {
@@ -1067,7 +1079,10 @@ function GuideChatTab({ overview: _overview }: { overview: GuideOverview | null 
               m.followUps.length > 0;
             return (
               <div key={i}>
-                <div className={`${styles.chatMsg} ${styles[`chatMsg_${m.role}`]}`}>
+                <div
+                  data-chat-msg
+                  className={`${styles.chatMsg} ${styles[`chatMsg_${m.role}`]}`}
+                >
                   {m.role === 'assistant' ? (
                     <div className={styles.chatAssistantWrap}>
                       {/* ChatAssistantBubble: "관련 법령: ..." 줄을 자동으로 LawChip 으로 분리

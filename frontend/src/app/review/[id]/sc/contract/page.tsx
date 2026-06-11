@@ -29,6 +29,10 @@ export default function ScContractPage({ params }: { params: { id: string } }) {
   const [entry, setEntry] = useState<ReturnType<typeof getCase>>(null);
   const [draft, setDraft] = useState('');
   const [dirty, setDirty] = useState(false);
+  // 주의: 모든 훅은 조기 return 보다 위 — 조건부 return 뒤에 두면
+  // 렌더 간 훅 개수가 달라져 client-side exception 발생.
+  const [downloadingDocx, setDownloadingDocx] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const originalRef = useRef('');
 
   useEffect(() => {
@@ -93,9 +97,6 @@ export default function ScContractPage({ params }: { params: { id: string } }) {
     a.remove();
     URL.revokeObjectURL(url);
   };
-
-  const [downloadingDocx, setDownloadingDocx] = useState(false);
-  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const handleDownloadDocx = async () => {
     setDownloadingDocx(true);

@@ -33,8 +33,11 @@ import styles from './MobileReviewApp.module.css';
 export interface MobileFinding {
   /** 안정적 고유 id (항목 or 슬롯ID or finding id). */
   key: string;
-  /** 부적절(bad) / 보완필요(warn). */
+  /** 부적절(bad) / 보완필요(warn) — 색·정렬용. */
   tone: 'bad' | 'warn';
+  /** 상태 표기 라벨 — 미지정 시 부적절/보완필요. 취업규칙은 누락·위반·주의·
+   *  검토필요 등 기존 5-bucket 표현을 그대로 전달. */
+  statusLabel?: string;
   /** 항목명. */
   name: string;
   /** 목록 한줄 사유 (예: "최저임금 미달 · 부적절"). */
@@ -102,6 +105,9 @@ export function useIsMobileViewport(maxWidthPx = 720): boolean {
  * ════════════════════════════════════════════════════════ */
 
 const toneLabel = (t: 'bad' | 'warn') => (t === 'bad' ? '부적절' : '보완필요');
+
+/** 항목 상태 라벨 — statusLabel(취업규칙 누락·위반 등) 우선, 없으면 tone 기본. */
+const labelOf = (f: MobileFinding) => f.statusLabel ?? toneLabel(f.tone);
 
 /** LLM 응답의 마크다운 볼드(**…**)를 <strong> 으로 렌더 — 중요 부분 강조. */
 function renderBold(text: string): ReactNode {
@@ -560,7 +566,7 @@ export default function MobileReviewApp({
                                 : styles.vitemStWarn
                           }`}
                         >
-                          {isAdded ? '완료' : toneLabel(f.tone)}
+                          {isAdded ? '완료' : labelOf(f)}
                         </span>
                       </button>
                     );
@@ -641,7 +647,7 @@ export default function MobileReviewApp({
                 {isCurAdded ? '✓' : curIndex + 1}
               </span>
               <span className={styles.minibarT}>
-                {cur.name} {isCurAdded ? '완료' : toneLabel(cur.tone)}
+                {cur.name} {isCurAdded ? '완료' : labelOf(cur)}
               </span>
               <span className={styles.minibarNav}>탭하여 상세 ›</span>
             </button>
@@ -701,7 +707,7 @@ export default function MobileReviewApp({
                               f.tone === 'bad' ? styles.chipBad : styles.chipWarn
                             } ${styles.revChip}`}
                           >
-                            {toneLabel(f.tone)}
+                            {labelOf(f)}
                           </span>
                         </span>
                         <span className={styles.revFrom}>{f.now}</span>
@@ -772,7 +778,7 @@ export default function MobileReviewApp({
                   cur.tone === 'bad' ? styles.chipBad : styles.chipWarn
                 }`}
               >
-                {toneLabel(cur.tone)}
+                {labelOf(cur)}
               </span>
               <span className={styles.sheadPg}>
                 {String(curIndex + 1).padStart(2, '0')}/{total}
