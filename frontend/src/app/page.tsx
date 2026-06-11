@@ -19,18 +19,17 @@ import WorkplaceForm, {
   type WorkplaceFormState,
 } from '@/components/home/WorkplaceForm';
 
-import { postReviewWorkRules } from '@/lib/api/review';
 import { postEcExtract, postEcStructure } from '@/lib/api/ec';
-import { postWsAnalyze, postWsExtract } from '@/lib/api/ws';
+import { postWsExtract } from '@/lib/api/ws';
 import { postScExtract, postScStructure } from '@/lib/api/sc';
 import { ApiCallError } from '@/lib/api/client';
 import {
   makeTempCaseId,
   setCaseError,
-  setCaseResult,
   startCase,
   updateEc,
   updateSc,
+  updateWr,
   updateWs,
 } from '@/lib/reviewStore';
 
@@ -211,42 +210,37 @@ export default function HomePage() {
         });
         // LoadingScreen 은 sc.phase='review' 를 보고 /review/[id]/sc/review 로 라우팅.
       } else if (docType === 'wage-statement') {
-        // 임금명세서 (beta) — extract + analyze 자동 연쇄.
+        // 임금명세서 (beta) — extract 후 사용자 확인 단계로.
         //   1) /ws/extract  파일 → 텍스트 (이미지면 OCR)
-        //   2) /ws/analyze  텍스트 + 컨텍스트 → 11 슬롯 위반 분석 (LLM)
-        // 결과는 EC analysis 와 동일 스키마 → /review/[id]/ws 에서 같은 UI 로 렌더.
+        //   2) (사용자 확인·수정) /review/[id]/ws/review — '분석 시작' 시 /ws/analyze 호출.
+        // analyze 에 필요한 컨텍스트 전부를 ws 워크플로에 보관해 검토 페이지가 그대로 사용.
         updateWs(caseId, { phase: 'extracting' });
         const wsExtracted = await postWsExtract(first);
 
         updateWs(caseId, {
-          phase: 'analyzing',
+          phase: 'review',
           extractedText: wsExtracted.extracted_text,
           businessSize: ctx.businessSize ?? '',
           workerTypes: ctx.workerTypes,
+          payPeriodYear: ctx.payPeriodYear ?? undefined,
+          payPeriodMonth: ctx.payPeriodMonth ?? undefined,
+          contractType: ctx.contractType ?? undefined,
+          payCycle: ctx.payCycle ?? undefined,
+          weeklyHours: ctx.weeklyHours ?? undefined,
         });
-        const wsAnalyzed = await postWsAnalyze({
-          wage_text: wsExtracted.extracted_text,
-          business_size: ctx.businessSize ?? '',
-          worker_types: ctx.workerTypes ?? [],
-          pay_period_year: ctx.payPeriodYear ?? undefined,
-          pay_period_month: ctx.payPeriodMonth ?? undefined,
-          contract_type: ctx.contractType ?? undefined,
-          pay_cycle: ctx.payCycle ?? undefined,
-          weekly_hours: ctx.weeklyHours ?? undefined,
-        });
-
-        updateWs(caseId, {
-          phase: 'result',
-          analysisResult: wsAnalyzed.analysis_result,
-        });
-        // LoadingScreen 은 ws.phase='result' 를 보고 /review/[id]/ws 로 라우팅.
+        // LoadingScreen 은 ws.phase='review' 를 보고 /review/[id]/ws/review 로 라우팅.
       } else {
-        const result = await postReviewWorkRules({
-          files,
+        // 취업규칙 — 추출 후 사용자 확인 단계로.
+        //   1) /ec/extract (범용 parse_to_text — docx/hwp/pdf/txt/이미지) 파일 → 텍스트
+        //   2) (사용자 확인·수정) /review/[id]/wr/review — '분석 시작' 시 postReviewWorkRules 호출.
+        const wrExtracted = await postEcExtract(first);
+
+        updateWr(caseId, {
+          phase: 'review',
+          extractedText: wrExtracted.extracted_text,
           context: ctx,
-          documentType: docType,
         });
-        setCaseResult(caseId, result);
+        // LoadingScreen 은 wr.phase='review' 를 보고 /review/[id]/wr/review 로 라우팅.
       }
     } catch (err) {
       const rawMsg =

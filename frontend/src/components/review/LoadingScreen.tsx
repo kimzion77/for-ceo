@@ -172,8 +172,13 @@ export function LoadingScreen({ reviewId }: LoadingScreenProps) {
         return;
       }
 
-      // 임금명세서 (beta) — ws.phase='result' 면 결과 페이지로.
+      // 임금명세서 (beta) — ws.phase 분기.
       const wsPhase = entry.ws?.phase;
+      if (wsPhase === 'review') {
+        window.clearInterval(id);
+        router.replace(`/review/${reviewId}/ws/review`);
+        return;
+      }
       if (wsPhase === 'result') {
         window.clearInterval(id);
         router.replace(`/review/${reviewId}/ws`);
@@ -200,6 +205,15 @@ export function LoadingScreen({ reviewId }: LoadingScreenProps) {
       if (scPhase === 'error') {
         window.clearInterval(id);
         setApiError(entry.sc?.errorMessage || '노무제공자 계약서 분석 실패');
+        return;
+      }
+
+      // 취업규칙 — 추출 텍스트 확인 단계. 'analyzing' 은 라우팅하지 않음
+      // (분석 완료 시 아래 status='done' 분기가 /review/[id] 로 보냄).
+      const wrPhase = entry.wr?.phase;
+      if (wrPhase === 'review') {
+        window.clearInterval(id);
+        router.replace(`/review/${reviewId}/wr/review`);
         return;
       }
 

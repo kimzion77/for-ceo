@@ -13,7 +13,7 @@ import type {
   EcStructuredData,
 } from '@/lib/api/types';
 import type { ScAnalysisResult, ScStructuredData } from '@/lib/api/sc';
-import type { DocumentType, ReviewResult } from '@/types/review';
+import type { DocumentType, ReviewResult, WorkplaceContext } from '@/types/review';
 
 /** 결과 타입 — 문서 종류별 결과 형태가 다름. */
 export type AnyCaseResult =
@@ -74,6 +74,7 @@ export interface EcWorkflow {
 export type WsPhase =
   | 'idle'
   | 'extracting'
+  | 'review' // 사용자가 추출 텍스트 확인·수정
   | 'analyzing'
   | 'result'
   | 'error';
@@ -83,6 +84,12 @@ export interface WsWorkflow {
   extractedText?: string;
   businessSize?: string;
   workerTypes?: string[];
+  /** 임금명세서 전용 컨텍스트 — /ws/analyze 재호출에 필요 (검토 페이지가 보관). */
+  payPeriodYear?: number;
+  payPeriodMonth?: number;
+  contractType?: string;
+  payCycle?: string;
+  weeklyHours?: number;
   /** /ws/analyze 결과 (EC analysis 와 동일 스키마). */
   analysisResult?: EcAnalysisResult;
   /** /ws/generate 결과 — 수정 반영된 표준 임금명세서 텍스트. */
@@ -117,6 +124,23 @@ export interface ScWorkflow {
   errorMessage?: string;
 }
 
+/**
+ * 취업규칙 (work rules) — 추출 텍스트 확인·수정 단계용 최소 워크플로.
+ *
+ * 기존 단일 호출 흐름(postReviewWorkRules 한 방)에 사용자 확인 단계를 끼워넣기 위해:
+ *   1) 홈에서 postEcExtract (범용 parse_to_text) 로 텍스트만 추출 → phase 'review'
+ *   2) 사용자가 /review/[id]/wr/review 에서 텍스트 확인·수정
+ *   3) '분석 시작' → phase 'analyzing' → 수정 텍스트를 .txt File 로 감싸 postReviewWorkRules
+ * 결과는 기존과 동일하게 setCaseResult (status='done') → /review/[id] 라우팅.
+ */
+export interface WrWorkflow {
+  phase: 'review' | 'analyzing';
+  extractedText?: string;
+  errorMessage?: string;
+  /** 홈 폼에서 받은 사업장 컨텍스트 — 분석 호출 시 그대로 전달. */
+  context?: WorkplaceContext;
+}
+
 interface CaseEntry {
   caseId: string;
   /** 'pending' | 'done' | 'error' */
@@ -146,6 +170,8 @@ interface CaseEntry {
   ws?: WsWorkflow;
   /** 노무제공자 계약서 (Phase 17). */
   sc?: ScWorkflow;
+  /** 취업규칙 — 추출 텍스트 확인·수정 단계. */
+  wr?: WrWorkflow;
 }
 
 const memory = new Map<string, CaseEntry>();
@@ -417,6 +443,16 @@ export function updateWs(caseId: string, patch: Partial<WsWorkflow>) {
   const prevWs: WsWorkflow = prev.ws ?? { phase: 'idle' };
   const nextWs: WsWorkflow = { ...prevWs, ...patch };
   const entry: CaseEntry = { ...prev, ws: nextWs };
+  memory.set(caseId, entry);
+  persist(caseId, entry);
+}
+
+/** WR (취업규칙) 워크플로 부분 갱신 — 추출 텍스트 확인 단계. */
+export function updateWr(caseId: string, patch: Partial<WrWorkflow>) {
+  const prev = ensureCaseEntry(caseId);
+  const prevWr: WrWorkflow = prev.wr ?? { phase: 'review' };
+  const nextWr: WrWorkflow = { ...prevWr, ...patch };
+  const entry: CaseEntry = { ...prev, wr: nextWr };
   memory.set(caseId, entry);
   persist(caseId, entry);
 }
