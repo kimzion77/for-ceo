@@ -37,3 +37,35 @@
   font-size: 12px;
   color: var(--color-text-subtle);
 }
+
+/* 모바일 전용 — 우하단 플로팅 챗봇(노무 가이드) 버튼 */
+.chatFab {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .chatFab {
+    position: fixed;
+    right: 16px;
+    bottom: 20px;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 52px;
+    padding: 0 18px 0 15px;
+    border-radius: 999px;
+    background: var(--color-brand);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: -0.2px;
+    text-decoration: none;
+    box-shadow: 0 8px 22px rgba(11, 61, 145, 0.36);
+    transition: transform 0.15s;
+  }
+
+  .chatFab:active {
+    transform: scale(0.96);
+  }
+}

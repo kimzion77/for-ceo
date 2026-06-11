@@ -16,6 +16,10 @@ import ResultHeader from '@/components/review/ResultHeader';
 import VerdictCard from '@/components/review/VerdictCard';
 import PrintLayout from '@/components/review/print/PrintLayout';
 import SiteHeader from '@/components/layout/SiteHeader';
+import MobileReviewApp, {
+  useIsMobileViewport,
+  type MobileFinding,
+} from '@/components/review/mobile/MobileReviewApp';
 
 import { SAMPLE_RESULT } from '@/data/sample';
 import { getCase } from '@/lib/reviewStore';
@@ -92,6 +96,89 @@ export default function ReviewResultPage({
     if (typeof window === 'undefined') return;
     window.print();
   }, []);
+
+  // ─── 모바일 검토앱 (≤720px) — 공용 MobileReviewApp 으로 분기 ───
+  const isMobile = useIsMobileViewport();
+  // 문제 항목만 (적정 OK·추출실패 ERROR 제외).
+  // tone — bucket 의미와 동일: 강행규정 미준수(VIOLATION·MISSING)=bad,
+  // 임의규정·매칭모호(WARN·AMBIGUOUS)=warn.
+  const mobileFindings = useMemo<MobileFinding[]>(
+    () =>
+      findings
+        .filter(
+          (f) =>
+            f.status === 'VIOLATION' ||
+            f.status === 'MISSING' ||
+            f.status === 'AMBIGUOUS' ||
+            f.status === 'WARN',
+        )
+        .map((f) => {
+          // 벌칙 — 누락이면 미기재(omission) 쪽, 그 외엔 내용위반(violation) 쪽 우선.
+          const pen = f.penalty
+            ? f.status === 'MISSING'
+              ? f.penalty.omission[0] ?? f.penalty.violation[0]
+              : f.penalty.violation[0] ?? f.penalty.omission[0]
+            : undefined;
+          return {
+            key: f.id,
+            tone:
+              f.status === 'VIOLATION' || f.status === 'MISSING'
+                ? ('bad' as const)
+                : ('warn' as const),
+            name: `${f.article} ${f.articleTitle}`.trim() || f.title,
+            reason: f.title,
+            why: f.reason,
+            law: f.laws?.[0]?.name,
+            pen,
+            now: f.quote || '(본문에 규정 없음)',
+            fix: f.suggested,
+          };
+        }),
+    [findings],
+  );
+  // 종합 판정 — verdictKey(가장 강한 버킷) 로 톤, 분포 카운트로 한줄 요약.
+  const mobileVerdict = useMemo(() => {
+    const c = summary.counts;
+    const tone: 'bad' | 'warn' | 'ok' =
+      summary.verdictKey === 'missing' || summary.verdictKey === 'violation'
+        ? 'bad'
+        : summary.verdictKey === 'ok'
+          ? 'ok'
+          : 'warn';
+    const severeParts: string[] = [];
+    if (c.missing) severeParts.push(`누락 ${c.missing}건`);
+    if (c.violation) severeParts.push(`위반 ${c.violation}건`);
+    const extraParts: string[] = [];
+    if (c.warn) extraParts.push(`주의 ${c.warn}건`);
+    if (c.ambiguous) extraParts.push(`검토필요 ${c.ambiguous}건`);
+    let text: string;
+    if (severeParts.length === 0 && extraParts.length === 0) {
+      text = '법정 기준에 모두 부합합니다. 추가 시정 없이 운영 가능합니다.';
+    } else if (severeParts.length === 0) {
+      text = `강행규정 위반은 없으나, ${extraParts.join(', ')}의 점검 권장 항목이 있습니다.`;
+    } else {
+      text = `${severeParts.join(', ')}의 강행규정 미준수가 발견되어 시정이 필요합니다.`;
+      if (extraParts.length > 0) {
+        text += ` 이외 ${extraParts.join(', ')}도 함께 점검해 주세요.`;
+      }
+    }
+    return { word: summary.verdict, tone, summary: text };
+  }, [summary]);
+
+  // ─── 모바일 — 결과 단계 전용 풀스크린 앱 (데스크톱 레이아웃 미렌더) ───
+  // 취업규칙은 extractedText 가 store 에 없어 원문(doc) 화면 비활성. 영속화도 없음.
+  if (isMobile) {
+    return (
+      <MobileReviewApp
+        docLabel="취업규칙"
+        filename={summary.fileName}
+        verdict={mobileVerdict}
+        findings={mobileFindings}
+        okCount={summary.counts.ok ?? 0}
+        onBack={() => router.push('/')}
+      />
+    );
+  }
 
   return (
     <>

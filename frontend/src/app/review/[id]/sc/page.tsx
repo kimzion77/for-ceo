@@ -1,11 +1,16 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 import { getCase } from '@/lib/reviewStore';
 import type { ScAnalysisFinding, ScAnalysisResult } from '@/lib/api/sc';
 import ChatPanel from '@/components/review/ChatPanel';
+import MobileReviewApp, {
+  useIsMobileViewport,
+  type MobileFinding,
+} from '@/components/review/mobile/MobileReviewApp';
 
 import styles from '../ec/page.module.css';
 
@@ -35,6 +40,7 @@ const SEV_STYLE: Record<
 };
 
 export default function ScResultPage({ params }: { params: { id: string } }) {
+  const router = useRouter();
   const caseId = params.id;
   const [mounted, setMounted] = useState(false);
   const [entry, setEntry] = useState<ReturnType<typeof getCase>>(null);
@@ -58,6 +64,26 @@ export default function ScResultPage({ params }: { params: { id: string } }) {
     return out;
   }, [result]);
 
+  // ─── 모바일 검토앱 (≤720px) — 공용 MobileReviewApp 으로 분기 ───
+  // 훅 순서 고정: 조기 return 보다 위에서 항상 호출.
+  const isMobile = useIsMobileViewport();
+  const mobileFindings = useMemo<MobileFinding[]>(() => {
+    const rs = result?.results ?? [];
+    return rs
+      .filter((r) => r.적절성 !== '적절')
+      .map((r) => ({
+        key: r.슬롯ID || r.항목,
+        tone: r.적절성 === '부적절' ? ('bad' as const) : ('warn' as const),
+        name: r.항목,
+        reason: `${(r.발견내용 || '').trim().slice(0, 38) || '미기재'} · ${r.적절성}`,
+        why: (r.판단이유 || '').replace(/<meta[^>]*\/>/g, '').trim(),
+        law: r.법적근거 || undefined,
+        pen: undefined,
+        now: r.발견내용 || '(기재 없음)',
+        fix: r.개선권고 || '',
+      }));
+  }, [result]);
+
   if (!mounted) return <main className={styles.page} aria-hidden />;
 
   if (!result) {
@@ -72,6 +98,30 @@ export default function ScResultPage({ params }: { params: { id: string } }) {
           </div>
         </div>
       </main>
+    );
+  }
+
+  // ─── 모바일 — 결과 단계 전용 풀스크린 앱 (데스크톱 레이아웃 미렌더) ───
+  // SC store 에는 userOverrides 가 없어 onPersist 는 생략 (세션 내 메모리만).
+  if (isMobile) {
+    const overallStatus = (result.overallStatus || '').trim();
+    const mobileTone: 'bad' | 'warn' | 'ok' =
+      overallStatus === '위험' ? 'bad' : overallStatus === '적정' ? 'ok' : 'warn';
+    return (
+      <MobileReviewApp
+        docLabel="노무제공자 계약서"
+        filename={entry?.originalFilename || '노무제공자 계약서'}
+        verdict={{
+          word: overallStatus || '보완 필요',
+          tone: mobileTone,
+          summary: result.overallOpinion || '',
+        }}
+        findings={mobileFindings}
+        okCount={stats.적절}
+        extractedText={entry?.sc?.extractedText}
+        imageUrl={entry?.originalKind === 'image' ? entry?.originalUrl : undefined}
+        onBack={() => router.push('/')}
+      />
     );
   }
 

@@ -22,6 +22,10 @@ import type {
   EcChatTurn,
 } from '@/lib/api/types';
 import SiteHeader from '@/components/layout/SiteHeader';
+import MobileReviewApp, {
+  useIsMobileViewport,
+  type MobileFinding,
+} from '@/components/review/mobile/MobileReviewApp';
 import { lookupLawExcerpt, type LawExcerpt } from '@/data/lawExcerpts';
 import { filterApplicableGroups } from '@/data/workerTypeRequirements';
 import { getCase, setCaseError, updateEc } from '@/lib/reviewStore';
@@ -111,6 +115,45 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
     [sortedResults],
   );
 
+  // ─── 모바일 검토앱 (≤720px) — 공용 MobileReviewApp 으로 분기 ───
+  const isMobile = useIsMobileViewport();
+  const mobileFindings = useMemo<MobileFinding[]>(
+    () =>
+      violations.map((r) => ({
+        key: r.항목,
+        tone: r.적절성 === '부적절' ? ('bad' as const) : ('warn' as const),
+        name: r.항목,
+        reason: `${(r.발견내용 || '').trim().slice(0, 38) || '미기재'} · ${r.적절성}`,
+        why: (r.판단이유 || '').replace(/<meta[^>]*\/>/g, '').trim(),
+        law: r.법적근거 || undefined,
+        pen: undefined,
+        now: r.발견내용 || '(기재 없음)',
+        fix: r.개선권고 || '',
+      })),
+    [violations],
+  );
+  const ecOverrides = entry?.ec?.userOverrides;
+  const mobileInitialDrafts = useMemo(
+    () => ({ ...(ecOverrides ?? {}) }),
+    [ecOverrides],
+  );
+  const mobileInitialAdded = useMemo(() => {
+    const m: Record<string, boolean> = {};
+    for (const k of Object.keys(ecOverrides ?? {})) m[k] = true;
+    return m;
+  }, [ecOverrides]);
+  // 담은 항목만 userOverrides 로 저장 — 기존 "표준 계약서 생성" 흐름에 그대로 연결.
+  const handleMobilePersist = useCallback(
+    (drafts: Record<string, string>, added: Record<string, boolean>) => {
+      const ov: Record<string, string> = {};
+      for (const f of mobileFindings) {
+        if (added[f.key]) ov[f.key] = drafts[f.key] ?? f.fix;
+      }
+      updateEc(caseId, { userOverrides: ov });
+    },
+    [mobileFindings, caseId],
+  );
+
   // ─── 훅 호출 끝. 이제 조기 return / 일반 분기 가능 ───
   if (!mounted) {
     // 서버·client 첫 페인트가 동일하도록 빈 컨테이너만.
@@ -172,6 +215,34 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
 
   const verdictKey = (analysis.overallStatus || '보완필요').trim();
   const verdictStyle = VERDICT_STYLES[verdictKey] ?? VERDICT_STYLES.보완필요;
+
+  // ─── 모바일 — 결과 단계 전용 풀스크린 앱 (데스크톱 레이아웃 미렌더) ───
+  if (isMobile) {
+    const mobileTone: 'bad' | 'warn' | 'ok' =
+      verdictKey === '위험' ? 'bad' : verdictKey === '적정' ? 'ok' : 'warn';
+    return (
+      <MobileReviewApp
+        docLabel="근로계약서"
+        filename={entry?.originalFilename || '근로계약서'}
+        verdict={{
+          word: verdictKey,
+          tone: mobileTone,
+          summary: (analysis.overallOpinion || '')
+            .replace(/<meta[^>]*>/g, '')
+            .replace(/\s{2,}/g, ' ')
+            .trim(),
+        }}
+        findings={mobileFindings}
+        okCount={requirementBoard.stats.ok}
+        extractedText={entry?.ec?.extractedText}
+        imageUrl={entry?.originalKind === 'image' ? entry?.originalUrl : undefined}
+        initialDrafts={mobileInitialDrafts}
+        initialAdded={mobileInitialAdded}
+        onPersist={handleMobilePersist}
+        onBack={() => router.push('/')}
+      />
+    );
+  }
 
   const handleGenerate = () => {
     setGenerating(true);

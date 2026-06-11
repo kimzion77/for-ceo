@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 import Button from '@/components/ui/Button';
 import Icon from '@/components/ui/Icon';
@@ -306,6 +307,22 @@ export default function HomePage() {
           }
         />
       </div>
+
+      {/* 모바일 전용 — 우하단 플로팅 챗봇(노무 가이드) 버튼 */}
+      <Link href="/guide" className={styles.chatFab} aria-label="노무 가이드 챗봇 열기">
+        <svg
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.9"
+          aria-hidden
+        >
+          <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8A8.38 8.38 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" />
+        </svg>
+        <span>노무 가이드</span>
+      </Link>
     </div>
   );
 }
