@@ -20,6 +20,7 @@ import WorkplaceForm, {
 } from '@/components/home/WorkplaceForm';
 
 import { postEcClassify, postEcExtract, postEcStructure } from '@/lib/api/ec';
+import { postWrClassify } from '@/lib/api/review';
 import { postWsExtract } from '@/lib/api/ws';
 import { postScExtract, postScStructure } from '@/lib/api/sc';
 import { ApiCallError } from '@/lib/api/client';
@@ -245,13 +246,30 @@ export default function HomePage() {
       } else {
         // 취업규칙 — 추출 후 사용자 확인 단계로.
         //   1) /ec/extract (범용 parse_to_text — docx/hwp/pdf/txt/이미지) 파일 → 텍스트
-        //   2) (사용자 확인·수정) /review/[id]/wr/review — '분석 시작' 시 postReviewWorkRules 호출.
+        //   2) AI 근로환경 1차 분류 (교대제·산안법·화학물질·작업환경측정 추정)
+        //      — 실패해도 흐름 계속 (확인 배너만 생략, 보수적 기본값 검사)
+        //   3) (사용자 확인·수정) /review/[id]/wr/review — '분석 시작' 시 postReviewWorkRules 호출.
         const wrExtracted = await postEcExtract(first);
+        const wrCls = await postWrClassify(wrExtracted.extracted_text).catch(
+          () => null,
+        );
 
         updateWr(caseId, {
           phase: 'review',
           extractedText: wrExtracted.extracted_text,
           context: ctx,
+          ...(wrCls
+            ? {
+                classify: {
+                  shiftWorkUsed: wrCls.shift_work_used,
+                  oshaApplicable: wrCls.osha_applicable,
+                  chemicalHandling: wrCls.chemical_handling,
+                  workenvMeasurement: wrCls.workenv_measurement,
+                  docKind: wrCls.doc_kind,
+                  reason: wrCls.reason,
+                },
+              }
+            : {}),
         });
         // LoadingScreen 은 wr.phase='review' 를 보고 /review/[id]/wr/review 로 라우팅.
       }

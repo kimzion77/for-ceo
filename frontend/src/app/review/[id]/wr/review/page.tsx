@@ -6,6 +6,7 @@ import Link from 'next/link';
 
 import MobileOcrConfirm from '@/components/review/mobile/MobileOcrConfirm';
 import { useIsMobileViewport } from '@/components/review/mobile/MobileReviewApp';
+import WrEnvConfirm, { type WrEnv } from '@/components/review/WrEnvConfirm';
 import { postReviewWorkRules } from '@/lib/api/review';
 import { ApiCallError } from '@/lib/api/client';
 import {
@@ -35,12 +36,24 @@ export default function WrReviewPage({ params }: { params: { id: string } }) {
   const [entry, setEntry] = useState<ReturnType<typeof getCase>>(null);
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // AI 1차 근로환경 분류 확인 — 사용자가 확정한 값 (controlled). null = 마운트 전.
+  const [confirmedEnv, setConfirmedEnv] = useState<WrEnv | null>(null);
 
   useEffect(() => {
     setMounted(true);
     const e = getCase(caseId);
     setEntry(e);
     if (e?.wr?.extractedText) setText(e.wr.extractedText);
+    // AI 분류값 → 폼/fallback 컨텍스트 순으로 초기값 결정
+    const cls = e?.wr?.classify;
+    const ctx = e?.wr?.context;
+    setConfirmedEnv({
+      shiftWorkUsed: cls?.shiftWorkUsed ?? ctx?.shiftWorkUsed ?? null,
+      oshaApplicable: cls?.oshaApplicable ?? ctx?.oshaApplicable ?? true,
+      chemicalHandling: cls?.chemicalHandling ?? ctx?.chemicalHandling ?? null,
+      workenvMeasurement:
+        cls?.workenvMeasurement ?? ctx?.workenvMeasurement ?? null,
+    });
   }, [caseId]);
 
   // 모바일(≤720px) — 줄 단위 OCR 확인 화면으로 분기 (훅은 조기 return 전에)
@@ -92,7 +105,19 @@ export default function WrReviewPage({ params }: { params: { id: string } }) {
 
   // 모바일·데스크톱이 동일 분석 흐름을 공유 — 수정 최종본만 인자로 받음.
   const startAnalyzeWith = (edited: string) => {
-    const context = wr.context ?? FALLBACK_CONTEXT;
+    // 사용자가 확정한 근로환경(AI 1차 분류 → 확인)을 컨텍스트에 덮어쓴다.
+    // 분류 실패·미마운트 등으로 confirmedEnv 가 없으면 폼/fallback 그대로.
+    const baseContext = wr.context ?? FALLBACK_CONTEXT;
+    const context: WorkplaceContext = confirmedEnv
+      ? {
+          ...baseContext,
+          shiftWorkUsed: confirmedEnv.shiftWorkUsed,
+          // 산안법은 컨텍스트상 non-null — '모름'은 보수적으로 적용(검사함)
+          oshaApplicable: confirmedEnv.oshaApplicable ?? true,
+          chemicalHandling: confirmedEnv.chemicalHandling,
+          workenvMeasurement: confirmedEnv.workenvMeasurement,
+        }
+      : baseContext;
     setSubmitting(true);
     // phase='analyzing' → 즉시 로딩 페이지로. LoadingScreen 은 wr 'analyzing' 을
     // 라우팅하지 않고, setCaseResult 의 status='done' 으로 결과 페이지에 도달한다.
@@ -137,6 +162,25 @@ export default function WrReviewPage({ params }: { params: { id: string } }) {
 
   const startAnalyze = () => startAnalyzeWith(text);
 
+  // AI 근로환경 1차 분류 확인 배너 — AI 가 판단했을 때만 노출.
+  // 분류 실패 시엔 confirmedEnv 의 보수적 기본값(산안법 검사 등)으로 조용히 진행.
+  const cls = wr.classify;
+  const envBanner =
+    cls && confirmedEnv ? (
+      <WrEnvConfirm
+        docKind={cls.docKind}
+        reason={cls.reason}
+        aiEnv={{
+          shiftWorkUsed: cls.shiftWorkUsed,
+          oshaApplicable: cls.oshaApplicable,
+          chemicalHandling: cls.chemicalHandling,
+          workenvMeasurement: cls.workenvMeasurement,
+        }}
+        value={confirmedEnv}
+        onChange={setConfirmedEnv}
+      />
+    ) : null;
+
   // ── 모바일 (≤720px) — 줄 단위 OCR 확인 화면 ──
   if (isMobile) {
     return (
@@ -149,6 +193,7 @@ export default function WrReviewPage({ params }: { params: { id: string } }) {
         imageUrl={
           entry.originalKind === 'image' ? entry.originalUrl : undefined
         }
+        headerExtra={envBanner}
       />
     );
   }
@@ -163,6 +208,8 @@ export default function WrReviewPage({ params }: { params: { id: string } }) {
           수정이 끝나면 아래 <strong>&ldquo;분석 시작&rdquo;</strong>을 눌러
           주세요.
         </p>
+
+        {envBanner && <div className={styles.envBanner}>{envBanner}</div>}
 
         <section className={styles.card}>
           <div className={styles.cardHead}>

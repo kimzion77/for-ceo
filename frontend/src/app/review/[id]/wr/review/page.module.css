@@ -34,6 +34,11 @@
   font-weight: 700;
 }
 
+/* ─── AI 근로환경 1차 분류 확인 배너 ─── */
+.envBanner {
+  margin: 0 0 16px;
+}
+
 /* ─── 카드 + textarea ─── */
 .card {
   background: var(--color-surface);

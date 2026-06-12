@@ -71,6 +71,66 @@ export async function postReviewEmploymentContract(
   return out;
 }
 
+/** 취업규칙 근로환경 AI 1차 분류 결과 — null 은 본문만으로 판단 불가(모름). */
+export interface WrClassifyOut {
+  shift_work_used: boolean | null;
+  osha_applicable: boolean | null;
+  chemical_handling: boolean | null;
+  workenv_measurement: boolean | null;
+  doc_kind: string;
+  reason: string;
+}
+
+/**
+ * 취업규칙 근로환경 AI 1차 분류 — start + poll (EC /ec/classify 와 동일 패턴).
+ *
+ * 사업장들이 잘 모르는 교대제·산안법·화학물질·작업환경측정을 AI 가 취업규칙
+ * 본문에서 추정하고, 사용자는 추출 확인 화면에서 [맞아요/아니에요]만 누른다.
+ */
+export async function postWrClassify(
+  extractedText: string,
+  opts: { signal?: AbortSignal } = {},
+): Promise<WrClassifyOut> {
+  const { job_id } = await apiPostJson<{ job_id: string }>(
+    '/review/classify/start',
+    { extracted_text: extractedText },
+    { signal: opts.signal },
+  );
+  const POLL_MS = 2000;
+  const MAX_WAIT_MS = 3 * 60 * 1000;
+  const startedAt = Date.now();
+  for (;;) {
+    await reviewSleep(POLL_MS, opts.signal);
+    const res = await apiGet<Record<string, unknown>>(
+      `/review/classify/result/${job_id}`,
+      { signal: opts.signal },
+    );
+    if (res.status === 'done') {
+      // doc_kind 는 항상 채워짐 — done 판별 키 (shift_work_used 등은 null 가능)
+      if (res.doc_kind == null) {
+        throw new ApiCallError(500, '분류 결과가 비어있어요. 다시 시도해 주세요.');
+      }
+      return {
+        shift_work_used: (res.shift_work_used as boolean | null) ?? null,
+        osha_applicable: (res.osha_applicable as boolean | null) ?? null,
+        chemical_handling: (res.chemical_handling as boolean | null) ?? null,
+        workenv_measurement: (res.workenv_measurement as boolean | null) ?? null,
+        doc_kind: res.doc_kind as string,
+        reason: (res.reason as string) ?? '',
+      };
+    }
+    if (res.status === 'error') {
+      throw new ApiCallError(
+        500,
+        (res.error as string) || '문서 분류에 실패했어요. 다시 시도해 주세요.',
+      );
+    }
+    if (Date.now() - startedAt > MAX_WAIT_MS) {
+      throw new ApiCallError(504, '문서 분류가 너무 오래 걸려요. 잠시 후 다시 시도해 주세요.');
+    }
+  }
+}
+
 function reviewSleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     const t = setTimeout(resolve, ms);

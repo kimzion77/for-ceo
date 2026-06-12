@@ -1,17 +1,9 @@
 'use client';
 
-import type { ReactNode } from 'react';
-
 import Card from '@/components/ui/Card';
 import Term from '@/components/ui/Term';
 import type { DocumentType, WorkplaceContext } from '@/types/review';
-import {
-  HELP_BUSINESS_SIZE,
-  HELP_CHEM,
-  HELP_OSHA,
-  HELP_SHIFT,
-  HELP_WORKENV,
-} from './workplaceHelp';
+import { HELP_BUSINESS_SIZE } from './workplaceHelp';
 import styles from './WorkplaceForm.module.css';
 
 type TernaryValue = 'unknown' | 'yes' | 'no';
@@ -112,49 +104,6 @@ export function toWorkplaceContext(s: WorkplaceFormState): WorkplaceContext {
   };
 }
 
-interface RadioOption {
-  value: TernaryValue;
-  label: string;
-}
-
-interface RadioGroupProps {
-  label: string;
-  tip: ReactNode;
-  value: TernaryValue;
-  onChange: (next: TernaryValue) => void;
-  options: RadioOption[];
-}
-
-function RadioGroup({ label, tip, value, onChange, options }: RadioGroupProps) {
-  return (
-    <div className={styles.field}>
-      <div className={styles.label}>
-        <Term def={tip} hideDelay={500} width={320}>
-          {label}
-        </Term>
-      </div>
-      <div className={styles.options}>
-        {options.map((opt) => {
-          const active = value === opt.value;
-          return (
-            <label
-              key={opt.value}
-              className={`${styles.option} ${active ? styles.optionActive : ''}`}
-            >
-              <input
-                type="radio"
-                checked={active}
-                onChange={() => onChange(opt.value)}
-              />
-              {opt.label}
-            </label>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 interface WorkplaceFormProps {
   value: WorkplaceFormState;
   onChange: (next: WorkplaceFormState) => void;
@@ -169,8 +118,6 @@ export function WorkplaceForm({
 }: WorkplaceFormProps) {
   const patch = (p: Partial<WorkplaceFormState>) => onChange({ ...value, ...p });
 
-  // 근로 환경 섹션은 취업규칙(work-rules) 검사에서만 사용
-  const showWorkEnv = documentType === 'work-rules';
   // WS 전용 단순화된 컨텍스트
   const showWsContext = documentType === 'wage-statement';
 
@@ -348,66 +295,11 @@ export function WorkplaceForm({
         </>
       )}
 
-      {/* ── 섹션 2: 환경 (취업규칙 검사에서만) ── */}
-      {showWorkEnv && (
-        <>
-          <div className={styles.divider} />
-          <div className={styles.sectionTitle}>
-            근로 환경
-            <span className={styles.sectionHint}>· 취업규칙 검사에 사용</span>
-          </div>
-          <div className={styles.grid}>
-            <RadioGroup
-              label="교대근로 도입"
-              tip={HELP_SHIFT}
-              value={value.shiftWork}
-              onChange={(v) => patch({ shiftWork: v })}
-              options={[
-                { value: 'unknown', label: '모름(검사함)' },
-                { value: 'yes', label: '도입함' },
-                { value: 'no', label: '미도입' },
-              ]}
-            />
-            <div className={styles.field}>
-              <div className={styles.label}>
-                <Term def={HELP_OSHA} hideDelay={500} width={340}>
-                  산업안전보건법 적용 업종
-                </Term>
-              </div>
-              <label className={`${styles.checkBox} ${value.osh ? styles.checkBoxOn : ''}`}>
-                <input
-                  type="checkbox"
-                  checked={value.osh}
-                  onChange={(e) => patch({ osh: e.target.checked })}
-                />
-                해당 업종에 속함
-              </label>
-            </div>
-            <RadioGroup
-              label="화학물질 취급"
-              tip={HELP_CHEM}
-              value={value.chemicals}
-              onChange={(v) => patch({ chemicals: v })}
-              options={[
-                { value: 'unknown', label: '모름(검사함)' },
-                { value: 'yes', label: '취급함' },
-                { value: 'no', label: '미취급' },
-              ]}
-            />
-            <RadioGroup
-              label="작업환경측정 대상"
-              tip={HELP_WORKENV}
-              value={value.envMonitor}
-              onChange={(v) => patch({ envMonitor: v })}
-              options={[
-                { value: 'unknown', label: '모름(검사함)' },
-                { value: 'yes', label: '대상' },
-                { value: 'no', label: '비대상' },
-              ]}
-            />
-          </div>
-        </>
-      )}
+      {/* 근로 환경 (취업규칙) — 홈 폼에서는 묻지 않는다.
+          사업장들이 잘 모르는 항목(교대제·산안법·화학물질·작업환경측정)이라
+          AI 1차 분류가 취업규칙 본문을 읽고 추정하고, 사용자는 추출 확인
+          화면에서 [맞아요/아니에요]로 확인만 한다 (WrEnvConfirm).
+          shiftWork 등 폼 상태·기본값은 레거시 fallback 으로 그대로 유지. */}
     </Card>
   );
 }

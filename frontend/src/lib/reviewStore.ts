@@ -156,6 +156,19 @@ export interface WrWorkflow {
   errorMessage?: string;
   /** 홈 폼에서 받은 사업장 컨텍스트 — 분석 호출 시 그대로 전달. */
   context?: WorkplaceContext;
+  /**
+   * AI 1차 근로환경 분류 (취업규칙 본문 추정) — wr/review 확인 배너에 사용.
+   * 사용자가 [맞아요/아니에요]로 확정한 값이 분석 컨텍스트를 덮어쓴다.
+   * null = 본문만으로 판단 불가(모름 — 보수적으로 검사함).
+   */
+  classify?: {
+    shiftWorkUsed: boolean | null;
+    oshaApplicable: boolean | null;
+    chemicalHandling: boolean | null;
+    workenvMeasurement: boolean | null;
+    docKind: string;
+    reason: string;
+  };
   /** 사용자가 결과 페이지에서 수정본에 담은 보완 표현 (항목 key → 본인 입력 텍스트). */
   userOverrides?: Record<string, string>;
   /** /review/generate 결과 — 원문 보존 + 수정 항목만 반영된 수정본 전문. */

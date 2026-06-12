@@ -22,7 +22,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
-from cgr.api.routes import admin, ec, guide, history, master_db, review, sc, slots, topics, ws
+from cgr.api.routes import admin, ec, guide, history, master_db, review, sc, slots, topics, wr_classify, ws
 from cgr.api.schemas import HealthResponse
 
 
@@ -67,6 +67,7 @@ app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
 # ─── 라우터 등록 (prefix /api/v1) ──────────
 API_PREFIX = "/api/v1"
 app.include_router(review.router, prefix=API_PREFIX)
+app.include_router(wr_classify.router, prefix=API_PREFIX)
 app.include_router(ec.router, prefix=API_PREFIX)
 app.include_router(slots.router, prefix=API_PREFIX)
 app.include_router(master_db.router, prefix=API_PREFIX)
