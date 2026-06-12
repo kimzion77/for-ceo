@@ -500,55 +500,75 @@ class GuideChatOut(BaseModel):
 
 # ────────────────────────────────────────────────────────────
 # 주제 → 서식 코드 매핑.
-# 키는 정규식 (한국어 lowercase 비교). 값은 (form_codes, family_label)
+# 키는 정규식 (한국어 lowercase 비교). 값은 (form_codes, family_label, doc_topic)
 # family_label 이 있으면 같은 family 안에서 여러 형이 매칭될 때 clarify 질문 생성.
+# doc_topic=True 는 주제 자체가 '문서 이름'(근로계약서 등) — 질문에 등장하면
+# 그 자체로 서식 수요로 본다. False 는 제도·급여 주제 — 질문에 서식·신청
+# intent 가 함께 있을 때만 서식 chip 을 노출한다.
 # ────────────────────────────────────────────────────────────
-_TOPIC_TO_FORMS: list[tuple[str, list[str], str | None]] = [
+_TOPIC_TO_FORMS: list[tuple[str, list[str], str | None, bool]] = [
     # 근로계약서 family — 5종 변형 (정규/기간제/단시간/연소/건설일용) + 외국인
-    (r"근로계약서|근로\s*계약", ["FRM001", "FRM002", "FRM003", "FRM004", "FRM005", "FRM030"], "근로계약서"),
+    (r"근로계약서|근로\s*계약", ["FRM001", "FRM002", "FRM003", "FRM004", "FRM005", "FRM030"], "근로계약서", True),
     # 취업규칙
-    (r"취업규칙", ["FRM029", "FRM033"], None),
+    (r"취업규칙", ["FRM029", "FRM033"], None, True),
     # 임금명세서·임금대장
-    (r"임금명세서|임금\s*명세|임금대장", ["FRM031", "FRM032"], None),
+    (r"임금명세서|임금\s*명세|임금대장", ["FRM031", "FRM032"], None, True),
     # 4대보험
-    (r"4\s*대\s*보험|사회보험|국민연금|건강보험|고용보험|산재보험", ["FRM006", "FRM007", "FRM008"], None),
+    (r"4\s*대\s*보험|사회보험|국민연금|건강보험|고용보험|산재보험", ["FRM006", "FRM007", "FRM008"], None, False),
     # 출산·육아·배우자 출산휴가
-    (r"출산전후휴가|출산\s*휴가", ["FRM009"], None),
-    (r"육아휴직|육아\s*휴직", ["FRM010", "FRM011"], None),
-    (r"육아기\s*근로시간\s*단축", ["FRM012"], None),
-    (r"배우자\s*출산", ["FRM013"], None),
-    (r"고용안정장려금|출산육아기\s*고용안정", ["FRM014"], None),
+    (r"출산전후휴가|출산\s*휴가", ["FRM009"], None, False),
+    (r"육아휴직|육아\s*휴직", ["FRM010", "FRM011"], None, False),
+    (r"육아기\s*근로시간\s*단축", ["FRM012"], None, False),
+    (r"배우자\s*출산", ["FRM013"], None, False),
+    (r"고용안정장려금|출산육아기\s*고용안정", ["FRM014"], None, False),
     # 실업급여·이직
-    (r"실업급여|수급자격", ["FRM015", "FRM017"], None),
-    (r"이직확인서|이직\s*확인", ["FRM016"], None),
+    (r"실업급여|수급자격", ["FRM015", "FRM017"], None, False),
+    (r"이직확인서|이직\s*확인", ["FRM016"], None, True),
     # 퇴직금·퇴직연금
-    (r"퇴직금|퇴직\s*급여", ["FRM018"], None),
-    (r"퇴직연금|db\s*형|dc\s*형|확정급여형|확정기여형", ["FRM019", "FRM034"], "퇴직연금"),
+    (r"퇴직금|퇴직\s*급여", ["FRM018"], None, False),
+    (r"퇴직연금|db\s*형|dc\s*형|확정급여형|확정기여형", ["FRM019", "FRM034"], "퇴직연금", False),
     # 산재
-    (r"산재|업무상\s*재해|요양급여|휴업급여|장해급여", ["FRM025", "FRM026", "FRM027", "FRM028"], "산재"),
+    (r"산재|업무상\s*재해|요양급여|휴업급여|장해급여", ["FRM025", "FRM026", "FRM027", "FRM028"], "산재", False),
     # 외국인
-    (r"외국인", ["FRM030"], None),
+    (r"외국인", ["FRM030"], None, False),
 ]
+
+# 질문에서 '서식이 필요하다'는 의도를 나타내는 표현 — 제도 주제(doc_topic=False)는
+# 이 intent 가 질문에 함께 있을 때만 서식 chip 노출.
+_FORM_INTENT_RE = (
+    r"서식|양식|신청|신고|확인서|증명서|규약|서류|"
+    r"작성|제출|다운로드|받고\s*싶|받을\s*수|받아\s*보|어디서\s*받"
+)
 
 
 def _detect_related_forms(question: str, answer: str) -> tuple[list[RelatedFormHint], str | None]:
-    """질문 + 답변 텍스트를 스캔해 관련 서식 코드를 수집.
+    """질문 텍스트를 스캔해 관련 서식 코드를 수집.
+
+    답변 텍스트는 보지 않는다 — 노무 답변에는 '근로계약'·'고용보험' 같은 주제어가
+    거의 항상 등장해, 답변까지 스캔하면 사실상 모든 질문에 서식이 떴다.
+    문서 이름 주제(doc_topic)는 질문 등장만으로, 제도 주제는 질문에 서식·신청
+    intent 가 함께 있을 때만 노출한다.
 
     같은 family 안에서 2개 이상 매칭되면 clarify 질문 생성.
     """
     import re as _re
 
-    text = (question + "\n" + answer).lower().replace(" ", "")
+    del answer  # 의도적으로 미사용 — docstring 참조
+    text = question.lower().replace(" ", "")
+    has_intent = bool(_re.search(_FORM_INTENT_RE.replace(r"\s*", ""), text))
     matched_codes: list[str] = []
     matched_families: set[str] = set()
-    for pat, codes, family in _TOPIC_TO_FORMS:
+    for pat, codes, family, doc_topic in _TOPIC_TO_FORMS:
         # 패턴은 공백 제거된 텍스트에 매칭하기 위해 \s* 제거
-        if _re.search(pat.replace(r"\s*", ""), text):
-            for c in codes:
-                if c not in matched_codes:
-                    matched_codes.append(c)
-            if family:
-                matched_families.add(family)
+        if not _re.search(pat.replace(r"\s*", ""), text):
+            continue
+        if not (doc_topic or has_intent):
+            continue
+        for c in codes:
+            if c not in matched_codes:
+                matched_codes.append(c)
+        if family:
+            matched_families.add(family)
 
     if not matched_codes:
         return [], None
@@ -577,7 +597,7 @@ def _detect_related_forms(question: str, answer: str) -> tuple[list[RelatedFormH
     clarify: str | None = None
     family_counts: dict[str, int] = {}
     for h in hints:
-        for pat, codes, family in _TOPIC_TO_FORMS:
+        for pat, codes, family, _doc_topic in _TOPIC_TO_FORMS:
             if family and h.code in codes:
                 family_counts[family] = family_counts.get(family, 0) + 1
     for family, cnt in family_counts.items():
