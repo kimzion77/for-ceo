@@ -14,14 +14,45 @@ import Icon from '@/components/ui/Icon';
 
 import styles from './FileDropzone.module.css';
 
-const ACCEPT = '.docx,.hwp,.hwpx,.pdf,.txt,.png,.jpg,.jpeg,.gif,.bmp,.tif,.tiff,.webp';
+// 문서 MIME — 모바일 파일앱이 '확장자'만으로는 docx/hwp 를 잘 못 거르므로
+// 표준 MIME 을 함께 줘야 '파일' 브라우저에서 문서가 보인다.
+const DOC_MIME = [
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // docx
+  'text/plain',
+];
+const DOC_EXT = ['.docx', '.hwp', '.hwpx', '.pdf', '.txt'];
+const IMG_EXT = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tif', '.tiff', '.webp'];
+
+// 데스크톱(드래그·찾아보기) — 문서+이미지 전부.
+const ACCEPT_ALL = [...DOC_MIME, ...DOC_EXT, 'image/*', ...IMG_EXT].join(',');
+// 모바일 '문서 파일' — 이미지 타입을 빼야 OS 가 갤러리 대신 '파일' 브라우저를
+// 열어 docx·hwp·pdf 가 보인다 (이미지가 섞이면 일부 기기는 갤러리만 띄움).
+const ACCEPT_DOCS = [...DOC_MIME, ...DOC_EXT].join(',');
+// 모바일 '촬영/사진' — 이미지 전용.
+const ACCEPT_IMAGE = ['image/*', ...IMG_EXT].join(',');
+
 const ALLOWED_EXT = [
   '.docx', '.hwp', '.hwpx', '.pdf', '.txt',
   // 스캔본 — Vision OCR 로 텍스트화한 뒤 동일 파이프라인
-  '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tif', '.tiff', '.webp',
+  ...IMG_EXT,
 ];
 const MAX_MB_PER_FILE = 200;
 const MAX_FILES = 20;
+
+/** ≤720px 뷰포트 감지 — 모바일에서 촬영/파일 선택 버튼을 분리해 띄운다. */
+function useIsMobile(): boolean {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(max-width: 720px)');
+    const sync = () => setMobile(mq.matches);
+    sync();
+    mq.addEventListener?.('change', sync);
+    return () => mq.removeEventListener?.('change', sync);
+  }, []);
+  return mobile;
+}
 
 function humanSize(bytes: number): string {
   if (bytes < 1024) return `${bytes}B`;
@@ -53,7 +84,13 @@ interface FileDropzoneProps {
  * - 총 N개 / 합계 사이즈 표시
  */
 export function FileDropzone({ value, onChange }: FileDropzoneProps) {
+  // 데스크톱(전체) · 모바일 카메라 · 갤러리 · 문서 — 입력을 분리해
+  // 모바일에서 OS 가 올바른 소스(카메라/갤러리/파일앱)를 열게 한다.
   const inputRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
+  const docsRef = useRef<HTMLInputElement>(null);
+  const isMobile = useIsMobile();
   const [dragOver, setDragOver] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -71,6 +108,9 @@ export function FileDropzone({ value, onChange }: FileDropzoneProps) {
   };
 
   const openPicker = () => inputRef.current?.click();
+  const openCamera = () => cameraRef.current?.click();
+  const openGallery = () => galleryRef.current?.click();
+  const openDocs = () => docsRef.current?.click();
 
   const addFiles = useCallback(
     (incoming: FileList | null) => {
@@ -145,7 +185,9 @@ export function FileDropzone({ value, onChange }: FileDropzoneProps) {
   const clearAll = (e: ReactMouseEvent) => {
     e.stopPropagation();
     onChange([]);
-    if (inputRef.current) inputRef.current.value = '';
+    [inputRef, cameraRef, galleryRef, docsRef].forEach((r) => {
+      if (r.current) r.current.value = '';
+    });
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -162,6 +204,8 @@ export function FileDropzone({ value, onChange }: FileDropzoneProps) {
     styles.zone,
     dragOver && styles.zoneActive,
     !empty && styles.zoneFilled,
+    // 모바일 빈 상태 — 3-버튼만 보이므로 점선 박스·큰 패딩 제거
+    isMobile && empty && styles.zonePlain,
   ]
     .filter(Boolean)
     .join(' ');
@@ -187,25 +231,105 @@ export function FileDropzone({ value, onChange }: FileDropzoneProps) {
       )}
     <div
       className={zoneClass}
-      onClick={openPicker}
+      onClick={isMobile ? undefined : openPicker}
       onDrop={onDrop}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
-      role="button"
-      tabIndex={0}
-      onKeyDown={onKeyDown}
+      role={isMobile ? undefined : 'button'}
+      tabIndex={isMobile ? undefined : 0}
+      onKeyDown={isMobile ? undefined : onKeyDown}
       aria-label="파일 업로드 영역"
     >
+      {/* 데스크톱(전체) — 드래그·찾아보기 */}
       <input
         ref={inputRef}
         type="file"
-        accept={ACCEPT}
+        accept={ACCEPT_ALL}
         multiple
         className={styles.hiddenInput}
-        onChange={(e) => addFiles(e.target.files)}
+        onChange={(e) => {
+          addFiles(e.target.files);
+          e.target.value = '';
+        }}
+      />
+      {/* 모바일 카메라 — 후면 카메라 바로 실행 (단일 촬영) */}
+      <input
+        ref={cameraRef}
+        type="file"
+        accept={ACCEPT_IMAGE}
+        capture="environment"
+        className={styles.hiddenInput}
+        onChange={(e) => {
+          addFiles(e.target.files);
+          e.target.value = '';
+        }}
+      />
+      {/* 모바일 갤러리 — 사진 보관함 */}
+      <input
+        ref={galleryRef}
+        type="file"
+        accept={ACCEPT_IMAGE}
+        multiple
+        className={styles.hiddenInput}
+        onChange={(e) => {
+          addFiles(e.target.files);
+          e.target.value = '';
+        }}
+      />
+      {/* 모바일 문서 파일 — 이미지 제외 → '파일' 브라우저에서 docx·hwp·pdf 노출 */}
+      <input
+        ref={docsRef}
+        type="file"
+        accept={ACCEPT_DOCS}
+        multiple
+        className={styles.hiddenInput}
+        onChange={(e) => {
+          addFiles(e.target.files);
+          e.target.value = '';
+        }}
       />
 
       {empty ? (
+        isMobile ? (
+          <div className={styles.mobilePick}>
+            <button
+              type="button"
+              className={styles.pickBtn}
+              onClick={(e) => {
+                e.stopPropagation();
+                openCamera();
+              }}
+            >
+              <span className={styles.pickEmoji} aria-hidden>📷</span>
+              <span className={styles.pickLabel}>사진 촬영</span>
+              <span className={styles.pickSub}>문서를 카메라로 찍기</span>
+            </button>
+            <button
+              type="button"
+              className={styles.pickBtn}
+              onClick={(e) => {
+                e.stopPropagation();
+                openGallery();
+              }}
+            >
+              <span className={styles.pickEmoji} aria-hidden>🖼️</span>
+              <span className={styles.pickLabel}>사진 선택</span>
+              <span className={styles.pickSub}>갤러리에서 가져오기</span>
+            </button>
+            <button
+              type="button"
+              className={styles.pickBtn}
+              onClick={(e) => {
+                e.stopPropagation();
+                openDocs();
+              }}
+            >
+              <span className={styles.pickEmoji} aria-hidden>📁</span>
+              <span className={styles.pickLabel}>문서 파일</span>
+              <span className={styles.pickSub}>DOCX·HWP·PDF·TXT</span>
+            </button>
+          </div>
+        ) : (
         <div className={styles.emptyInner}>
           <Icon name="upload" size={32} color="var(--color-text-muted)" />
           <div className={styles.label}>
@@ -215,6 +339,7 @@ export function FileDropzone({ value, onChange }: FileDropzoneProps) {
             DOCX · HWP · HWPX · PDF · TXT · PNG · JPG · 파일당 최대 {MAX_MB_PER_FILE}MB · 한 번에 {MAX_FILES}개까지
           </div>
         </div>
+        )
       ) : (
         <div className={styles.filledInner}>
           <ul className={styles.list}>
@@ -252,7 +377,8 @@ export function FileDropzone({ value, onChange }: FileDropzoneProps) {
                 className={styles.addBtn}
                 onClick={(e) => {
                   e.stopPropagation();
-                  openPicker();
+                  if (isMobile) openDocs();
+                  else openPicker();
                 }}
               >
                 <Icon name="plus" size={12} />

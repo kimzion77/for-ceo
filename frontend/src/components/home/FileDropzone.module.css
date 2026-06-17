@@ -32,6 +32,65 @@
   display: none;
 }
 
+/* 모바일 빈 상태 — 점선 드롭존 대신 버튼만 (테두리·패딩 제거) */
+.zonePlain {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: default;
+}
+
+.zonePlain:hover {
+  border: none;
+}
+
+/* ─── 모바일 — 촬영 / 사진 / 문서 3-버튼 ─── */
+.mobilePick {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pickBtn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 12px 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--r-md, 12px);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.pickBtn:active {
+  background: var(--color-surface-muted);
+  border-color: var(--color-brand);
+}
+
+.pickEmoji {
+  flex: none;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.pickLabel {
+  font-size: 15.5px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.pickSub {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--color-text-subtle);
+  white-space: nowrap;
+}
+
 /* ─── 비어있을 때 (안내) ─── */
 .emptyInner {
   text-align: center;
