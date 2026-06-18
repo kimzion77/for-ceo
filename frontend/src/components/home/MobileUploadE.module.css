@@ -91,12 +91,14 @@
     rgba(11, 61, 145, 0)
   );
   border-bottom: 2px solid var(--e-brand);
-  opacity: 0;
-  pointer-events: none;
-}
-.scanning .beam {
-  animation: scan 2.1s ease-in-out infinite;
+  /* 평상시(idle)에도 종이를 훑는 스캔 빔이 계속 움직인다(살아있는 느낌). */
   opacity: 1;
+  pointer-events: none;
+  animation: scan 2.6s ease-in-out infinite;
+}
+/* 촬영/선택 직후엔 더 빠르게 훑는다 */
+.scanning .beam {
+  animation-duration: 1.6s;
 }
 @keyframes scan {
   0% { top: -6px; }
@@ -129,7 +131,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .scanning .beam { animation: none; opacity: 0; }
+  .beam { animation: none; opacity: 0; }
   .scanning .lens { animation: none; }
 }
 

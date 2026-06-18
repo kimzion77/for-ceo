@@ -417,10 +417,7 @@ export default function HomePage() {
                 }}
               >
                 <span className={styles.mDtIcon}>{c.icon}</span>
-                <span className={styles.mDtText}>
-                  <span className={styles.mDtTitle}>{c.title}</span>
-                  <span className={styles.mDtSub}>{c.sub}</span>
-                </span>
+                <span className={styles.mDtTitleCenter}>{c.title}</span>
                 <svg
                   className={styles.mDtChevron}
                   width="20"
@@ -475,18 +472,9 @@ export default function HomePage() {
         </div>
 
         <div className={styles.mBody}>
-          {/* 선택 문서 확인 카드 — 시안 .dt-card.on */}
-          <div className={`${styles.mDtCard} ${styles.mDtCardOn}`}>
-            <span className={styles.mDtIcon}>{selectedCard.icon}</span>
-            <span className={styles.mDtText}>
-              <span className={styles.mDtTitle}>{selectedCard.title}</span>
-              <span className={styles.mDtSub}>{selectedCard.sub}</span>
-            </span>
-            <span className={styles.mDtBadge}>선택됨</span>
-          </div>
-
-          {/* 업로드 E안 — 촬영 우선 + 스캔 + 다중 촬영 트레이 (모바일) */}
-          {/* 사업장 규모는 인라인이 아니라 '검토 시작' 시 팝업으로 묻는다(아래 시트) */}
+          {/* 선택 문서 확인 카드는 제거 — 앱바 제목('○○ 올리기')이 이미 안내.
+              업로드 E안 — 촬영 우선 + 스캔 + 다중 촬영 트레이 (모바일).
+              사업장 규모는 인라인이 아니라 '검토 시작' 시 팝업으로 묻는다(아래 시트). */}
           <MobileUploadE docType={docType} value={files} onChange={setFiles} />
         </div>
 

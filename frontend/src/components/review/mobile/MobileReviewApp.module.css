@@ -809,7 +809,9 @@
   line-height: 1.6;
   color: #7e241d;
   white-space: pre-wrap;
-  word-break: break-word;
+  /* 한글은 단어 단위로 줄바꿈(조사/단어가 갈라지지 않게) */
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .arrow {
@@ -857,7 +859,8 @@
   width: 100%;
   border: 0;
   padding: 12px 13px;
-  font-family: var(--m-mono);
+  /* 본문과 동일한 Pretendard — 모노(굴림 폴백) 금지 */
+  font-family: var(--font-sans);
   font-size: 12.5px;
   line-height: 1.65;
   color: #155c3a;
@@ -866,6 +869,9 @@
   outline: none;
   min-height: 74px;
   display: block;
+  /* 한글 단어 단위 줄바꿈 */
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .fixboxTa:read-only {
