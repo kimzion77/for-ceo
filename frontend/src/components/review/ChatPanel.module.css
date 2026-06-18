@@ -58,9 +58,11 @@
   right: 28px;
   z-index: 100;
   width: 380px;
-  max-width: calc(100vw - 32px);
+  /* body zoom 으로 fixed 패널이 뷰포트보다 커져 화면 밖으로 넘치던 문제 —
+     뷰포트 기준 치수는 zoom 으로 나눠 보정한다. */
+  max-width: calc((100vw - 32px) / var(--app-zoom, 1));
   height: 560px;
-  max-height: calc(100vh - 60px);
+  max-height: calc((100vh - 60px) / var(--app-zoom, 1));
   background: #ffffff;
   border: 1px solid var(--color-border, #e5e7eb);
   border-radius: 14px;
@@ -392,10 +394,10 @@
 
 @media (max-width: 600px) {
   .chatPanel {
-    width: calc(100vw - 24px);
+    width: calc((100vw - 24px) / var(--app-zoom, 1));
     right: 12px;
     bottom: 12px;
-    height: calc(100vh - 100px);
+    height: calc((100vh - 100px) / var(--app-zoom, 1));
   }
 
   .chatFab {
