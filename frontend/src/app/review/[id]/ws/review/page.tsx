@@ -73,6 +73,17 @@ export default function WsReviewPage({ params }: { params: { id: string } }) {
   const ws = entry.ws;
   const cls = ws.classify;
 
+  // AI 가 명세서에서 읽어낸 산정 대상·지급주기 요약 (투명성 표시).
+  const periodBits: string[] = [];
+  if (cls?.payPeriodYear) {
+    periodBits.push(
+      cls.payPeriodMonth
+        ? `${cls.payPeriodYear}년 ${cls.payPeriodMonth}월분`
+        : `${cls.payPeriodYear}년`,
+    );
+  }
+  if (cls?.payCycle) periodBits.push(cls.payCycle);
+
   const startAnalyze = () => {
     const finalType = confirmedType ?? ws.contractType ?? '정규직';
     setSubmitting(true);
@@ -143,6 +154,22 @@ export default function WsReviewPage({ params }: { params: { id: string } }) {
             value={confirmedType ?? ''}
             onChange={setConfirmedType}
           />
+          {cls && (
+            <p className={styles.detected}>
+              {periodBits.length > 0 ? (
+                <>
+                  📅 AI가 읽은 산정 대상 ·{' '}
+                  <strong>{periodBits.join(' · ')}</strong>
+                </>
+              ) : (
+                <>
+                  📅 명세서에서 <strong>산정 기간·지급 주기 표기를 찾지
+                  못했어요</strong> — 필수 기재사항이라 분석에서 누락 여부를
+                  확인합니다.
+                </>
+              )}
+            </p>
+          )}
         </div>
 
         {ws.errorMessage && (

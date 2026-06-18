@@ -176,9 +176,13 @@ export async function postWsExtract(
   );
 }
 
-/** 임금명세서 계약 유형 AI 1차 분류 결과. */
+/** 임금명세서 AI 1차 분류 결과 — 계약 유형 + 산정기간·지급주기 추출. */
 export interface WsClassifyOut {
   contract_type: string; // 정규직 / 기간제 / 단시간 / 일용직
+  pay_period_year: number | null; // 명세서에 없으면 null → 분석에서 누락 위반
+  pay_period_month: number | null;
+  pay_cycle: string | null; // 월급 / 시급 / 일급 | null
+  weekly_hours: number | null;
   doc_kind: string;
   reason: string;
 }
@@ -203,6 +207,10 @@ export async function postWsClassify(
       res.contract_type != null
         ? {
             contract_type: res.contract_type as string,
+            pay_period_year: (res.pay_period_year as number | null) ?? null,
+            pay_period_month: (res.pay_period_month as number | null) ?? null,
+            pay_cycle: (res.pay_cycle as string | null) ?? null,
+            weekly_hours: (res.weekly_hours as number | null) ?? null,
             doc_kind: (res.doc_kind as string) ?? '',
             reason: (res.reason as string) ?? '',
           }

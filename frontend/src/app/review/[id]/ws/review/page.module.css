@@ -39,6 +39,19 @@
   margin: 0 0 18px;
 }
 
+/* AI 가 읽어낸 산정 대상·지급주기 캡션 */
+.detected {
+  margin: 10px 2px 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+}
+
+.detected strong {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
 /* ─── 카드 + textarea ─── */
 .card {
   background: var(--color-surface);

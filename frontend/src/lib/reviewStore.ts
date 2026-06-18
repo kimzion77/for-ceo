@@ -107,6 +107,9 @@ export interface WsWorkflow {
    */
   classify?: {
     contractType: string; // 정규직 / 기간제 / 단시간 / 일용직
+    payPeriodYear: number | null; // 명세서에 없으면 null (→ 분석에서 누락 위반)
+    payPeriodMonth: number | null;
+    payCycle: string | null; // 월급 / 시급 / 일급 | null
     docKind: string;
     reason: string;
   };

@@ -157,6 +157,10 @@ class ClassifyIn(BaseModel):
 class ClassifyResultOut(BaseModel):
     status: str = Field(..., description="pending | done | error")
     contract_type: str | None = None
+    pay_period_year: int | None = None
+    pay_period_month: int | None = None
+    pay_cycle: str | None = None
+    weekly_hours: int | None = None
     doc_kind: str | None = None
     reason: str | None = None
     error: str | None = None
@@ -197,6 +201,10 @@ def get_classify_result(job_id: str):
     return ClassifyResultOut(
         status=job["status"],
         contract_type=r.get("contract_type"),
+        pay_period_year=r.get("pay_period_year"),
+        pay_period_month=r.get("pay_period_month"),
+        pay_cycle=r.get("pay_cycle"),
+        weekly_hours=r.get("weekly_hours"),
         doc_kind=r.get("doc_kind"),
         reason=r.get("reason"),
         error=job["error"],

@@ -107,19 +107,15 @@ export function toWorkplaceContext(s: WorkplaceFormState): WorkplaceContext {
 interface WorkplaceFormProps {
   value: WorkplaceFormState;
   onChange: (next: WorkplaceFormState) => void;
-  /** 선택된 문서 종류 — 섹션 노출 분기. */
+  /**
+   * 선택된 문서 종류 — 호출부가 전달(하위호환). 현재는 모든 문서 유형이
+   * 사업장 규모만 직접 입력하고 나머지는 AI 1차 판단으로 옮겨 분기 불필요.
+   */
   documentType?: DocumentType;
 }
 
-export function WorkplaceForm({
-  value,
-  onChange,
-  documentType = 'work-rules',
-}: WorkplaceFormProps) {
+export function WorkplaceForm({ value, onChange }: WorkplaceFormProps) {
   const patch = (p: Partial<WorkplaceFormState>) => onChange({ ...value, ...p });
-
-  // WS 전용 단순화된 컨텍스트
-  const showWsContext = documentType === 'wage-statement';
 
   return (
     <Card padding={20}>
@@ -168,105 +164,11 @@ export function WorkplaceForm({
             contractType 기본값은 레거시·분류 실패 fallback 으로 유지. */}
       </div>
 
-      {/* ── 섹션 1.5: 임금명세서 전용 — 산정기간 / 지급주기 / 근로시간 ── */}
-      {showWsContext && (
-        <>
-          <div className={styles.divider} />
-          <div className={styles.sectionTitle}>
-            산정 대상 · 지급 조건
-            <span className={styles.sectionHint}>
-              · 최저임금·통상임금 기준 산정
-            </span>
-          </div>
-          <div className={styles.grid}>
-            <div className={styles.field}>
-              <div className={styles.label}>
-                <Term
-                  def={
-                    <>
-                      해당 임금명세서가 어느 시점 임금에 대한 것인지 알려주세요.
-                      최저임금은 매년 바뀌므로 (2024: 9,860원, 2025: 10,030원,
-                      2026: 10,320원), 정확한 위반 여부 판단을 위해 필요합니다.
-                    </>
-                  }
-                  hideDelay={500}
-                  width={340}
-                >
-                  산정 대상 연도
-                </Term>
-              </div>
-              <select
-                value={value.payPeriodYear}
-                onChange={(e) => patch({ payPeriodYear: Number(e.target.value) })}
-                className={styles.select}
-              >
-                {[2026, 2025, 2024, 2023, 2022].map((y) => (
-                  <option key={y} value={y}>
-                    {y}년
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className={styles.field}>
-              <div className={styles.label}>산정 대상 월</div>
-              <select
-                value={value.payPeriodMonth}
-                onChange={(e) => patch({ payPeriodMonth: Number(e.target.value) })}
-                className={styles.select}
-              >
-                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                  <option key={m} value={m}>
-                    {m}월
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className={styles.field}>
-              <div className={styles.label}>임금 지급 주기</div>
-              <div className={styles.options}>
-                {PAY_CYCLES.map((c) => {
-                  const active = value.payCycle === c;
-                  return (
-                    <label
-                      key={c}
-                      className={`${styles.option} ${active ? styles.optionActive : ''}`}
-                    >
-                      <input
-                        type="radio"
-                        checked={active}
-                        onChange={() => patch({ payCycle: c })}
-                      />
-                      {c}
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            {showWsContext && (
-              <div className={styles.field}>
-                <div className={styles.label}>
-                  주 소정근로시간
-                  <span className={styles.sectionHint}>
-                    · 단시간 근로자만 (40h 기준)
-                  </span>
-                </div>
-                <input
-                  type="number"
-                  min={1}
-                  max={68}
-                  value={value.weeklyHours}
-                  onChange={(e) =>
-                    patch({ weeklyHours: Number(e.target.value) || 0 })
-                  }
-                  className={styles.numberInput}
-                />
-              </div>
-            )}
-          </div>
-        </>
-      )}
+      {/* 산정 대상·지급 조건 (임금명세서) — 홈 폼에서는 묻지 않는다.
+          AI 가 명세서를 읽고 산정 연·월, 지급 주기, 주 소정근로시간을 추출하고,
+          분석 직전 확인 화면(WsTypeConfirm)에서 함께 보여준다. 명세서에 안
+          적혀 있으면 분석 단계에서 '필수 기재사항 누락' 위반으로 잡힌다.
+          payPeriod*·payCycle·weeklyHours 상태·기본값은 fallback 으로 유지. */}
 
       {/* 근로 환경 (취업규칙) — 홈 폼에서는 묻지 않는다.
           사업장들이 잘 모르는 항목(교대제·산안법·화학물질·작업환경측정)이라

@@ -239,18 +239,23 @@ export default function HomePage() {
           phase: 'review',
           extractedText: wsText,
           businessSize: ctx.businessSize ?? '',
-          // 계약 유형은 이제 AI 분류 → 사용자 확인으로 결정 (홈 폼에서 안 물음).
-          // 분류 실패 시 fallback 으로 폼 기본값 유지.
-          workerTypes: ctx.workerTypes,
-          payPeriodYear: ctx.payPeriodYear ?? undefined,
-          payPeriodMonth: ctx.payPeriodMonth ?? undefined,
-          contractType: wsCls?.contract_type ?? ctx.contractType ?? undefined,
-          payCycle: ctx.payCycle ?? undefined,
-          weeklyHours: ctx.weeklyHours ?? undefined,
+          // 계약 유형·산정기간·지급주기 모두 AI 가 명세서에서 읽어낸다(홈 폼에서
+          // 안 물음). 명세서에 없으면 null/undefined → 분석 단계에서 '필수
+          // 기재사항 누락' 위반으로 잡힌다. 분류 실패 시에만 폼 기본값 fallback.
+          contractType: wsCls?.contract_type ?? undefined,
+          // 백엔드 슬롯 분기용 worker_types — 분류된 계약 유형 단일값.
+          workerTypes: wsCls ? [wsCls.contract_type] : ctx.workerTypes,
+          payPeriodYear: wsCls?.pay_period_year ?? undefined,
+          payPeriodMonth: wsCls?.pay_period_month ?? undefined,
+          payCycle: wsCls?.pay_cycle ?? undefined,
+          weeklyHours: wsCls?.weekly_hours ?? undefined,
           ...(wsCls
             ? {
                 classify: {
                   contractType: wsCls.contract_type,
+                  payPeriodYear: wsCls.pay_period_year,
+                  payPeriodMonth: wsCls.pay_period_month,
+                  payCycle: wsCls.pay_cycle,
                   docKind: wsCls.doc_kind,
                   reason: wsCls.reason,
                 },
