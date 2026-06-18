@@ -176,6 +176,41 @@ export async function postWsExtract(
   );
 }
 
+/** 임금명세서 계약 유형 AI 1차 분류 결과. */
+export interface WsClassifyOut {
+  contract_type: string; // 정규직 / 기간제 / 단시간 / 일용직
+  doc_kind: string;
+  reason: string;
+}
+
+/**
+ * 임금명세서 계약 유형 AI 1차 분류 — start + poll.
+ * 사용자는 분석 직전 [맞아요/아니에요]로 확인만 한다 (EC 근로자 유형과 동일 UX).
+ */
+export async function postWsClassify(
+  extractedText: string,
+  opts: { signal?: AbortSignal } = {},
+): Promise<WsClassifyOut> {
+  const { job_id } = await apiPostJson<{ job_id: string }>(
+    '/ws/classify/start',
+    { extracted_text: extractedText },
+    { signal: opts.signal },
+  );
+  return pollJob<WsClassifyOut>(
+    (id) => `/ws/classify/result/${id}`,
+    job_id,
+    (res) =>
+      res.contract_type != null
+        ? {
+            contract_type: res.contract_type as string,
+            doc_kind: (res.doc_kind as string) ?? '',
+            reason: (res.reason as string) ?? '',
+          }
+        : undefined,
+    { signal: opts.signal, label: '문서 분류' },
+  );
+}
+
 /** 2단계: 임금명세서 원문 + 컨텍스트 → 11 슬롯 위반 분석 (LLM). */
 export async function postWsAnalyze(
   body: {

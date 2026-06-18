@@ -162,37 +162,10 @@ export function WorkplaceForm({
             확인만 하며, 아니에요일 때만 그 화면에서 직접 선택(ClassifyConfirm 칩).
             workerTypes 상태·기본값은 레거시 경로 fallback 으로 그대로 유지. */}
 
-        {/* 임금명세서 전용 — 계약 유형 단일 선택 (4옵션) */}
-        {showWsContext && (
-          <div className={styles.field}>
-            <div className={styles.label}>계약 유형</div>
-            <div className={styles.options}>
-              {WS_CONTRACT_TYPES.map((t) => {
-                const active = value.contractType === t;
-                return (
-                  <label
-                    key={t}
-                    className={`${styles.option} ${active ? styles.optionActive : ''}`}
-                  >
-                    <input
-                      type="radio"
-                      checked={active}
-                      onChange={() => {
-                        // contractType 단일 → workerTypes 단일 배열로 동기화
-                        // (백엔드는 workerTypes 를 슬롯 분기에 그대로 사용)
-                        patch({
-                          contractType: t,
-                          workerTypes: [t as WorkerType],
-                        });
-                      }}
-                    />
-                    {t}
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        {/* 계약 유형 (임금명세서) — 홈 폼에서는 묻지 않는다.
+            AI 가 명세서를 읽고 1차 판단하고, 사용자는 분석 직전 확인 화면
+            (WsTypeConfirm)에서 [맞아요/아니에요]로 확인만 한다.
+            contractType 기본값은 레거시·분류 실패 fallback 으로 유지. */}
       </div>
 
       {/* ── 섹션 1.5: 임금명세서 전용 — 산정기간 / 지급주기 / 근로시간 ── */}
@@ -271,12 +244,12 @@ export function WorkplaceForm({
               </div>
             </div>
 
-            {value.contractType === '단시간' && (
+            {showWsContext && (
               <div className={styles.field}>
                 <div className={styles.label}>
                   주 소정근로시간
                   <span className={styles.sectionHint}>
-                    · 시간 환산용 (40h 기준)
+                    · 단시간 근로자만 (40h 기준)
                   </span>
                 </div>
                 <input

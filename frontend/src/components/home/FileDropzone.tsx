@@ -84,11 +84,11 @@ interface FileDropzoneProps {
  * - 총 N개 / 합계 사이즈 표시
  */
 export function FileDropzone({ value, onChange }: FileDropzoneProps) {
-  // 데스크톱(전체) · 모바일 카메라 · 갤러리 · 문서 — 입력을 분리해
-  // 모바일에서 OS 가 올바른 소스(카메라/갤러리/파일앱)를 열게 한다.
+  // 입력 분리: 데스크톱(전체) · 모바일 사진(촬영·갤러리 겸용) · 모바일 문서.
+  // 사진 입력은 capture 를 빼서 OS 가 '촬영 / 보관함(여러 장)' 선택지를 모두
+  // 띄우게 하고 multiple 로 여러 장을 한 번에 고를 수 있게 한다.
   const inputRef = useRef<HTMLInputElement>(null);
-  const cameraRef = useRef<HTMLInputElement>(null);
-  const galleryRef = useRef<HTMLInputElement>(null);
+  const imageRef = useRef<HTMLInputElement>(null);
   const docsRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
   const [dragOver, setDragOver] = useState(false);
@@ -108,8 +108,7 @@ export function FileDropzone({ value, onChange }: FileDropzoneProps) {
   };
 
   const openPicker = () => inputRef.current?.click();
-  const openCamera = () => cameraRef.current?.click();
-  const openGallery = () => galleryRef.current?.click();
+  const openImage = () => imageRef.current?.click();
   const openDocs = () => docsRef.current?.click();
 
   const addFiles = useCallback(
@@ -185,7 +184,7 @@ export function FileDropzone({ value, onChange }: FileDropzoneProps) {
   const clearAll = (e: ReactMouseEvent) => {
     e.stopPropagation();
     onChange([]);
-    [inputRef, cameraRef, galleryRef, docsRef].forEach((r) => {
+    [inputRef, imageRef, docsRef].forEach((r) => {
       if (r.current) r.current.value = '';
     });
   };
@@ -252,21 +251,9 @@ export function FileDropzone({ value, onChange }: FileDropzoneProps) {
           e.target.value = '';
         }}
       />
-      {/* 모바일 카메라 — 후면 카메라 바로 실행 (단일 촬영) */}
+      {/* 모바일 사진 — capture 없이 image/* + multiple → '촬영 / 보관함(여러 장)' 모두 */}
       <input
-        ref={cameraRef}
-        type="file"
-        accept={ACCEPT_IMAGE}
-        capture="environment"
-        className={styles.hiddenInput}
-        onChange={(e) => {
-          addFiles(e.target.files);
-          e.target.value = '';
-        }}
-      />
-      {/* 모바일 갤러리 — 사진 보관함 */}
-      <input
-        ref={galleryRef}
+        ref={imageRef}
         type="file"
         accept={ACCEPT_IMAGE}
         multiple
@@ -297,24 +284,14 @@ export function FileDropzone({ value, onChange }: FileDropzoneProps) {
               className={styles.pickBtn}
               onClick={(e) => {
                 e.stopPropagation();
-                openCamera();
+                openImage();
               }}
             >
               <span className={styles.pickEmoji} aria-hidden>📷</span>
-              <span className={styles.pickLabel}>사진 촬영</span>
-              <span className={styles.pickSub}>문서를 카메라로 찍기</span>
-            </button>
-            <button
-              type="button"
-              className={styles.pickBtn}
-              onClick={(e) => {
-                e.stopPropagation();
-                openGallery();
-              }}
-            >
-              <span className={styles.pickEmoji} aria-hidden>🖼️</span>
-              <span className={styles.pickLabel}>사진 선택</span>
-              <span className={styles.pickSub}>갤러리에서 가져오기</span>
+              <span className={styles.pickText}>
+                <span className={styles.pickLabel}>사진</span>
+                <span className={styles.pickSub}>촬영하거나 여러 장 선택</span>
+              </span>
             </button>
             <button
               type="button"
@@ -325,8 +302,10 @@ export function FileDropzone({ value, onChange }: FileDropzoneProps) {
               }}
             >
               <span className={styles.pickEmoji} aria-hidden>📁</span>
-              <span className={styles.pickLabel}>문서 파일</span>
-              <span className={styles.pickSub}>DOCX·HWP·PDF·TXT</span>
+              <span className={styles.pickText}>
+                <span className={styles.pickLabel}>문서 파일</span>
+                <span className={styles.pickSub}>DOCX·HWP·PDF·TXT</span>
+              </span>
             </button>
           </div>
         ) : (

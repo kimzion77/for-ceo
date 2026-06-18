@@ -21,8 +21,9 @@ import WorkplaceForm, {
 
 import { postEcClassify, postEcExtract, postEcStructure } from '@/lib/api/ec';
 import { postWrClassify } from '@/lib/api/review';
-import { postWsExtract } from '@/lib/api/ws';
+import { postWsClassify, postWsExtract } from '@/lib/api/ws';
 import { postScExtract, postScStructure } from '@/lib/api/sc';
+import { extractAllText } from '@/lib/uploadPrep';
 import { ApiCallError } from '@/lib/api/client';
 import {
   makeTempCaseId,
@@ -162,17 +163,18 @@ export default function HomePage() {
         // 풀 이식 4단계 — 1) extract + 2) structure 까지 자동 연쇄.
         // 사용자가 검토 페이지(Step2)에서 표를 수정한 뒤 analyze → result → contract 로 진행.
         updateEc(caseId, { phase: 'extracting' });
-        const extracted = await postEcExtract(first);
+        // 여러 장(여러 페이지) 지원 + 이미지는 업로드 전 자동 압축(413 방지).
+        const extractedText = await extractAllText(files, postEcExtract);
 
         updateEc(caseId, {
           phase: 'structuring',
-          extractedText: extracted.extracted_text,
+          extractedText,
         });
         // AI 1차 분류(/ec/classify)를 structure 와 병렬 실행 — 분류는 부가 정보라
         // 실패해도 흐름을 막지 않는다 (catch → null → 폼 workerTypes fallback).
         const [structured, cls] = await Promise.all([
-          postEcStructure(extracted.extracted_text),
-          postEcClassify(extracted.extracted_text).catch(() => null),
+          postEcStructure(extractedText),
+          postEcClassify(extractedText).catch(() => null),
         ]);
 
         // 응답 검증 — LLM 이 가끔 빈 dict 나 누락된 응답을 줄 때가 있어, 그대로 review 단계로
@@ -209,13 +211,13 @@ export default function HomePage() {
         //   2) /sc/structure 텍스트 → 4섹션·16슬롯 JSON
         //   3) (사용자 검토) → /sc/analyze (LoadingScreen 후 sc/review 페이지)
         updateSc(caseId, { phase: 'extracting' });
-        const scExtracted = await postScExtract(first);
+        const scText = await extractAllText(files, postScExtract);
 
         updateSc(caseId, {
           phase: 'structuring',
-          extractedText: scExtracted.extracted_text,
+          extractedText: scText,
         });
-        const scStructured = await postScStructure(scExtracted.extracted_text);
+        const scStructured = await postScStructure(scText);
 
         updateSc(caseId, {
           phase: 'review',
@@ -224,23 +226,36 @@ export default function HomePage() {
         });
         // LoadingScreen 은 sc.phase='review' 를 보고 /review/[id]/sc/review 로 라우팅.
       } else if (docType === 'wage-statement') {
-        // 임금명세서 (beta) — extract 후 사용자 확인 단계로.
-        //   1) /ws/extract  파일 → 텍스트 (이미지면 OCR)
-        //   2) (사용자 확인·수정) /review/[id]/ws/review — '분석 시작' 시 /ws/analyze 호출.
-        // analyze 에 필요한 컨텍스트 전부를 ws 워크플로에 보관해 검토 페이지가 그대로 사용.
+        // 임금명세서 — extract 후 'OCR 수정' 단계를 빼고, AI 가 계약 유형을
+        // 1차 판단한 뒤 분석 직전에 [맞아요/아니에요]로 확인만 받는다.
+        //   1) /ws/extract  파일 → 텍스트 (이미지면 OCR, 여러 장 지원)
+        //   2) /ws/classify 계약 유형 AI 추정 (실패해도 흐름 계속)
+        //   3) /review/[id]/ws/review — 계약 유형 확인 → '분석 시작' 시 /ws/analyze.
         updateWs(caseId, { phase: 'extracting' });
-        const wsExtracted = await postWsExtract(first);
+        const wsText = await extractAllText(files, postWsExtract);
+        const wsCls = await postWsClassify(wsText).catch(() => null);
 
         updateWs(caseId, {
           phase: 'review',
-          extractedText: wsExtracted.extracted_text,
+          extractedText: wsText,
           businessSize: ctx.businessSize ?? '',
+          // 계약 유형은 이제 AI 분류 → 사용자 확인으로 결정 (홈 폼에서 안 물음).
+          // 분류 실패 시 fallback 으로 폼 기본값 유지.
           workerTypes: ctx.workerTypes,
           payPeriodYear: ctx.payPeriodYear ?? undefined,
           payPeriodMonth: ctx.payPeriodMonth ?? undefined,
-          contractType: ctx.contractType ?? undefined,
+          contractType: wsCls?.contract_type ?? ctx.contractType ?? undefined,
           payCycle: ctx.payCycle ?? undefined,
           weeklyHours: ctx.weeklyHours ?? undefined,
+          ...(wsCls
+            ? {
+                classify: {
+                  contractType: wsCls.contract_type,
+                  docKind: wsCls.doc_kind,
+                  reason: wsCls.reason,
+                },
+              }
+            : {}),
         });
         // LoadingScreen 은 ws.phase='review' 를 보고 /review/[id]/ws/review 로 라우팅.
       } else {
@@ -249,14 +264,12 @@ export default function HomePage() {
         //   2) AI 근로환경 1차 분류 (교대제·산안법·화학물질·작업환경측정 추정)
         //      — 실패해도 흐름 계속 (확인 배너만 생략, 보수적 기본값 검사)
         //   3) (사용자 확인·수정) /review/[id]/wr/review — '분석 시작' 시 postReviewWorkRules 호출.
-        const wrExtracted = await postEcExtract(first);
-        const wrCls = await postWrClassify(wrExtracted.extracted_text).catch(
-          () => null,
-        );
+        const wrText = await extractAllText(files, postEcExtract);
+        const wrCls = await postWrClassify(wrText).catch(() => null);
 
         updateWr(caseId, {
           phase: 'review',
-          extractedText: wrExtracted.extracted_text,
+          extractedText: wrText,
           context: ctx,
           ...(wrCls
             ? {

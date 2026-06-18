@@ -34,6 +34,11 @@
   font-weight: 700;
 }
 
+/* AI 계약 유형 확인 배너 래퍼 */
+.confirmWrap {
+  margin: 0 0 18px;
+}
+
 /* ─── 카드 + textarea ─── */
 .card {
   background: var(--color-surface);

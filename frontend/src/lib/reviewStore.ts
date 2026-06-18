@@ -101,6 +101,15 @@ export interface WsWorkflow {
   contractType?: string;
   payCycle?: string;
   weeklyHours?: number;
+  /**
+   * AI 1차 계약 유형 분류 — 분석 전 확인 화면(WsTypeConfirm)에 사용.
+   * 사용자가 [맞아요/아니에요]로 확정한 contractType 이 분석에 쓰인다.
+   */
+  classify?: {
+    contractType: string; // 정규직 / 기간제 / 단시간 / 일용직
+    docKind: string;
+    reason: string;
+  };
   /** /ws/analyze 결과 (EC analysis 와 동일 스키마). */
   analysisResult?: EcAnalysisResult;
   /** /ws/generate 결과 — 수정 반영된 표준 임금명세서 텍스트. */

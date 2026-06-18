@@ -74,8 +74,15 @@
 
 .pickEmoji {
   flex: none;
-  font-size: 24px;
+  font-size: 26px;
   line-height: 1;
+}
+
+.pickText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .pickLabel {
@@ -85,10 +92,8 @@
 }
 
 .pickSub {
-  margin-left: auto;
   font-size: 12px;
   color: var(--color-text-subtle);
-  white-space: nowrap;
 }
 
 /* ─── 비어있을 때 (안내) ─── */

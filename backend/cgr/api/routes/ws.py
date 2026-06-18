@@ -148,6 +148,63 @@ def get_extract_result(job_id: str):
 
 
 # ─────────────────────────────────────────────
+# 1-c) 비동기 분류 — AI 1차 계약 유형 판별 (사용자는 분석 전 확인만)
+# ─────────────────────────────────────────────
+class ClassifyIn(BaseModel):
+    extracted_text: str = Field(..., description="추출된 임금명세서 텍스트")
+
+
+class ClassifyResultOut(BaseModel):
+    status: str = Field(..., description="pending | done | error")
+    contract_type: str | None = None
+    doc_kind: str | None = None
+    reason: str | None = None
+    error: str | None = None
+    elapsed_sec: float = 0.0
+
+
+@router.post(
+    "/classify/start",
+    response_model=JobStartOut,
+    summary="비동기 분류 시작 — 계약 유형 AI 판별",
+    dependencies=[Depends(require_api_key)],
+)
+def post_classify_start(body: ClassifyIn):
+    from cgr import ws_classify as ws_classify_service
+
+    text = body.extracted_text
+
+    def _do() -> dict[str, Any]:
+        return ws_classify_service.run(text)
+
+    return JobStartOut(job_id=jobs.start_job(_do))
+
+
+@router.get(
+    "/classify/result/{job_id}",
+    response_model=ClassifyResultOut,
+    summary="비동기 분류 결과 폴링",
+    dependencies=[Depends(require_api_key)],
+)
+def get_classify_result(job_id: str):
+    job = jobs.get_job(job_id)
+    if job is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="분류 작업을 찾을 수 없어요. 다시 시도해 주세요.",
+        )
+    r = job["result"] or {}
+    return ClassifyResultOut(
+        status=job["status"],
+        contract_type=r.get("contract_type"),
+        doc_kind=r.get("doc_kind"),
+        reason=r.get("reason"),
+        error=job["error"],
+        elapsed_sec=job["elapsed"],
+    )
+
+
+# ─────────────────────────────────────────────
 # 2) POST /api/v1/ws/analyze
 # ─────────────────────────────────────────────
 class AnalyzeIn(BaseModel):
