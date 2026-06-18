@@ -43,6 +43,11 @@ interface ChatPanelProps {
    * (기본은 화면 우하단). 패널 자체는 동일.
    */
   embedded?: boolean;
+  /**
+   * true 면 닫힌 상태의 FAB 를 숨긴다(글자 가림 방지) — 예: 항목 상세 시트가
+   * 열려 있을 때. 단, 채팅 패널이 열려 있으면 유지한다.
+   */
+  hidden?: boolean;
 }
 
 interface ChatMessage {
@@ -228,6 +233,7 @@ export function ChatPanel({
   docLabel = '검토 결과',
   quickPrompts,
   embedded = false,
+  hidden = false,
 }: ChatPanelProps) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -289,6 +295,7 @@ export function ChatPanel({
   };
 
   if (!open) {
+    if (hidden) return null;
     return (
       <button
         type="button"

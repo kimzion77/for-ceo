@@ -61,6 +61,11 @@
   z-index: 4;
 }
 
+/* 항목 상세 시트가 열리면 앱바 숨김 — 화면을 넓게 */
+.appbarHidden {
+  display: none;
+}
+
 .appbarBtn {
   width: 44px;
   height: 44px;

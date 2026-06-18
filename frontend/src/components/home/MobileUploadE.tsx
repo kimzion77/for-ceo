@@ -20,16 +20,11 @@ import type { DocumentType } from '@/types/review';
 import styles from './MobileUploadE.module.css';
 
 const IMG_EXT = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tif', '.tiff', '.webp'];
-const DOC_MIME = [
-  'application/pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'text/plain',
-];
 const DOC_EXT = ['.docx', '.hwp', '.hwpx', '.pdf', '.txt'];
 // 사진: 촬영·보관함 모두 (capture 없이 image/* → OS 가 촬영/앨범 선택지 제공)
 const ACCEPT_IMAGE = ['image/*', ...IMG_EXT].join(',');
-// 문서: 이미지 제외 → 모바일 '파일' 브라우저에서 docx·pdf 노출
-const ACCEPT_DOCS = [...DOC_MIME, ...DOC_EXT].join(',');
+// 파일에서 선택: accept 를 주지 않아 네이티브 '파일' 브라우저가 문서·이미지
+// 등 모든 파일을 보여준다(사용자 요구). 지원 형식은 선택 후 ALLOWED 로 검증.
 const ALLOWED = [...DOC_EXT, ...IMG_EXT];
 
 interface Conf {
@@ -198,7 +193,6 @@ export default function MobileUploadE({ docType, value, onChange }: Props) {
       <input
         ref={fileRef}
         type="file"
-        accept={ACCEPT_DOCS}
         multiple
         className={styles.hidden}
         onChange={resetInput}

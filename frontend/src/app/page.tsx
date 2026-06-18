@@ -125,6 +125,8 @@ export default function HomePage() {
   // SSR 첫 페인트는 데스크톱 → 마운트 후 matchMedia 로 동기화.
   const [isMobile, setIsMobile] = useState(false);
   const [mobileStep, setMobileStep] = useState<'select' | 'upload'>('select');
+  // 모바일 — 업로드 후 '사업장 규모' 확인 팝업(바텀시트). 확인 시 검토 시작.
+  const [sizeSheetOpen, setSizeSheetOpen] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 720px)');
     const sync = () => setIsMobile(mq.matches);
@@ -484,29 +486,75 @@ export default function HomePage() {
           </div>
 
           {/* 업로드 E안 — 촬영 우선 + 스캔 + 다중 촬영 트레이 (모바일) */}
+          {/* 사업장 규모는 인라인이 아니라 '검토 시작' 시 팝업으로 묻는다(아래 시트) */}
           <MobileUploadE docType={docType} value={files} onChange={setFiles} />
-
-          <div className={styles.mLab}>사업장 기본 정보</div>
-          <WorkplaceForm
-            value={workplace}
-            onChange={setWorkplace}
-            documentType={docType}
-          />
         </div>
 
-        {/* 시안 .home-cta — 하단 고정 CTA (시간 약속 카피 없음) */}
+        {/* 시안 .home-cta — 하단 고정 CTA */}
         <div className={styles.mCta}>
           <button
             type="button"
             className={styles.mCtaBtn}
             disabled={!canSubmit}
-            onClick={startReview}
+            onClick={() => setSizeSheetOpen(true)}
           >
             {submitting ? '검토 준비 중…' : '검토 시작하기'}
           </button>
           <div className={styles.mCtaTip}>
             파일은 검토 후 즉시 삭제되며 회원가입이 필요 없습니다
           </div>
+        </div>
+
+        {/* ── 사업장 규모 확인 바텀시트 ── */}
+        <div
+          className={`${styles.mSizeScrim} ${sizeSheetOpen ? styles.mSizeScrimOn : ''}`}
+          onClick={() => setSizeSheetOpen(false)}
+          aria-hidden
+        />
+        <div
+          className={`${styles.mSizeSheet} ${sizeSheetOpen ? styles.mSizeSheetOn : ''}`}
+          role="dialog"
+          aria-modal={sizeSheetOpen}
+          aria-label="사업장 규모"
+        >
+          <div className={styles.mSizeGrab} />
+          <div className={styles.mSizeTitle}>사업장 규모를 알려주세요</div>
+          <div className={styles.mSizeSub}>
+            상시 근로자 수에 따라 적용 규정이 달라요. 모르면 ‘모름’을 선택하세요.
+          </div>
+          <div className={styles.mSizeOpts}>
+            {[
+              { v: 'unknown', label: '모름' },
+              { v: '5+', label: '5인 이상' },
+              { v: '5-', label: '5인 미만' },
+            ].map((o) => {
+              const active = workplace.businessSize === o.v;
+              return (
+                <button
+                  key={o.v}
+                  type="button"
+                  className={`${styles.mSizeOpt} ${active ? styles.mSizeOptOn : ''}`}
+                  aria-pressed={active}
+                  onClick={() =>
+                    setWorkplace({ ...workplace, businessSize: o.v as typeof workplace.businessSize })
+                  }
+                >
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            className={styles.mSizeGo}
+            disabled={submitting}
+            onClick={() => {
+              setSizeSheetOpen(false);
+              void startReview();
+            }}
+          >
+            {submitting ? '검토 준비 중…' : '이 내용으로 검토 시작'}
+          </button>
         </div>
       </div>
     );

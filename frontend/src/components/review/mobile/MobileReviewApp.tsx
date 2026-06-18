@@ -513,8 +513,8 @@ export default function MobileReviewApp({
 
   return (
     <div className={styles.root}>
-      {/* ─── 앱바 ─── */}
-      <div className={styles.appbar}>
+      {/* ─── 앱바 ─── 항목 상세 시트가 열리면 숨겨 화면을 넓게 쓴다 */}
+      <div className={`${styles.appbar} ${sheetOpen ? styles.appbarHidden : ''}`}>
         <button
           type="button"
           className={styles.appbarBtn}
@@ -976,8 +976,10 @@ export default function MobileReviewApp({
       </div>
 
       {/* ════════ 노무가이드 챗봇 (떠 있는 FAB) ════════ */}
+      {/* 항목 상세 시트가 열린 동안엔 FAB 숨김(글자 가림 방지) */}
       <ChatPanel
         embedded
+        hidden={sheetOpen}
         analysis={chatAnalysis}
         docLabel={docLabel}
         focusedItem={chatFocusedItem}

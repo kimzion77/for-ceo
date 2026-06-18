@@ -334,3 +334,97 @@
   color: #8b92a0;
   margin-top: 9px;
 }
+
+/* ── 사업장 규모 확인 바텀시트 ── */
+.mSizeScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(15, 27, 45, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+.mSizeScrimOn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mSizeSheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 41;
+  background: var(--color-surface);
+  border-radius: 20px 20px 0 0;
+  padding: 10px 18px calc(20px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -8px 30px rgba(15, 27, 45, 0.18);
+  transform: translateY(110%);
+  transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.mSizeSheetOn {
+  transform: translateY(0);
+}
+
+.mSizeGrab {
+  width: 40px;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--color-border-strong);
+  margin: 2px auto 14px;
+}
+
+.mSizeTitle {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--color-text);
+}
+.mSizeSub {
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+  line-height: 1.55;
+  margin-top: 6px;
+}
+
+.mSizeOpts {
+  display: flex;
+  gap: 8px;
+  margin: 16px 0 18px;
+}
+.mSizeOpt {
+  flex: 1;
+  min-height: 48px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text);
+  cursor: pointer;
+}
+.mSizeOptOn {
+  border-color: #0b3d91;
+  background: var(--color-brand-soft);
+  color: #0b3d91;
+}
+
+.mSizeGo {
+  width: 100%;
+  min-height: 52px;
+  border: 0;
+  border-radius: 14px;
+  padding: 16px;
+  font-family: inherit;
+  font-size: 15.5px;
+  font-weight: 800;
+  background: #0b3d91;
+  color: #fff;
+  cursor: pointer;
+}
+.mSizeGo:disabled {
+  background: #edebe5;
+  color: #8b92a0;
+  cursor: default;
+}
