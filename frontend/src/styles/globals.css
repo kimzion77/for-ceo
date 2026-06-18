@@ -59,6 +59,11 @@
     "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", "Noto Sans KR", sans-serif;
   --font-mono: "D2Coding", "JetBrains Mono", ui-monospace, monospace;
 
+  /* 전역 확대 배율 — body zoom 과 fixed 오버레이 높이 보정에 함께 쓴다.
+     position:fixed; height:100dvh 오버레이는 zoom 만큼 뷰포트보다 커져
+     하단이 잘리므로 calc(100dvh / var(--app-zoom)) 로 보정해야 한다. */
+  --app-zoom: 1.15;
+
   --fs-display: 32px;
   --fs-h1: 26px;
   --fs-h2: 20px;
@@ -131,7 +136,7 @@ body {
   /* 전반적으로 글자(및 UI)를 15% 키운다 — 비율은 그대로 유지(균등 확대).
      px 기반 폰트가 많아 변수만으론 다 안 커지므로 zoom 으로 일괄 확대.
      인쇄(@media print)에서는 1 로 되돌려 A4 리포트 레이아웃 보존. */
-  zoom: 1.15;
+  zoom: var(--app-zoom);
 }
 
 /* ── 모바일 입력 자동 줌 방지 ──

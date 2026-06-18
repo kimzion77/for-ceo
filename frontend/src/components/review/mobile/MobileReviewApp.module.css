@@ -32,7 +32,10 @@
   display: flex;
   flex-direction: column;
   background: #eeebe4;
-  height: 100dvh;
+  /* body zoom 으로 fixed 오버레이가 뷰포트보다 커져 하단 FAB(원문/표준양식)가
+     화면 밖으로 밀리던 문제 — zoom 만큼 나눠 실제 뷰포트에 맞춘다. */
+  height: calc(100dvh / var(--app-zoom, 1));
+  inset: 0 0 auto 0;
   font-family: 'Pretendard Variable', Pretendard, system-ui, sans-serif;
   color: var(--m-text);
   -webkit-font-smoothing: antialiased;
