@@ -101,6 +101,8 @@ export default function MobileUploadE({ docType, value, onChange }: Props) {
     value.length > 0 ? 'done' : 'idle',
   );
   const [err, setErr] = useState<string | null>(null);
+  // 큰 미리보기에 띄울 현재 장 (썸네일 탭으로 전환).
+  const [current, setCurrent] = useState(0);
   const camRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const scanTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -111,9 +113,10 @@ export default function MobileUploadE({ docType, value, onChange }: Props) {
     },
     [],
   );
-  // 외부에서 files 가 비워지면 idle 로 복귀
+  // 외부에서 files 가 비워지면 idle 로 복귀 + current 범위 보정
   useEffect(() => {
     if (value.length === 0) setPhase((p) => (p === 'done' ? 'idle' : p));
+    setCurrent((c) => Math.min(c, Math.max(0, value.length - 1)));
   }, [value.length]);
 
   const extOf = (n: string) => {
@@ -157,6 +160,7 @@ export default function MobileUploadE({ docType, value, onChange }: Props) {
     });
     setErr(bad.length ? `지원하지 않는 형식이에요: ${bad.join(', ')}` : null);
     onChange(merged);
+    setCurrent(Math.max(0, merged.length - 1)); // 방금 추가한 장을 크게
     // 스캔 애니메이션 (감속 환경에선 즉시 done)
     const reduce =
       typeof window !== 'undefined' &&
@@ -217,52 +221,79 @@ export default function MobileUploadE({ docType, value, onChange }: Props) {
       />
 
       {phase === 'done' ? (
-        <>
-          <div className={styles.doneHead}>올린 문서 {value.length}장</div>
-          <p className={styles.doneSub}>
-            맞게 올라왔는지 확인하고, 더 있으면 <b>+</b> 를 누르세요.
-          </p>
-          <div className={styles.previews}>
-            {previews.map((p, i) => (
-              <div
-                className={styles.preview}
-                key={`${p.file.name}-${p.file.size}-${p.file.lastModified}-${i}`}
-              >
-                {p.isImg && p.url ? (
+        (() => {
+          const cur = previews[Math.min(current, previews.length - 1)];
+          return (
+            <>
+              <div className={styles.doneHead}>올린 문서 {value.length}장</div>
+              <p className={styles.doneSub}>
+                크게 보고 글자가 잘 보이는지 확인하세요.
+              </p>
+
+              {/* 큰 미리보기 — 현재 장 */}
+              <div className={styles.bigPreview}>
+                {cur?.isImg && cur.url ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={p.url} alt={`${i + 1}쪽 미리보기`} className={styles.previewImg} />
+                  <img
+                    src={cur.url}
+                    alt={`${current + 1}쪽 미리보기`}
+                    className={styles.bigImg}
+                  />
                 ) : (
-                  <div className={styles.previewDoc}>
+                  <div className={styles.bigDoc}>
                     <FileIcon />
-                    <span className={styles.previewName}>{p.file.name}</span>
+                    <span className={styles.bigDocName}>{cur?.file.name}</span>
                   </div>
                 )}
-                <span className={styles.previewNo}>{i + 1}</span>
+                <span className={styles.bigNo}>{current + 1}</span>
                 <button
                   type="button"
-                  className={styles.previewX}
-                  onClick={() => removeAt(i)}
-                  aria-label={`${i + 1}번 삭제`}
+                  className={styles.bigDel}
+                  onClick={() => removeAt(current)}
+                  aria-label={`${current + 1}장 삭제`}
                 >
-                  ×
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" aria-hidden>
+                    <path d="M6 6l12 12M18 6L6 18" />
+                  </svg>
                 </button>
               </div>
-            ))}
-            <button
-              type="button"
-              className={styles.previewAdd}
-              onClick={openPrimary}
-              aria-label="더 추가"
-            >
-              <span className={styles.previewAddPlus}>+</span>
-              <span className={styles.previewAddLabel}>추가</span>
-            </button>
-          </div>
-          <div className={styles.tiny}>
-            <ShieldIcon />
-            검토 후 즉시 삭제
-          </div>
-        </>
+
+              {/* 썸네일 줄 — 현재 장 링 + 끝에 + 추가 */}
+              <div className={styles.thumbs}>
+                {previews.map((p, i) => (
+                  <button
+                    type="button"
+                    key={`${p.file.name}-${p.file.size}-${p.file.lastModified}-${i}`}
+                    className={i === current ? styles.thumbOn : styles.thumb}
+                    onClick={() => setCurrent(i)}
+                    aria-label={`${i + 1}장 보기`}
+                  >
+                    {p.isImg && p.url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={p.url} alt="" className={styles.thumbImg} />
+                    ) : (
+                      <FileIcon />
+                    )}
+                    <span className={styles.thumbNo}>{i + 1}</span>
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className={styles.thumbAdd}
+                  onClick={openPrimary}
+                  aria-label="더 추가"
+                >
+                  +
+                </button>
+              </div>
+
+              <div className={styles.tiny}>
+                <ShieldIcon />
+                검토 후 즉시 삭제
+              </div>
+            </>
+          );
+        })()
       ) : (
         <>
           <div className={styles.hero}>
