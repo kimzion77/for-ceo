@@ -13,6 +13,8 @@ interface DocType {
   detail: string;
   available: boolean;
   tag: string;
+  /** true 면 화면에서 숨김 (코드·라우트는 유지 — 나중에 false 로 되살림). */
+  hidden?: boolean;
 }
 
 export const DOC_TYPES: DocType[] = [
@@ -55,6 +57,8 @@ export const DOC_TYPES: DocType[] = [
     detail: '산재보험법 제125조 / 고용보험법 제77조의2',
     available: true,
     tag: '베타 운영',
+    // 우선 화면에서 숨김 (요청). 코드·라우트·API 는 그대로 — 되살릴 땐 false.
+    hidden: true,
   },
 ];
 
@@ -66,7 +70,7 @@ interface DocTypePickerProps {
 export function DocTypePicker({ value, onChange }: DocTypePickerProps) {
   return (
     <div className={styles.grid}>
-      {DOC_TYPES.map((d) => {
+      {DOC_TYPES.filter((d) => !d.hidden).map((d) => {
         const isSel = value === d.id;
         const disabled = !d.available;
         const classes = [

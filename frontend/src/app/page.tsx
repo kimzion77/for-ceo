@@ -49,6 +49,8 @@ interface MobileDocCard {
   title: string;
   sub: string;
   icon: ReactNode;
+  /** true 면 화면에서 숨김 (코드·라우트는 유지 — 나중에 false 로 되살림). */
+  hidden?: boolean;
 }
 
 const MOBILE_DOC_CARDS: MobileDocCard[] = [
@@ -96,6 +98,8 @@ const MOBILE_DOC_CARDS: MobileDocCard[] = [
         <path d="M2 20c.6-3 3-5 6-5s5.4 2 6 5M14 15c2.5 0 4.5 2 5 5" />
       </svg>
     ),
+    // 우선 화면에서 숨김 (요청). 코드·라우트·API 는 그대로 — 되살릴 땐 false.
+    hidden: true,
   },
 ];
 
@@ -399,7 +403,7 @@ export default function HomePage() {
           {/* 시안 .doctype — 4종 모두 활성 */}
           <div className={styles.mDoctype}>
             <div className={styles.mLab}>무엇을 검토할까요?</div>
-            {MOBILE_DOC_CARDS.map((c) => (
+            {MOBILE_DOC_CARDS.filter((c) => !c.hidden).map((c) => (
               <button
                 key={c.id}
                 type="button"
