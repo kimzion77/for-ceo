@@ -413,3 +413,202 @@
 .popFix:active {
   background: var(--color-brand-strong);
 }
+
+/* ── AI 판단 다시 보기 버튼 ── */
+.reopenCls {
+  margin: 0 16px 10px;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-brand);
+  background: var(--color-brand-soft);
+  border: 1px solid var(--color-brand-soft);
+  border-radius: var(--r-pill);
+  cursor: pointer;
+}
+
+/* ── 확인할 곳 없음 ── */
+.emptyCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  padding: 32px 18px;
+  background: var(--risk-ok-soft);
+  border: 1px solid var(--risk-ok-border);
+  border-radius: var(--r-lg);
+}
+.emptyCheck {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--risk-ok);
+  color: #fff;
+  font-size: 20px;
+  font-weight: 800;
+}
+.emptyText {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--risk-ok-text);
+  word-break: keep-all;
+}
+
+/* ── 의심 카드 목록 ── */
+.cardList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.fixCard {
+  border: 1px solid var(--risk-warn-border);
+  background: var(--risk-warn-soft);
+  border-radius: var(--r-lg);
+  padding: 14px;
+}
+.fixCardDone {
+  border: 1px solid var(--risk-ok-border);
+  background: var(--risk-ok-soft);
+  border-radius: var(--r-lg);
+  padding: 14px;
+}
+.fixCardHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.fixBadge {
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+  background: var(--risk-warn);
+  color: #5c4708;
+}
+.fixBadgeDone {
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+  background: var(--risk-ok);
+  color: #fff;
+}
+.fixReason {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--color-text);
+  word-break: keep-all;
+}
+.fixContext {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  border-radius: var(--r-md);
+  padding: 9px 11px;
+  margin: 0 0 10px;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  max-height: 5.2em;
+  overflow: auto;
+}
+.fixCtxMark {
+  background: #ffe08a;
+  color: var(--color-text);
+  font-weight: 800;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+.fixRow {
+  display: flex;
+  gap: 8px;
+}
+.fixInput {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 15px;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--r-md);
+}
+.fixInput:focus {
+  outline: none;
+  border-color: var(--color-brand);
+}
+.fixBtn {
+  flex: none;
+  min-width: 64px;
+  height: 44px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--color-brand);
+  border: none;
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+.fixBtn:active {
+  background: var(--color-brand-strong);
+}
+
+/* ── AI 판단 바텀시트 ── */
+.clsScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(15, 27, 45, 0.42);
+}
+.clsSheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 61;
+  background: var(--color-surface);
+  border-radius: 20px 20px 0 0;
+  padding: 10px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -8px 30px rgba(15, 27, 45, 0.2);
+  max-height: 86vh;
+  overflow-y: auto;
+}
+.clsGrab {
+  width: 40px;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--color-border-strong);
+  margin: 2px auto 14px;
+}
+.clsBody {
+  margin-bottom: 14px;
+}
+.clsDone {
+  width: 100%;
+  min-height: 50px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--color-brand);
+  border: none;
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+.clsDone:active {
+  background: var(--color-brand-strong);
+}
