@@ -24,8 +24,10 @@ const DOC_MIME = [
 const DOC_EXT = ['.docx', '.hwp', '.hwpx', '.pdf', '.txt'];
 const IMG_EXT = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tif', '.tiff', '.webp'];
 
-// 데스크톱(드래그·찾아보기) — 문서+이미지 전부.
-const ACCEPT_ALL = [...DOC_MIME, ...DOC_EXT, 'image/*', ...IMG_EXT].join(',');
+// 데스크톱(드래그·찾아보기) — 확장자만. Windows 파일 대화상자는 MIME 타입을
+// 섞으면 일부 형식(예: PNG)을 기본 필터에서 빼버려 '모든 파일'로 바꿔야 보였다.
+// 확장자만 나열하면 모든 형식이 기본 필터에 그대로 노출된다.
+const ACCEPT_ALL = [...DOC_EXT, ...IMG_EXT].join(',');
 // 모바일 '문서 파일' — 이미지 타입을 빼야 OS 가 갤러리 대신 '파일' 브라우저를
 // 열어 docx·hwp·pdf 가 보인다 (이미지가 섞이면 일부 기기는 갤러리만 띄움).
 const ACCEPT_DOCS = [...DOC_MIME, ...DOC_EXT].join(',');

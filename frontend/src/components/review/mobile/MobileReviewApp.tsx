@@ -111,13 +111,71 @@ const toneLabel = (t: 'bad' | 'warn') => (t === 'bad' ? '부적절' : '보완필
 /** 항목 상태 라벨 — statusLabel(취업규칙 누락·위반 등) 우선, 없으면 tone 기본. */
 const labelOf = (f: MobileFinding) => f.statusLabel ?? toneLabel(f.tone);
 
-/** LLM 응답의 마크다운 볼드(**…**)를 <strong> 으로 렌더 — 중요 부분 강조. */
+/** 핵심 키워드 자동 강조 — LLM 이 ** 를 빼먹어도 중요 부분을 굵게.
+ *  금액·법령 제n조·기간/시각·누락/위반/필수기재 등 결정적 표현. */
+const AUTO_BOLD = new RegExp(
+  [
+    '[가-힣]+법(?:률)?\\s*제\\d+조(?:\\s*제\\d+항)?(?:\\s*제\\d+호)?',
+    '시행령\\s*제\\d+조(?:의\\d+)?',
+    '\\d{1,3}(?:,\\d{3})+\\s*원',
+    '\\d{1,4}\\s*년\\s*\\d{1,2}\\s*월(?:\\s*\\d{1,2}\\s*일)?',
+    '\\d{1,2}\\s*시(?:\\s*\\d{1,2}\\s*분)?',
+    '\\d{1,3}\\s*시간',
+    '\\d{1,3}\\s*일(?:분)?',
+    '\\d{1,3}\\s*개월',
+    '\\d{1,3}\\s*%',
+    '5\\s*인\\s*(?:이상|미만)',
+    '필수\\s*기재(?:사항|항목)?',
+    '서면\\s*(?:명시|교부)(?:의무)?',
+    '지급(?:총액|일)|공제(?:총액|내역)?|실지급액|실수령액',
+    '미기재',
+    '누락',
+    '위반',
+    '부적절',
+    '보완(?:이)?\\s*필요',
+  ]
+    .map((p) => `(?:${p})`)
+    .join('|'),
+  'g',
+);
+
+function autoBold(text: string, keyPrefix: string): ReactNode[] {
+  const out: ReactNode[] = [];
+  const re = new RegExp(AUTO_BOLD.source, 'g');
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) {
+      out.push(<Fragment key={`${keyPrefix}-t${last}`}>{text.slice(last, m.index)}</Fragment>);
+    }
+    out.push(<strong key={`${keyPrefix}-b${m.index}`}>{m[0]}</strong>);
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) {
+    out.push(<Fragment key={`${keyPrefix}-t${last}`}>{text.slice(last)}</Fragment>);
+  }
+  return out;
+}
+
+/** 마크다운 볼드(**…**) → <strong>, 그 외 구간은 핵심 키워드 자동 강조. */
 function renderBold(text: string): ReactNode {
-  if (!text || !text.includes('**')) return text;
-  const parts = text.split(/\*\*([^*]+)\*\*/g);
-  return parts.map((p, i) =>
-    i % 2 === 1 ? <strong key={i}>{p}</strong> : <Fragment key={i}>{p}</Fragment>,
-  );
+  if (!text) return text;
+  const out: ReactNode[] = [];
+  const re = /\*\*([^*]+)\*\*/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  let seg = 0;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) {
+      out.push(<Fragment key={`s${seg++}`}>{autoBold(text.slice(last, m.index), `s${seg}`)}</Fragment>);
+    }
+    out.push(<strong key={`e${m.index}`}>{m[1]}</strong>);
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) {
+    out.push(<Fragment key={`s${seg++}`}>{autoBold(text.slice(last), `s${seg}`)}</Fragment>);
+  }
+  return out;
 }
 
 function BackIcon() {
