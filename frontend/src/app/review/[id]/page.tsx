@@ -30,6 +30,15 @@ import type { ReviewResult } from '@/types/review';
 
 import styles from './page.module.css';
 
+/** 데모(/review/demo) 전용 샘플 원문 — '원문 보기·표준양식 만들기' 시연용. */
+const DEMO_WR_TEXT = [
+  '제24조(연장근로) 회사는 업무상 필요한 경우 근로자대표와 서면 합의에 따라 1주 16시간을 한도로 연장근로를 명할 수 있다.',
+  '제38조(연차유급휴가) 회사는 1년간 80% 이상 출근한 근로자에게 15일의 유급휴가를 준다.',
+  '제45조(출산전후휴가) 회사는 임신 중의 여성에게 출산 전후 90일의 휴가를 준다.',
+  '제62조(징계절차) 회사는 징계 시 해당 근로자에게 소명할 기회를 줄 수 있다.',
+  '제68조(정년) 근로자의 정년은 회사가 정하는 바에 따른다.',
+].join('\n');
+
 /**
  * 결과 대시보드 페이지.
  *
@@ -204,11 +213,14 @@ export default function ReviewResultPage({
 
   // 수정본 생성 — 원문은 그대로, 사용자가 담은 수정 항목만 반영해 전문 출력.
   // 원문 텍스트(wr.extractedText)가 있는 케이스에서만 노출 (레거시 케이스 보호).
-  const wrExtractedText = entry?.wr?.extractedText;
+  // 데모(/review/demo)는 원문이 없어 '원문 보기·표준양식 만들기'가 숨겨지므로,
+  // 목업이 완전하게 보이도록 샘플 원문을 채워 두 기능을 모두 노출한다.
+  const isDemo = params.id === 'demo';
+  const wrExtractedText = entry?.wr?.extractedText ?? (isDemo ? DEMO_WR_TEXT : undefined);
   const handleGenerate = () => {
     // 담은 항목은 onPersist 가 store 의 userOverrides 로 즉시 영속화 — 호출
     // 시점의 최신 값을 store 에서 읽는다 (EC handleGenerate 와 동일 패턴).
-    const text = getCase(params.id)?.wr?.extractedText ?? '';
+    const text = getCase(params.id)?.wr?.extractedText ?? (isDemo ? DEMO_WR_TEXT : '');
     if (!text.trim()) {
       setCaseError(params.id, '원문 텍스트가 없어 수정본을 만들 수 없어요.');
       return;
