@@ -1,0 +1,268 @@
+/* 업로드 E안 — 촬영 우선 + 스캔 애니메이션 + 다중 촬영 트레이.
+   색은 브랜드 네이비로 통일(명세). 단어 끊김 방지. */
+
+.wrap {
+  --e-brand: #0b3d91;
+  --e-brand-strong: #082e6e;
+  --e-tintA: #eaf0fb;
+  --e-tintB: #f6f4ef;
+  --e-border: var(--color-border, #e5e4de);
+  --e-border-strong: var(--color-border-strong, #d4d2c9);
+  display: flex;
+  flex-direction: column;
+}
+
+.hidden {
+  display: none;
+}
+
+.err {
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  color: #991b1b;
+  font-size: 12.5px;
+  line-height: 1.5;
+  padding: 9px 12px;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  word-break: keep-all;
+}
+
+/* ── 히어로 카드 ── */
+.hero {
+  border: 1px solid var(--e-border);
+  border-radius: 22px;
+  background: var(--color-surface, #fff);
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.pic {
+  position: relative;
+  height: 188px;
+  display: grid;
+  place-items: center;
+  border-bottom: 1px solid var(--e-border);
+  overflow: hidden;
+  background: radial-gradient(130% 100% at 50% -10%, var(--e-tintA) 0%, var(--e-tintB) 72%);
+}
+
+/* 종이 */
+.paper {
+  position: relative;
+  width: 104px;
+  height: 130px;
+  background: #fff;
+  border: 1px solid var(--e-border-strong);
+  border-radius: 9px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+.ln {
+  position: absolute;
+  left: 14px;
+  height: 4px;
+  border-radius: 9px;
+  background: #e7e5de;
+}
+.lnT {
+  top: 16px;
+  width: 56px;
+  height: 6px;
+  background: #d7deea;
+}
+.lnA { top: 34px; right: 14px; }
+.lnB { top: 48px; right: 14px; }
+.lnC { top: 62px; right: 28px; }
+.lnD { top: 80px; right: 14px; }
+.lnE { top: 94px; right: 14px; }
+
+/* 스캔 빔 */
+.beam {
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  height: 26px;
+  top: -30px;
+  background: linear-gradient(
+    180deg,
+    rgba(11, 61, 145, 0),
+    rgba(11, 61, 145, 0.13) 60%,
+    rgba(11, 61, 145, 0)
+  );
+  border-bottom: 2px solid var(--e-brand);
+  opacity: 0;
+  pointer-events: none;
+}
+.scanning .beam {
+  animation: scan 2.1s ease-in-out infinite;
+  opacity: 1;
+}
+@keyframes scan {
+  0% { top: -6px; }
+  50% { top: 108px; }
+  100% { top: -6px; }
+}
+
+/* 카메라 렌즈 */
+.lens {
+  position: absolute;
+  right: 34px;
+  bottom: 18px;
+  width: 50px;
+  height: 50px;
+  border-radius: 15px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--e-brand);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+  border: 3px solid #fff;
+  z-index: 3;
+}
+.scanning .lens {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.07); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scanning .beam { animation: none; opacity: 0; }
+  .scanning .lens { animation: none; }
+}
+
+/* ── 본문 ── */
+.body {
+  padding: 18px 18px 20px;
+}
+.h {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  margin: 0;
+  min-height: 24px;
+  word-break: keep-all;
+}
+.p {
+  font-size: 12.5px;
+  color: var(--color-text-muted, #5a6170);
+  line-height: 1.6;
+  margin: 7px 0 0;
+  min-height: 38px;
+  word-break: keep-all;
+}
+
+.btnPrimary {
+  margin-top: 16px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #fff;
+  background: var(--e-brand);
+  border: 0;
+  border-radius: 13px;
+  padding: 15px 0;
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.15s;
+}
+.btnPrimary:active { transform: scale(0.98); }
+.btnPrimary:hover { background: var(--e-brand-strong); }
+
+.btnSecondary {
+  margin-top: 9px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #1a1d24);
+  border: 1px solid var(--e-border);
+  border-radius: 13px;
+  padding: 13px 0;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btnSecondary:active { background: var(--color-surface-muted, #f5f4f0); }
+
+.tiny {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+  margin-top: 14px;
+  font-size: 11px;
+  color: var(--color-text-subtle, #8b92a0);
+  word-break: keep-all;
+}
+
+/* ── 촬영 트레이(done) ── */
+.doneHead {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+.doneSub {
+  font-size: 12.5px;
+  color: var(--color-text-muted, #5a6170);
+  margin: 7px 0 0;
+  word-break: keep-all;
+}
+.tray {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.pg {
+  width: 44px;
+  height: 56px;
+  border-radius: 8px;
+  border: 1px solid var(--e-border-strong);
+  background: #fff;
+  position: relative;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  color: var(--color-text-subtle, #8b92a0);
+  font-weight: 700;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
+}
+.pgX {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-text, #1a1d24);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.add {
+  width: 44px;
+  height: 56px;
+  border-radius: 8px;
+  border: 1px dashed var(--e-brand);
+  background: #fff;
+  color: var(--e-brand);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}

@@ -12,6 +12,7 @@ import Hero from '@/components/home/Hero';
 import SectionHeading from '@/components/home/SectionHeading';
 import DocTypePicker from '@/components/home/DocTypePicker';
 import FileDropzone from '@/components/home/FileDropzone';
+import MobileUploadE from '@/components/home/MobileUploadE';
 import HomeGuidePreview from '@/components/home/HomeGuidePreview';
 import WorkplaceForm, {
   DEFAULT_WORKPLACE,
@@ -482,8 +483,8 @@ export default function HomePage() {
             <span className={styles.mDtBadge}>선택됨</span>
           </div>
 
-          <div className={styles.mLab}>파일을 올려주세요</div>
-          <FileDropzone value={files} onChange={setFiles} />
+          {/* 업로드 E안 — 촬영 우선 + 스캔 + 다중 촬영 트레이 (모바일) */}
+          <MobileUploadE docType={docType} value={files} onChange={setFiles} />
 
           <div className={styles.mLab}>사업장 기본 정보</div>
           <WorkplaceForm
