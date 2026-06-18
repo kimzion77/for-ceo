@@ -296,8 +296,20 @@ export function ChatPanel({
         onClick={() => setOpen(true)}
         aria-label="노무 가이드 챗봇 열기"
       >
-        💬
-        <span className={styles.chatFabLabel}>물어보기</span>
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 9 9 0 0 1-4-1L3 20l1.5-4.5a8.38 8.38 0 0 1-1-4A8.5 8.5 0 0 1 12 3a8.38 8.38 0 0 1 9 8.5z" />
+        </svg>
+        <span className={styles.chatFabLabel}>노무 가이드</span>
       </button>
     );
   }
