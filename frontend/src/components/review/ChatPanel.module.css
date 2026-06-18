@@ -31,9 +31,25 @@
   font-weight: 700;
 }
 
-/* 모바일 검토앱 내장 — 하단 액션바(약 80px) 위로 띄운다. */
+/* 모바일 검토앱 내장 — 말풍선 아이콘만(원형)으로 우하단 구석에 작게. */
 .chatFabEmbedded {
-  bottom: 92px;
+  bottom: 80px;
+  right: 16px;
+  padding: 0;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  justify-content: center;
+  gap: 0;
+}
+
+.chatFabEmbedded .chatFabLabel {
+  display: none;
+}
+
+.chatFabEmbedded svg {
+  width: 24px;
+  height: 24px;
 }
 
 .chatPanel {
@@ -387,9 +403,9 @@
     right: 16px;
   }
 
-  /* 내장 모드 — 모바일에서도 하단 액션바 위로 */
+  /* 내장 모드 — 모바일에서도 우하단 구석에 작은 원형 */
   .chatFabEmbedded {
-    bottom: 92px;
+    bottom: 80px;
     right: 16px;
   }
 }

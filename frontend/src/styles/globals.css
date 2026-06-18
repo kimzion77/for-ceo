@@ -128,6 +128,10 @@ body {
 
 body {
   min-height: 100vh;
+  /* 전반적으로 글자(및 UI)를 8% 키운다 — 비율은 그대로 유지(균등 확대).
+     px 기반 폰트가 많아 변수만으론 다 안 커지므로 zoom 으로 일괄 확대.
+     인쇄(@media print)에서는 1 로 되돌려 A4 리포트 레이아웃 보존. */
+  zoom: 1.08;
 }
 
 /* ── 모바일 입력 자동 줌 방지 ──
@@ -207,6 +211,8 @@ textarea {
   body {
     background: #ffffff !important;
     color: #0a0a0a !important;
+    /* 화면 확대(zoom)는 인쇄에 미적용 — A4 리포트 비율 보존 */
+    zoom: 1 !important;
   }
   /* 외부 링크의 url(...) 보여주는 user-agent 기본 동작 비활성 */
   a[href]::after {
