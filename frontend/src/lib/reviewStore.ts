@@ -368,6 +368,12 @@ export function setCaseResult(caseId: string, result: ReviewResult) {
     originalUrl: prev?.originalUrl,
     originalFilename: prev?.originalFilename,
     originalKind: prev?.originalKind,
+    // 워크플로 상태 보존 — 특히 wr.extractedText 가 있어야 결과 화면에서
+    // '원문에서 보기'가 노출된다(이게 없으면 원문 보기 버튼이 사라짐).
+    wr: prev?.wr,
+    ws: prev?.ws,
+    ec: prev?.ec,
+    sc: prev?.sc,
   };
   memory.set(caseId, entry);
   persist(caseId, entry);

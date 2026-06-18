@@ -13,7 +13,7 @@
  * 여기서는 파일(촬영분)만 모은다. value/onChange 로 부모가 files 를 소유.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { DocumentType } from '@/types/review';
 
@@ -121,6 +121,24 @@ export default function MobileUploadE({ docType, value, onChange }: Props) {
     return i < 0 ? '' : n.slice(i).toLowerCase();
   };
 
+  // 올린 파일 미리보기 — 이미지는 실제 썸네일, 문서는 아이콘+이름. (트레이 대신 크게)
+  const previews = useMemo(
+    () =>
+      value.map((f) => {
+        const isImg =
+          f.type.startsWith('image/') ||
+          /\.(png|jpe?g|gif|bmp|tiff?|webp)$/i.test(f.name);
+        return { file: f, isImg, url: isImg ? URL.createObjectURL(f) : null };
+      }),
+    [value],
+  );
+  useEffect(
+    () => () => {
+      previews.forEach((p) => p.url && URL.revokeObjectURL(p.url));
+    },
+    [previews],
+  );
+
   const addFiles = (list: FileList | null) => {
     if (!list || list.length === 0) return;
     const merged = [...value];
@@ -204,13 +222,25 @@ export default function MobileUploadE({ docType, value, onChange }: Props) {
           <p className={styles.doneSub}>
             맞게 올라왔는지 확인하고, 더 있으면 <b>+</b> 를 누르세요.
           </p>
-          <div className={styles.tray}>
-            {value.map((f, i) => (
-              <div className={styles.pg} key={`${f.name}-${f.size}-${f.lastModified}-${i}`}>
-                {i + 1}
+          <div className={styles.previews}>
+            {previews.map((p, i) => (
+              <div
+                className={styles.preview}
+                key={`${p.file.name}-${p.file.size}-${p.file.lastModified}-${i}`}
+              >
+                {p.isImg && p.url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={p.url} alt={`${i + 1}쪽 미리보기`} className={styles.previewImg} />
+                ) : (
+                  <div className={styles.previewDoc}>
+                    <FileIcon />
+                    <span className={styles.previewName}>{p.file.name}</span>
+                  </div>
+                )}
+                <span className={styles.previewNo}>{i + 1}</span>
                 <button
                   type="button"
-                  className={styles.pgX}
+                  className={styles.previewX}
                   onClick={() => removeAt(i)}
                   aria-label={`${i + 1}번 삭제`}
                 >
@@ -220,11 +250,12 @@ export default function MobileUploadE({ docType, value, onChange }: Props) {
             ))}
             <button
               type="button"
-              className={styles.add}
+              className={styles.previewAdd}
               onClick={openPrimary}
               aria-label="더 추가"
             >
-              +
+              <span className={styles.previewAddPlus}>+</span>
+              <span className={styles.previewAddLabel}>추가</span>
             </button>
           </div>
           <div className={styles.tiny}>

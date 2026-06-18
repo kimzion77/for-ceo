@@ -219,52 +219,114 @@
   margin: 7px 0 0;
   word-break: keep-all;
 }
-.tray {
+/* 올린 파일 미리보기 — 크게, 가운데. 단일이면 큼직하게, 여럿이면 2열 그리드 */
+.previews {
   display: flex;
-  gap: 8px;
-  margin-top: 14px;
   flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 14px;
+  justify-content: center;
+  align-items: flex-start;
 }
-.pg {
-  width: 44px;
-  height: 56px;
-  border-radius: 8px;
-  border: 1px solid var(--e-border-strong);
-  background: #fff;
+.preview {
   position: relative;
+  width: 46%;
+  max-width: 220px;
+  aspect-ratio: 3 / 4;
+  border-radius: 12px;
+  border: 1px solid var(--e-border-strong);
+  background: var(--color-surface, #fff);
+  overflow: hidden;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+}
+/* 한 장만 올렸으면 가운데에서 크게 */
+.preview:only-of-type {
+  width: 78%;
+  max-width: 280px;
+}
+.previewImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.previewDoc {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px;
+  color: var(--e-brand);
+  text-align: center;
+}
+.previewDoc svg {
+  width: 38px;
+  height: 38px;
+}
+.previewName {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text, #1a1d24);
+  word-break: break-all;
+  line-height: 1.4;
+  max-height: 3.4em;
+  overflow: hidden;
+}
+.previewNo {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(11, 61, 145, 0.92);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
   display: grid;
   place-items: center;
-  font-size: 11px;
-  color: var(--color-text-subtle, #8b92a0);
-  font-weight: 700;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
 }
-.pgX {
+.previewX {
   position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 18px;
-  height: 18px;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
   border: 0;
   border-radius: 50%;
-  background: var(--color-text, #1a1d24);
+  background: rgba(26, 29, 36, 0.82);
   color: #fff;
-  font-size: 11px;
+  font-size: 16px;
   line-height: 1;
   display: grid;
   place-items: center;
   cursor: pointer;
 }
-.add {
-  width: 44px;
-  height: 56px;
-  border-radius: 8px;
-  border: 1px dashed var(--e-brand);
-  background: #fff;
+.previewAdd {
+  width: 46%;
+  max-width: 220px;
+  aspect-ratio: 3 / 4;
+  border-radius: 12px;
+  border: 1.5px dashed var(--e-brand);
+  background: var(--color-surface, #fff);
   color: var(--e-brand);
-  font-size: 22px;
-  line-height: 1;
   cursor: pointer;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.previewAddPlus {
+  font-size: 30px;
+  line-height: 1;
+  font-weight: 300;
+}
+.previewAddLabel {
+  font-size: 13px;
+  font-weight: 700;
 }

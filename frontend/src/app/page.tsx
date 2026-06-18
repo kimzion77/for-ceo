@@ -512,9 +512,9 @@ export default function HomePage() {
           </div>
           <div className={styles.mSizeOpts}>
             {[
-              { v: 'unknown', label: '모름' },
               { v: '5+', label: '5인 이상' },
               { v: '5-', label: '5인 미만' },
+              { v: 'unknown', label: '모름' },
             ].map((o) => {
               const active = workplace.businessSize === o.v;
               return (
