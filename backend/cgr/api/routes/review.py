@@ -427,8 +427,14 @@ def post_generate_start(body: GenerateIn):
     standard = _load_standard_work_rules()
 
     def _do() -> str:
+        # mark_changes=True — 교체·추가 문구를 【수정】…【/수정】 로 감싸 반환.
+        # 프론트(wr/contract)가 하이라이트 렌더에 사용. SC 경로는 기본 False 유지.
         return revise.run(
-            "취업규칙", original_text, corrections, standard_text=standard
+            "취업규칙",
+            original_text,
+            corrections,
+            standard_text=standard,
+            mark_changes=True,
         )
 
     return ReviewJobStartOut(job_id=jobs.start_job(_do))

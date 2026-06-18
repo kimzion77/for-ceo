@@ -31,7 +31,9 @@ _MAX_RETRIES = 3
 _RETRY_BACKOFF = (2.0, 5.0, 10.0)
 
 
-def _build_system_prompt(doc_label: str, has_standard: bool) -> str:
+def _build_system_prompt(
+    doc_label: str, has_standard: bool, mark_changes: bool = False
+) -> str:
     base = (
         "당신은 노동법 문서 수정 전문가입니다.\n"
         f"입력된 원문을 **그대로 유지**하되, 아래 수정 목록의 항목만 반영한 "
@@ -56,6 +58,15 @@ def _build_system_prompt(doc_label: str, has_standard: bool) -> str:
             " 법정 기준을 우선하되, 사업장 고유 정보(상호·일자·금액·인명 등)는 반드시"
             " 원문의 값을 유지한다. 표준 양식은 참조 기준일 뿐 — 원문에 없는 조항을"
             " 표준 양식에서 통째로 가져와 덧붙이지 않는다(수정 목록에 있는 항목만 반영)."
+        )
+    if mark_changes:
+        # 주의: 이 규칙은 mark_changes=True 호출(WR)에만 붙는다.
+        # False 경로(SC)의 system 프롬프트는 종전과 byte-동일해야 기존 캐시가 유지됨.
+        base += (
+            "\n6. **수정 위치 마커** — 교체·추가한 모든 문구는 정확히 그 범위만"
+            " 【수정】…【/수정】 마커로 감싼다. 수정하지 않은 원문에는 절대 마커를"
+            " 붙이지 않는다. 마커는 이 두 토큰 외 다른 형태(괄호 변형·대체 기호·"
+            "중첩) 금지."
         )
     return base
 
@@ -85,6 +96,7 @@ def run(
     *,
     standard_text: str | None = None,
     model: str | None = None,
+    mark_changes: bool = False,
 ) -> str:
     """원문 + 수정 목록 (+ 표준 양식) → 수정본 전문 텍스트.
 
@@ -94,6 +106,9 @@ def run(
         corrections: [{"name": 항목명, "now": 현재 표현, "fix": 수정 문구}, ...]
         standard_text: 준용 기준이 되는 표준 양식 전문 (예: 고용노동부 표준취업규칙).
             전달 시 수정 문구가 표준 양식의 조항 표현을 준용하도록 프롬프트에 주입.
+        mark_changes: True 면 교체·추가된 문구를 【수정】…【/수정】 마커로 감싸도록
+            지시 — 프론트가 하이라이트 렌더에 사용 (WR 전용). 캐시 키 schema 에
+            "marked" 가 포함되어 무마커 캐시와 분리된다. 기본 False (SC 경로 불변).
 
     실패 시 빈 문자열을 반환하지 않고 raise. 호출자는 HTTP 500 처리.
     """
@@ -112,13 +127,20 @@ def run(
         standard_text = standard_text[:80_000]
 
     model_name = get_llm_model(model)
-    sys_prompt = _build_system_prompt(doc_label, has_standard=bool(standard_text))
+    sys_prompt = _build_system_prompt(
+        doc_label, has_standard=bool(standard_text), mark_changes=mark_changes
+    )
     user_prompt = _build_user_prompt(original_text, corrections, standard_text)
 
+    # 캐시 키 — 마커 모드는 schema 에 명시해 무마커 캐시와 분리.
+    # mark_changes=False 일 때는 종전 schema 그대로 (기존 SC 캐시 보존).
+    cache_schema: dict = {"kind": "revise", "doc": doc_label}
+    if mark_changes:
+        cache_schema["marked"] = True
     cache_key = llm_cache.make_key(
         system=sys_prompt,
         user=user_prompt,
-        schema={"kind": "revise", "doc": doc_label},
+        schema=cache_schema,
         model=model_name,
     )
     cached = llm_cache.get(cache_key)

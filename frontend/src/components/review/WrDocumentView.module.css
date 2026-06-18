@@ -1,0 +1,243 @@
+/* 취업규칙 수정본 — A4 종이 문서 뷰.
+   ContractFormView 의 paper 스타일 어휘를 차용하되, 그 파일은 수정 금지라
+   여기서 독립 정의한다. */
+
+.paper {
+  max-width: 820px;
+  margin: 0 auto;
+  background: #ffffff;
+  border: 1px solid var(--color-border, #d6dbe3);
+  border-radius: var(--r-lg, 12px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.06);
+  padding: 46px 50px 54px;
+  color: #1e293b;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.9;
+  word-break: keep-all;
+}
+
+/* ── 줄(조·항 단락) ───────────────────── */
+
+.line {
+  position: relative;
+  white-space: pre-wrap;
+  padding: 2px 10px;
+  margin: 0 -10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.12s;
+}
+.line:hover {
+  background: rgba(42, 111, 219, 0.06);
+}
+.line:focus-visible {
+  outline: 2px solid var(--color-brand, #2a6fdb);
+  outline-offset: -2px;
+}
+
+/* 빈 줄 — 단락 간격 */
+.blank {
+  height: 14px;
+}
+
+/* AI 수정 구간이 있는 줄 — 좌측 초록 가이드 */
+.lineChanged {
+  border-left: 3px solid #059669;
+  padding-left: 12px;
+  margin-left: -15px;
+}
+
+/* 사용자가 직접 편집한 줄 — 좌측 파랑 가이드 */
+.lineEdited {
+  border-left: 3px solid var(--color-brand, #2a6fdb);
+  padding-left: 12px;
+  margin-left: -15px;
+  background: rgba(42, 111, 219, 0.04);
+}
+
+/* 형광펜 — 교체·추가된 문구 */
+.hl {
+  background: #bbf7d0;
+  color: #064e3b;
+  padding: 1px 2px;
+  border-radius: 3px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* ── 칩·배지 ─────────────────────────── */
+
+.chip {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+.chipFix {
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #6ee7b7;
+}
+.chipEdited {
+  background: var(--color-brand-soft, #e5ecf8);
+  color: var(--color-brand, #0b3d91);
+  border: 1px solid var(--color-brand, #0b3d91);
+}
+
+.revertBtn {
+  margin-left: 6px;
+  vertical-align: middle;
+  background: #ffffff;
+  border: 1px solid var(--color-border, #d6dbe3);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--color-text-muted, #64748b);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.revertBtn:hover {
+  border-color: var(--color-brand, #2a6fdb);
+  color: var(--color-brand, #2a6fdb);
+}
+
+/* ── 인라인 편집 ──────────────────────── */
+
+.editWrap {
+  margin: 2px -10px;
+  padding: 8px 10px 10px;
+  border: 1.5px solid var(--color-brand, #2a6fdb);
+  border-radius: 8px;
+  background: rgba(42, 111, 219, 0.04);
+}
+.editArea {
+  display: block;
+  width: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  font: inherit;
+  line-height: inherit;
+  color: #0f172a;
+  padding: 0;
+  overflow: hidden;
+  min-height: 30px;
+}
+.editActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+.editHint {
+  margin-right: auto;
+  font-size: 11px;
+  color: var(--color-text-subtle, #94a3b8);
+}
+.btnSave {
+  background: var(--color-brand, #0b3d91);
+  color: #fff;
+  border: 1px solid var(--color-brand, #0b3d91);
+  border-radius: 6px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btnSave:hover {
+  background: var(--color-brand-strong, #08306e);
+}
+.btnCancel {
+  background: #ffffff;
+  color: var(--color-text-muted, #64748b);
+  border: 1px solid var(--color-border, #d6dbe3);
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btnCancel:hover {
+  border-color: var(--color-brand, #2a6fdb);
+  color: var(--color-brand, #2a6fdb);
+}
+
+/* ── 모바일 ──────────────────────────── */
+
+@media (max-width: 720px) {
+  .paper {
+    max-width: none;
+    border-radius: 10px;
+    padding: 22px 14px 30px;
+  }
+  /* iOS 줌 방지 — 입력 폰트 16px 이상 */
+  .editArea {
+    font-size: 16px;
+  }
+  .line {
+    padding: 4px 8px;
+    margin: 0 -8px;
+  }
+  .lineChanged,
+  .lineEdited {
+    padding-left: 10px;
+    margin-left: -13px;
+  }
+}
+
+/* ── 인쇄 — 형광펜은 유지, 칩·편집 UI 는 숨김 ── */
+
+@media print {
+  .paper {
+    max-width: none;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+    font-size: 12.5px;
+  }
+  .line {
+    cursor: auto;
+    padding: 0;
+    margin: 0;
+  }
+  .line:hover {
+    background: transparent;
+  }
+  .chip,
+  .revertBtn,
+  .editActions {
+    display: none !important;
+  }
+  .lineChanged,
+  .lineEdited {
+    border-left: none;
+    padding-left: 0;
+    margin-left: 0;
+    background: transparent;
+  }
+  .hl {
+    background: #bbf7d0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .editWrap {
+    border: none;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+  }
+  .blank {
+    height: 12px;
+  }
+}
