@@ -152,8 +152,8 @@ export default function WsTypeConfirm({
           </div>
           <div className={styles.line2}>
             <span className={styles.miniChip}>{aiType}</span>
-            {reason && <span className={styles.reason}>{reason}</span>}
           </div>
+          {reason && <div className={styles.reasonBlock}>{reason}</div>}
         </div>
         <div className={styles.askActions}>
           <button type="button" className={styles.btnBrand} onClick={handleYes}>

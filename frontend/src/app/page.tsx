@@ -508,13 +508,12 @@ export default function HomePage() {
           <div className={styles.mSizeGrab} />
           <div className={styles.mSizeTitle}>사업장 규모를 알려주세요</div>
           <div className={styles.mSizeSub}>
-            상시 근로자 수에 따라 적용 규정이 달라요. 모르면 ‘모름’을 선택하세요.
+            상시 근로자 수에 따라 적용 규정이 달라요. 잘 모르겠으면 ‘5인 이상’으로 두세요.
           </div>
           <div className={styles.mSizeOpts}>
             {[
               { v: '5+', label: '5인 이상' },
               { v: '5-', label: '5인 미만' },
-              { v: 'unknown', label: '모름' },
             ].map((o) => {
               const active = workplace.businessSize === o.v;
               return (

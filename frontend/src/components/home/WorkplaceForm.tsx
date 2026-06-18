@@ -76,7 +76,7 @@ export const DEFAULT_WORKPLACE: WorkplaceFormState = {
   chemicals: 'unknown',
   envMonitor: 'unknown',
   osh: true,
-  businessSize: 'unknown',
+  businessSize: '5+',
   workerTypes: ['정규직'],
   payPeriodYear: _today().year,
   payPeriodMonth: _today().month,
@@ -131,7 +131,6 @@ export function WorkplaceForm({ value, onChange }: WorkplaceFormProps) {
           </div>
           <div className={styles.options}>
             {[
-              { value: 'unknown', label: '모름' },
               { value: '5+', label: '5인 이상' },
               { value: '5-', label: '5인 미만' },
             ].map((opt) => {
