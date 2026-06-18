@@ -38,6 +38,11 @@ interface ChatPanelProps {
   docLabel?: string;
   /** 자주 묻는 질문 칩 — 빈 배열이면 기본값. */
   quickPrompts?: string[];
+  /**
+   * 모바일 검토앱 안에 끼워 넣을 때 true — FAB 를 하단 액션바 위로 띄운다
+   * (기본은 화면 우하단). 패널 자체는 동일.
+   */
+  embedded?: boolean;
 }
 
 interface ChatMessage {
@@ -222,6 +227,7 @@ export function ChatPanel({
   focusedItem,
   docLabel = '검토 결과',
   quickPrompts,
+  embedded = false,
 }: ChatPanelProps) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -286,9 +292,9 @@ export function ChatPanel({
     return (
       <button
         type="button"
-        className={styles.chatFab}
+        className={`${styles.chatFab} ${embedded ? styles.chatFabEmbedded : ''}`}
         onClick={() => setOpen(true)}
-        aria-label="노동법 챗봇 열기"
+        aria-label="노무 가이드 챗봇 열기"
       >
         💬
         <span className={styles.chatFabLabel}>물어보기</span>

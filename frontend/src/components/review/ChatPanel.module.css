@@ -31,6 +31,11 @@
   font-weight: 700;
 }
 
+/* 모바일 검토앱 내장 — 하단 액션바(약 80px) 위로 띄운다. */
+.chatFabEmbedded {
+  bottom: 92px;
+}
+
 .chatPanel {
   position: fixed;
   bottom: 28px;
@@ -379,6 +384,12 @@
 
   .chatFab {
     bottom: 16px;
+    right: 16px;
+  }
+
+  /* 내장 모드 — 모바일에서도 하단 액션바 위로 */
+  .chatFabEmbedded {
+    bottom: 92px;
     right: 16px;
   }
 }
