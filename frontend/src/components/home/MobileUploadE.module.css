@@ -219,30 +219,30 @@
   margin: 7px 0 0;
   word-break: keep-all;
 }
-/* 올린 파일 미리보기 — 크게, 가운데. 단일이면 큼직하게, 여럿이면 2열 그리드 */
+/* 올린 파일 미리보기 — 가로 스와이프(캐러셀). 옆으로 넘기면 '추가' 카드가
+   맨 끝에 있어 바로 추가 가능. 다음 카드가 살짝 보이도록 카드 폭을 잡는다. */
 .previews {
   display: flex;
-  flex-wrap: wrap;
   gap: 12px;
   margin-top: 14px;
-  justify-content: center;
-  align-items: flex-start;
+  padding: 2px 2px 10px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 .preview {
   position: relative;
-  width: 46%;
-  max-width: 220px;
+  flex: 0 0 auto;
+  width: 64%;
+  max-width: 240px;
   aspect-ratio: 3 / 4;
+  scroll-snap-align: center;
   border-radius: 12px;
   border: 1px solid var(--e-border-strong);
   background: var(--color-surface, #fff);
   overflow: hidden;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
-}
-/* 한 장만 올렸으면 가운데에서 크게 */
-.preview:only-of-type {
-  width: 78%;
-  max-width: 280px;
 }
 .previewImg {
   width: 100%;
@@ -307,9 +307,11 @@
   cursor: pointer;
 }
 .previewAdd {
-  width: 46%;
-  max-width: 220px;
+  flex: 0 0 auto;
+  width: 64%;
+  max-width: 240px;
   aspect-ratio: 3 / 4;
+  scroll-snap-align: center;
   border-radius: 12px;
   border: 1.5px dashed var(--e-brand);
   background: var(--color-surface, #fff);
