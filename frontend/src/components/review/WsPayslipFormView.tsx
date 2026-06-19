@@ -4,189 +4,184 @@ import type { WsPayslipForm, WagePayLine } from '@/lib/api/ws';
 import styles from './WsPayslipFormView.module.css';
 
 /**
- * 공식 임금명세서 서식(고용노동부 표준)을 HTML 로 재현해 각 칸에 값을 채우는 뷰.
+ * 고용노동부 표준 임금명세서 서식(공란)을 그대로 재현해 각 칸에 값을 채우는 뷰.
+ * (backend/data/forms/임금명세서 서식(공란).hwp 레이아웃 기준)
  *
- * 구조화 생성(`/ws/generate-form`) 결과를 그대로 바인딩한다.
- * 분석에서 보완된 항목/칸은 `supplemented` / `supplementedFields` 로 표시해 하이라이트.
+ * 구조: 제목(년·월) + 지급일 / 성명·사번·부서·직급 / 세부 내역(지급|공제 2단 +
+ * 지급액계·공제액계·실지급액) / 계산 방법 / 하단 안내문.
+ * 분석으로 보완된 항목은 '보완' 배지 + 행 하이라이트.
  */
 
 interface Props {
   form: WsPayslipForm;
 }
 
-const won = (v?: string) => {
+const numOnly = (v?: string) => (v ?? '').replace(/[^\d.-]/g, '');
+const amt = (v?: string) => {
   const s = (v ?? '').trim();
   if (!s) return '';
-  // 이미 콤마/원 표기면 그대로, 숫자만이면 원 추가
-  return /[원,]/.test(s) ? s : `${s}원`;
+  const n = numOnly(s);
+  if (n && !Number.isNaN(Number(n))) return Number(n).toLocaleString('ko-KR');
+  return s.replace(/원/g, '');
 };
 
-function isSup(form: WsPayslipForm, key: string): boolean {
-  return Array.isArray(form.supplementedFields) && form.supplementedFields.includes(key);
-}
-
-function Field({
-  label,
-  value,
-  sup,
-}: {
-  label: string;
-  value?: string;
-  sup?: boolean;
-}) {
-  return (
-    <div className={`${styles.field} ${sup ? styles.fieldSup : ''}`}>
-      <span className={styles.fieldLabel}>{label}</span>
-      <span className={styles.fieldValue}>
-        {value && value.trim() ? value : <em className={styles.empty}>—</em>}
-        {sup && <span className={styles.supBadge}>보완</span>}
-      </span>
-    </div>
-  );
-}
-
-function LineTable({
-  title,
-  lines,
-  total,
-  totalLabel,
-}: {
-  title: string;
-  lines: WagePayLine[];
-  total?: string;
-  totalLabel: string;
-}) {
-  return (
-    <div className={styles.tableWrap}>
-      <div className={styles.tableTitle}>{title}</div>
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th className={styles.colName}>항목</th>
-            <th className={styles.colAmt}>금액</th>
-            <th className={styles.colBasis}>계산방법·비고</th>
-          </tr>
-        </thead>
-        <tbody>
-          {lines.length === 0 ? (
-            <tr>
-              <td colSpan={3} className={styles.emptyRow}>
-                기재된 항목이 없습니다
-              </td>
-            </tr>
-          ) : (
-            lines.map((l, i) => (
-              <tr
-                key={`${l.name}-${i}`}
-                className={l.supplemented ? styles.rowSup : ''}
-              >
-                <td className={styles.colName}>
-                  {l.name}
-                  {l.supplemented && <span className={styles.supBadge}>보완</span>}
-                </td>
-                <td className={styles.colAmt}>{won(l.amount)}</td>
-                <td className={styles.colBasis}>{l.basis || ''}</td>
-              </tr>
-            ))
-          )}
-        </tbody>
-        <tfoot>
-          <tr>
-            <td className={styles.colName}>
-              <strong>{totalLabel}</strong>
-            </td>
-            <td className={styles.colAmt}>
-              <strong>{won(total)}</strong>
-            </td>
-            <td className={styles.colBasis} />
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-  );
+/** settlementPeriod 또는 paymentDate 에서 연·월 추출. */
+function yearMonth(form: WsPayslipForm): { y: string; m: string } {
+  const src = form.settlementPeriod || form.paymentDate || '';
+  const mt = src.match(/(\d{4})\s*[-./년]\s*(\d{1,2})/);
+  if (mt) return { y: mt[1], m: String(Number(mt[2])) };
+  return { y: '', m: '' };
 }
 
 export default function WsPayslipFormView({ form }: Props) {
   const w = form.worker || {};
   const e = form.employer || {};
-  const t = form.workTime || {};
+  const { y, m } = yearMonth(form);
+
+  const pays: WagePayLine[] = form.payments || [];
+  const deds: WagePayLine[] = form.deductions || [];
+  const rowN = Math.max(pays.length, deds.length, 4);
+  const rows = Array.from({ length: rowN }, (_, i) => ({
+    pay: pays[i],
+    ded: deds[i],
+  }));
+
+  // 계산 방법 — 산출식(basis)이 있는 지급 항목.
+  const calcRows = pays.filter((p) => (p.basis || '').trim());
+
+  const empW = [e.company, e.businessNo ? `(${e.businessNo})` : '']
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <div className={styles.sheet}>
-      <h2 className={styles.docTitle}>임 금 명 세 서</h2>
+      {/* 상단 회사 영역 (서식 상단 점선 박스) */}
+      <div className={styles.companyBox}>{empW || ' '}</div>
 
-      {/* 상단 메타 */}
-      <div className={styles.metaGrid}>
-        <Field label="산정 기간" value={form.settlementPeriod} sup={isSup(form, 'settlementPeriod')} />
-        <Field label="지급일" value={form.paymentDate} sup={isSup(form, 'paymentDate')} />
-        <Field label="교부 방식" value={form.deliveryMethod} sup={isSup(form, 'deliveryMethod')} />
+      {/* 제목 + 지급일 */}
+      <div className={styles.titleRow}>
+        <h2 className={styles.docTitle}>
+          {y || '____'} 년 {m || '__'} 월 임금명세서
+        </h2>
+        <div className={styles.payDate}>지급일 : {form.paymentDate || ''}</div>
       </div>
 
-      {/* 사용자 / 근로자 정보 */}
-      <div className={styles.twoCol}>
-        <section className={`${styles.infoBox} ${isSup(form, 'employer') ? styles.boxSup : ''}`}>
-          <div className={styles.boxHead}>
-            사용자(사업자) 정보
-            {isSup(form, 'employer') && <span className={styles.supBadge}>보완</span>}
-          </div>
-          <Field label="상호" value={e.company} />
-          <Field label="사업자등록번호" value={e.businessNo} />
-          <Field label="대표자" value={e.ceo} />
-          <Field label="주소" value={e.address} />
-        </section>
+      {/* 성명·사번·부서·직급 */}
+      <table className={styles.infoTable}>
+        <tbody>
+          <tr>
+            <th>성명</th>
+            <td>{w.name || ''}</td>
+            <th>사번</th>
+            <td>{w.idOrBirth || ''}</td>
+          </tr>
+          <tr>
+            <th>부서</th>
+            <td>{w.dept || ''}</td>
+            <th>직급</th>
+            <td>{w.position || ''}</td>
+          </tr>
+        </tbody>
+      </table>
 
-        <section className={`${styles.infoBox} ${isSup(form, 'worker') ? styles.boxSup : ''}`}>
-          <div className={styles.boxHead}>
-            근로자 정보
-            {isSup(form, 'worker') && <span className={styles.supBadge}>보완</span>}
-          </div>
-          <Field label="성명" value={w.name} />
-          <Field label="사번/생년월일" value={w.idOrBirth} />
-          <Field label="부서" value={w.dept} />
-          <Field label="직급" value={w.position} />
-        </section>
+      {/* 세부 내역 */}
+      <div className={styles.sectionHead}>세부 내역</div>
+      <table className={styles.detailTable}>
+        <thead>
+          <tr className={styles.groupRow}>
+            <th colSpan={2}>지 급</th>
+            <th colSpan={2}>공 제</th>
+          </tr>
+          <tr className={styles.colRow}>
+            <th>임금 항목</th>
+            <th>지급 금액(원)</th>
+            <th>공제 항목</th>
+            <th>공제 금액(원)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i}>
+              <td className={`${styles.itemName} ${r.pay?.supplemented ? styles.sup : ''}`}>
+                {r.pay?.name || ''}
+                {r.pay?.supplemented && <span className={styles.supBadge}>보완</span>}
+              </td>
+              <td className={`${styles.amtCell} ${r.pay?.supplemented ? styles.sup : ''}`}>
+                {amt(r.pay?.amount)}
+              </td>
+              <td className={`${styles.itemName} ${r.ded?.supplemented ? styles.sup : ''}`}>
+                {r.ded?.name || ''}
+                {r.ded?.supplemented && <span className={styles.supBadge}>보완</span>}
+              </td>
+              <td className={`${styles.amtCell} ${r.ded?.supplemented ? styles.sup : ''}`}>
+                {amt(r.ded?.amount)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className={styles.totalRow}>
+            <th>지급액 계</th>
+            <td className={styles.amtCell}>{amt(form.paymentTotal)}</td>
+            <th>공제액 계</th>
+            <td className={styles.amtCell}>{amt(form.deductionTotal)}</td>
+          </tr>
+          <tr className={styles.netRow}>
+            <td className={styles.blankCell} colSpan={2} />
+            <th>실지급액</th>
+            <td className={styles.amtCell}>{amt(form.netPay)}</td>
+          </tr>
+        </tfoot>
+      </table>
+
+      {/* 계산 방법 */}
+      <div className={styles.sectionHead}>계산 방법</div>
+      <table className={styles.calcTable}>
+        <thead>
+          <tr className={styles.colRow}>
+            <th className={styles.calcGubun}>구분</th>
+            <th>산출식 또는 산출방법</th>
+            <th className={styles.calcAmt}>지급액(원)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {calcRows.length === 0 ? (
+            <tr>
+              <td colSpan={3} className={styles.emptyRow}>
+                별도 산출방법 기재 항목 없음
+              </td>
+            </tr>
+          ) : (
+            calcRows.map((p, i) => (
+              <tr key={i}>
+                <td className={p.supplemented ? styles.sup : ''}>
+                  {p.name}
+                  {p.supplemented && <span className={styles.supBadge}>보완</span>}
+                </td>
+                <td className={styles.calcBasis}>{p.basis}</td>
+                <td className={styles.amtCell}>{amt(p.amount)}</td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+
+      <div className={styles.footnote}>
+        ※ 가족수당은 취업규칙 등에 지급요건이 규정되어 있는 경우 계산방법을 기재하지
+        않더라도 무방
       </div>
 
-      {/* 근로시간 */}
-      <div className={`${styles.workTime} ${isSup(form, 'workTime') ? styles.boxSup : ''}`}>
-        <div className={styles.boxHead}>근로시간</div>
-        <div className={styles.workTimeRow}>
-          <Field label="근로일수" value={t.days} />
-          <Field label="근로시간" value={t.hours} />
-          <Field label="연장" value={t.overtime} />
-          <Field label="야간" value={t.night} />
-          <Field label="휴일" value={t.holiday} />
-        </div>
-      </div>
-
-      {/* 지급 / 공제 */}
-      <LineTable
-        title="지급 내역"
-        lines={form.payments || []}
-        total={form.paymentTotal}
-        totalLabel="지급 총액"
-      />
-      <LineTable
-        title="공제 내역"
-        lines={form.deductions || []}
-        total={form.deductionTotal}
-        totalLabel="공제 총액"
-      />
-
-      {/* 실수령액 */}
-      <div className={styles.netRow}>
-        <span className={styles.netLabel}>실수령액</span>
-        <span className={styles.netValue}>{won(form.netPay) || '—'}</span>
-      </div>
-
-      {/* 비고 */}
-      {Array.isArray(form.notes) && form.notes.length > 0 && (
+      {/* 보완·확인 메모 (서식 밖 보조 안내) */}
+      {((form.notes && form.notes.length > 0) ||
+        (form.supplementedFields && form.supplementedFields.length > 0)) && (
         <div className={styles.notes}>
-          <div className={styles.notesHead}>비고 · 확인 사항</div>
+          <div className={styles.notesHead}>보완·확인 사항</div>
           <ul>
-            {form.notes.map((n, i) => (
-              <li key={i}>{n}</li>
+            {(form.notes || []).map((n, i) => (
+              <li key={`n${i}`}>{n}</li>
             ))}
+            {(form.supplementedFields || []).includes('deliveryMethod') &&
+              form.deliveryMethod && <li>교부 방식: {form.deliveryMethod} (보완)</li>}
           </ul>
         </div>
       )}
