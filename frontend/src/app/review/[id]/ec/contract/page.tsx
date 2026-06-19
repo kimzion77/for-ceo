@@ -42,8 +42,6 @@ export default function EcContractPage({
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [downloadingDocx, setDownloadingDocx] = useState(false);
-  /** 보기 모드 — 양식(기본) / 텍스트. structuredData 없으면 텍스트로 강제. */
-  const [view, setView] = useState<'form' | 'text'>('form');
   /** 양식 편집 상태 — null 이면 자동 채움(초기값) 그대로. */
   const [formState, setFormState] = useState<ContractFormState | null>(null);
 
@@ -80,8 +78,8 @@ export default function EcContractPage({
     }
   }, [entry]);
 
-  const activeView: 'form' | 'text' =
-    formModel && view === 'form' ? 'form' : 'text';
+  // 양식을 만들 수 있으면 항상 양식, 아니면(structuredData 없음) 텍스트 폴백.
+  const activeView: 'form' | 'text' = formModel ? 'form' : 'text';
   const effectiveForm = formState ?? formModel?.state ?? null;
 
   /** 다운로드·복사에 쓰일 현재 보기의 텍스트. */
@@ -240,37 +238,6 @@ export default function EcContractPage({
             </>
           )}
         </div>
-
-        {formModel && (
-          <div
-            className={styles.toggleBar}
-            role="tablist"
-            aria-label="계약서 보기 방식"
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeView === 'form'}
-              className={`${styles.toggleBtn} ${
-                activeView === 'form' ? styles.toggleActive : ''
-              }`}
-              onClick={() => setView('form')}
-            >
-              양식 보기
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeView === 'text'}
-              className={`${styles.toggleBtn} ${
-                activeView === 'text' ? styles.toggleActive : ''
-              }`}
-              onClick={() => setView('text')}
-            >
-              텍스트 보기
-            </button>
-          </div>
-        )}
 
         {activeView === 'form' && effectiveForm && formModel ? (
           <ContractFormView
