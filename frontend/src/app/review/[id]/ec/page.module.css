@@ -368,6 +368,17 @@
   width: 100%;
 }
 
+/* 표준 양식 뷰 페이지 — ContractFormView 를 스크롤 영역에 담음 */
+.docFormScroll {
+  flex: 1;
+  background: var(--color-bg, #f5f7fa);
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  overflow: auto;
+  padding: 14px;
+  width: 100%;
+}
+
 .docExtractedText {
   margin: 0;
   font-family: inherit;

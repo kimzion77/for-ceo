@@ -22,6 +22,9 @@ import type {
   EcChatTurn,
 } from '@/lib/api/types';
 import SiteHeader from '@/components/layout/SiteHeader';
+import ContractFormView, {
+  buildEcFormModel,
+} from '@/components/review/ContractFormView';
 import MobileReviewApp, {
   useIsMobileViewport,
   type MobileFinding,
@@ -114,6 +117,28 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
     () => sortedResults.filter((r) => r.적절성 !== '적절'),
     [sortedResults],
   );
+
+  // 문서 패널용 — 공식 표준계약서 양식 뷰(읽기 전용). structuredData 로 칸을 채우고
+  // 부적절·보완필요 칸에 '보완됨/확인필요' 칩 표시. (계약서 페이지의 ContractFormView 재사용)
+  const ecFormNode = useMemo(() => {
+    const ec = entry?.ec;
+    if (!ec?.structuredData) return null;
+    try {
+      const wt = ec.classify?.workerTypes ?? ec.workerTypes ?? [];
+      const model = buildEcFormModel(
+        ec.structuredData,
+        ec.analysisResult ?? null,
+        ec.userOverrides ?? {},
+        wt,
+        ec.classify?.docKind ?? '',
+      );
+      return (
+        <ContractFormView value={model.state} flags={model.flags} onChange={() => {}} />
+      );
+    } catch {
+      return null;
+    }
+  }, [entry]);
 
   // ─── 모바일 검토앱 (≤720px) — 공용 MobileReviewApp 으로 분기 ───
   const isMobile = useIsMobileViewport();
@@ -302,6 +327,7 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
               entry?.originalKind === 'image' ? entry?.originalUrl : undefined
             }
             extractedText={entry?.ec?.extractedText ?? ''}
+            formNode={ecFormNode}
             findings={violations}
             board={requirementBoard}
             focusedIndex={focusedIndex}
@@ -562,6 +588,8 @@ interface DocPanelProps {
   filename: string;
   imageUrl?: string;
   extractedText: string;
+  /** 공식 표준계약서 양식 뷰 노드(읽기 전용) — 있으면 첫 페이지로 노출. */
+  formNode?: ReactNode;
   /** 분석 결과 — 본문에서 위반 위치를 찾아 Circle 마커로 강조하기 위함. */
   findings: EcAnalysisItem[];
   board: RequirementBoard;
@@ -732,8 +760,15 @@ function buildRealPages(
   filename: string,
   findings: EcAnalysisItem[],
   onImageError?: () => void,
+  formNode?: ReactNode,
 ): ContractPage[] {
   const pages: ContractPage[] = [];
+  if (formNode) {
+    pages.push({
+      title: '표준 양식',
+      body: <div className={styles.docFormScroll}>{formNode}</div>,
+    });
+  }
   if (imageUrl) {
     pages.push({
       title: '원본 이미지',
@@ -772,6 +807,7 @@ function DocPanel({
   filename,
   imageUrl,
   extractedText,
+  formNode,
   findings,
   board,
   focusedIndex,
@@ -791,8 +827,9 @@ function DocPanel({
         filename,
         findings,
         () => setImageBroken(true),
+        formNode,
       ),
-    [effectiveImageUrl, extractedText, filename, findings],
+    [effectiveImageUrl, extractedText, filename, findings, formNode],
   );
   const [pageIdx, setPageIdx] = useState(0);
   const safeIdx = Math.min(pageIdx, pages.length - 1);
