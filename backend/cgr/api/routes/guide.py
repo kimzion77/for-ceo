@@ -622,6 +622,16 @@ def _search_guide_context(query: str, *, per_table: int = 4) -> tuple[str, list[
         return "", []
     # 한국어 키워드 추출 — 단순 split + 2자 이상
     tokens = [t.strip() for t in query.replace('?', ' ').split() if len(t.strip()) >= 2]
+    # 조사 변형 보정 — "근로감독시"·"감독시" 처럼 끝에 조사가 붙으면 LIKE 매칭이
+    # 안 돼 검색을 놓친다. 끝 1글자가 흔한 조사면 떼어낸 형태도 검색어에 추가.
+    _PARTICLES = set("은는이가을를에의도만과와로서시께란")
+    _extra: list[str] = []
+    for t in tokens:
+        if len(t) >= 3 and t[-1] in _PARTICLES:
+            _extra.append(t[:-1])
+        if len(t) >= 4 and t[-2:] in ("에서", "으로", "에게", "이나", "라고", "부터", "까지"):
+            _extra.append(t[:-2])
+    tokens = list(dict.fromkeys([*tokens, *_extra]))  # 순서 유지 dedupe
     if not tokens:
         return "", []
     sources: list[str] = []
