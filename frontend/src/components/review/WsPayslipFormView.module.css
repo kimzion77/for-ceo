@@ -58,8 +58,9 @@
   padding: 7px 9px;
   font-size: 12.5px;
   vertical-align: middle;
+  /* 한글 단어 끊김 방지 — keep-all + break-word (anywhere 는 단어 중간을 끊어버림). */
   word-break: keep-all;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 /* 성명/사번/부서/직급 */
@@ -92,6 +93,13 @@
 /* 세부 내역 — 지급|공제 2단 */
 .detailTable {
   margin-bottom: 14px;
+}
+/* 항목명 칸은 넓게, 금액 칸은 좁게 — 한글 항목명이 한 줄에 들어가도록. */
+.colItem {
+  width: 30%;
+}
+.colAmtW {
+  width: 20%;
 }
 .groupRow th {
   background: #f3f4f6;
@@ -145,10 +153,10 @@
   margin-bottom: 10px;
 }
 .calcGubun {
-  width: 22%;
+  width: 28%;
 }
 .calcAmt {
-  width: 24%;
+  width: 22%;
 }
 .calcBasis {
   text-align: left;

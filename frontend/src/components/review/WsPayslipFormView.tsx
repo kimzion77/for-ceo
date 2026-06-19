@@ -87,6 +87,12 @@ export default function WsPayslipFormView({ form }: Props) {
       {/* 세부 내역 */}
       <div className={styles.sectionHead}>세부 내역</div>
       <table className={styles.detailTable}>
+        <colgroup>
+          <col className={styles.colItem} />
+          <col className={styles.colAmtW} />
+          <col className={styles.colItem} />
+          <col className={styles.colAmtW} />
+        </colgroup>
         <thead>
           <tr className={styles.groupRow}>
             <th colSpan={2}>지 급</th>
