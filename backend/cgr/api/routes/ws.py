@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from cgr.api.auth import require_api_key
 from cgr.api import jobs
 from cgr.config import get_llm_model
-from cgr.docx_export import DOCX_MIMETYPE, text_to_docx
+from cgr.docx_export import DOCX_MIMETYPE, payslip_form_to_docx, text_to_docx
 from cgr.parsers.dispatcher import parse_to_text
 from cgr.ws import repository as ws_repo
 from cgr.ws.catalog import load_ws_catalog
@@ -569,6 +569,47 @@ def post_generate_docx(body: GenerateDocxIn):
         media_type=DOCX_MIMETYPE,
         headers=headers,
     )
+
+
+# ──
+# 2-d) POST /api/v1/ws/generate-docx-form — 구조화 form → 공식 서식 표 .docx
+#      화면 양식과 동일한 표 레이아웃으로 다운로드(텍스트 dump 아님).
+# ──
+class GenerateDocxFormIn(BaseModel):
+    form: dict[str, Any] = Field(..., description="구조화 임금명세서 form (편집본 포함)")
+    filename: str = Field(default="표준_임금명세서.docx")
+
+
+@router.post(
+    "/generate-docx-form",
+    summary="구조화 form → 공식 임금명세서 서식 표 .docx",
+    dependencies=[Depends(require_api_key)],
+    response_class=Response,
+)
+def post_generate_docx_form(body: GenerateDocxFormIn):
+    try:
+        docx_bytes = payslip_form_to_docx(
+            body.form,
+            footer_note=(
+                "※ 본 문서는 AI 자율점검 결과를 반영한 표준안입니다. "
+                "법적 효력은 사업장·노무사 검토 후 확정됩니다."
+            ),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"docx 변환 실패: {type(e).__name__}: {e}",
+        )
+    from urllib.parse import quote
+
+    fname_quoted = quote(body.filename, safe="")
+    headers = {
+        "Content-Disposition": (
+            f"attachment; filename=\"payslip.docx\"; "
+            f"filename*=UTF-8''{fname_quoted}"
+        ),
+    }
+    return Response(content=docx_bytes, media_type=DOCX_MIMETYPE, headers=headers)
 
 
 # ─────────────────────────────────────────────

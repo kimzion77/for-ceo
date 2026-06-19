@@ -6,7 +6,7 @@ import Link from 'next/link';
 import SiteHeader from '@/components/layout/SiteHeader';
 import WsPayslipFormView from '@/components/review/WsPayslipFormView';
 import { getCase, updateWs } from '@/lib/reviewStore';
-import { downloadWsDocx, type WsPayslipForm } from '@/lib/api/ws';
+import { downloadWsDocx, downloadWsFormDocx, type WsPayslipForm } from '@/lib/api/ws';
 import { ApiCallError } from '@/lib/api/client';
 
 import styles from './page.module.css';
@@ -151,10 +151,15 @@ export default function WsContractPage({ params }: { params: { id: string } }) {
     setDownloadingDocx(true);
     setDownloadError(null);
     try {
-      await downloadWsDocx({
-        wage_text: exportText,
-        filename: `${baseName}_표준명세서.docx`,
-      });
+      if (form) {
+        // 공식 서식 표 레이아웃 docx (화면 양식과 동일)
+        await downloadWsFormDocx(form, `${baseName}_표준명세서.docx`);
+      } else {
+        await downloadWsDocx({
+          wage_text: exportText,
+          filename: `${baseName}_표준명세서.docx`,
+        });
+      }
     } catch (err) {
       const msg =
         err instanceof ApiCallError

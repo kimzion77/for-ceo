@@ -386,6 +386,18 @@ export async function downloadWsDocx(
   triggerDownload(blob, filename ?? fname);
 }
 
+/** 2-d 단계: 구조화 form → 공식 임금명세서 서식 표 .docx (화면 양식과 동일 레이아웃). */
+export async function downloadWsFormDocx(
+  form: WsPayslipForm,
+  filename = '표준_임금명세서.docx',
+): Promise<void> {
+  const { blob, filename: fn } = await apiPostJsonBlob('/ws/generate-docx-form', {
+    form,
+    filename,
+  });
+  triggerDownload(blob, fn ?? filename);
+}
+
 /** 슬롯 카탈로그 조회 (디버그·관리자용). */
 export async function getWsCatalog(
   opts: { signal?: AbortSignal } = {},
