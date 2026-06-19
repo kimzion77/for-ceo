@@ -61,7 +61,10 @@
 
   /* 전역 확대 배율 — body zoom 과 fixed 오버레이 높이 보정에 함께 쓴다.
      position:fixed; height:100dvh 오버레이는 zoom 만큼 뷰포트보다 커져
-     하단이 잘리므로 calc(100dvh / var(--app-zoom)) 로 보정해야 한다. */
+     하단이 잘리므로 calc(100dvh / var(--app-zoom)) 로 보정해야 한다.
+     모바일(≤720)은 1.15, 데스크톱(>720)은 1.4 — 데스크톱 일반 레이아웃은
+     width:100%+max-width 라 zoom 을 키워도 가로 스크롤이 생기지 않는다.
+     (글자 크기가 전부 px 라 '글자만' 키우는 건 비현실적 → zoom 으로 일괄 확대) */
   --app-zoom: 1.15;
 
   --fs-display: 32px;
@@ -137,6 +140,15 @@ body {
      px 기반 폰트가 많아 변수만으론 다 안 커지므로 zoom 으로 일괄 확대.
      인쇄(@media print)에서는 1 로 되돌려 A4 리포트 레이아웃 보존. */
   zoom: var(--app-zoom);
+}
+
+/* ── 데스크톱(>720)은 글자·UI 를 더 크게(1.4배) ──
+   PC 발표 가독성. 일반 레이아웃은 width:100%+max-width 라 가로 스크롤 없음.
+   fixed 오버레이(ChatPanel 등)는 calc(.../var(--app-zoom)) 로 자동 보정됨. */
+@media (min-width: 721px) {
+  :root {
+    --app-zoom: 1.4;
+  }
 }
 
 /* ── 모바일 입력 자동 줌 방지 ──

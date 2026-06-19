@@ -21,7 +21,9 @@ import styles from './MobileUploadE.module.css';
 
 const IMG_EXT = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tif', '.tiff', '.webp'];
 const DOC_EXT = ['.docx', '.hwp', '.hwpx', '.pdf', '.txt'];
-// 사진: 촬영·보관함 모두 (capture 없이 image/* → OS 가 촬영/앨범 선택지 제공)
+// 사진 촬영: capture="environment" 로 모바일에서 후면 카메라를 바로 연다
+// (capture 없이 image/* 만 주면 OS 가 '카메라/앨범/파일' 선택지를 띄워 카메라 직행이 안 됨).
+// 앨범·파일에서 고르는 경로는 아래 '파일에서 선택' 버튼(fileRef)이 담당.
 const ACCEPT_IMAGE = ['image/*', ...IMG_EXT].join(',');
 // 파일에서 선택: accept 를 주지 않아 네이티브 '파일' 브라우저가 문서·이미지
 // 등 모든 파일을 보여준다(사용자 요구). 지원 형식은 선택 후 ALLOWED 로 검증.
@@ -208,6 +210,7 @@ export default function MobileUploadE({ docType, value, onChange }: Props) {
         ref={camRef}
         type="file"
         accept={ACCEPT_IMAGE}
+        capture="environment"
         multiple
         className={styles.hidden}
         onChange={resetInput}

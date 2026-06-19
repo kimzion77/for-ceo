@@ -187,7 +187,7 @@ export interface WrWorkflow {
   generatedText?: string;
 }
 
-interface CaseEntry {
+export interface CaseEntry {
   caseId: string;
   /** 'pending' | 'done' | 'error' */
   status: 'pending' | 'done' | 'error';

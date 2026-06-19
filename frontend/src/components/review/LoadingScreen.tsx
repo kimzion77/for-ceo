@@ -1,26 +1,32 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import Icon from '@/components/ui/Icon';
 import { useMockProgress } from '@/hooks/useMockProgress';
 import { getCase } from '@/lib/reviewStore';
-import type { EcPhase } from '@/lib/reviewStore';
+import type { CaseEntry } from '@/lib/reviewStore';
 import type { DocumentType } from '@/types/review';
 import styles from './LoadingScreen.module.css';
 
 /**
  * 검토 진행 중 화면.
  *
- * 두 가지 단계 군을 동일 컴포넌트가 처리:
+ * **진행률 모델 — 흐름 전역 3매크로 + 구간 점근 (튐 방지)**
+ * 전체 검토 흐름은 사용자 확인 페이지를 사이에 두고 여러 로딩 인스턴스로 쪼개진다.
+ * 각 인스턴스를 0% 부터 다시 시작하면 "9%→100%→6%" 처럼 보인다. 그래서 모든
+ * 흐름을 3개 매크로로 보고, 각 로딩은 **자기 매크로 구간의 하한부터** 차오른다:
  *
- *   (A) 단일 호출 흐름 (취업규칙) — 업로드 후 분석까지 한 번에. `DOC_CONFIG` 사용.
- *   (B) EC 풀 이식 4단계 — phase 별로 다른 `EC_PHASE_CONFIG` 사용.
- *       · 'extracting'/'structuring' → 추출+구조화 진행 → 끝나면 검토 페이지로
- *       · 'analyzing'                → 33매핑 분석 → 끝나면 결과 페이지로
- *       · 'generating'               → 표준 계약서 생성 → 끝나면 계약서 페이지로
+ *   ① 추출·정리      0→33%   (홈 진입 로딩)
+ *   ② 법령 비교·분석  33→80%  (확인 페이지 뒤 분석 로딩)   ← 임금명세서는 33→100%
+ *   ③ 표준문서 생성   80→100% (취업규칙·근로계약서·노무 only)
+ *
+ * 매크로는 store 의 phase 로 유도(새 필드 불요). 페이지 이동 직전 `snapTo` 로 구간
+ * 상한까지 끌어올린 뒤 라우팅 → 다음 인스턴스가 그 상한부터 이어받아 단조 증가.
  */
+
+type Macro = 'extract' | 'analyze' | 'generate';
 
 interface Step {
   n: number;
@@ -28,228 +34,247 @@ interface Step {
   desc: string;
 }
 
-interface LoadingConfig {
-  title: string;
-  steps: Step[];
-  /** mockProgress 의 총 시간(ms). 단계 수에 따라 달라짐. */
-  durationMs: number;
-}
-
-const DOC_CONFIG: Record<DocumentType, LoadingConfig> = {
+/** 문서종류 × 매크로 → 큰 제목 + 세부 단계 리스트 (기존 카피 보존). */
+const DOC_MACROS: Record<DocumentType, Partial<Record<Macro, { heading: string; steps: Step[] }>>> = {
   'work-rules': {
-    title: '취업규칙을 꼼꼼히 살펴보고 있어요',
-    steps: [
-      { n: 1, title: '문서 추출', desc: 'DOCX·HWP·PDF·TXT 텍스트로 변환' },
-      { n: 2, title: '조항 식별', desc: '조 단위로 분류해 검토 준비' },
-      { n: 3, title: '법령 비교', desc: '위반 사항 평가' },
-      { n: 4, title: '리포트 생성', desc: '위험도·시정 가이드·법령 근거 작성' },
-    ],
-    durationMs: 90000,
+    extract: {
+      heading: '취업규칙을 꼼꼼히 살펴보고 있어요',
+      steps: [
+        { n: 1, title: '문서 추출', desc: 'DOCX·HWP·PDF·TXT 텍스트로 변환' },
+        { n: 2, title: '조항 식별', desc: '조 단위로 분류해 검토 준비' },
+      ],
+    },
+    analyze: {
+      heading: '법령을 비교하고 결과를 정리하고 있어요',
+      steps: [
+        { n: 1, title: '법령 비교', desc: '위반 사항 평가' },
+        { n: 2, title: '리포트 생성', desc: '위험도·시정 가이드·법령 근거 작성' },
+      ],
+    },
+    generate: {
+      heading: '표준 취업규칙 초안을 작성하고 있어요',
+      steps: [
+        { n: 1, title: '양식 정리', desc: '고용노동부 표준 양식 적용' },
+        { n: 2, title: '본문 작성', desc: '분석 결과·보완사항 반영' },
+      ],
+    },
   },
   'employment-contract': {
-    title: '근로계약서를 꼼꼼히 살펴보고 있어요',
-    steps: [
-      { n: 1, title: '문서 추출', desc: '이미지·DOCX·HWP·PDF·TXT 텍스트로 변환' },
-      { n: 2, title: '필수 항목 식별', desc: '필수 기재사항 단위로 정리' },
-      { n: 3, title: '법령 비교', desc: '근로기준법 제17조 등 위반 여부 확인' },
-      { n: 4, title: '리포트 생성', desc: '적절·보완필요·부적절 분류 + 시정안 작성' },
-    ],
-    durationMs: 90000,
+    extract: {
+      heading: '근로계약서를 꼼꼼히 살펴보고 있어요',
+      steps: [
+        { n: 1, title: '문서 추출', desc: '이미지·DOCX·HWP·PDF·TXT 텍스트로 변환' },
+        { n: 2, title: '필수 항목 식별', desc: '필수 기재사항 단위로 정리' },
+      ],
+    },
+    analyze: {
+      heading: '법령을 비교하고 결과를 정리하고 있어요',
+      steps: [
+        { n: 1, title: '법령 비교', desc: '근로기준법 제17조 등 위반 여부 확인' },
+        { n: 2, title: '리포트 생성', desc: '적절·보완필요·부적절 분류 + 시정안 작성' },
+      ],
+    },
+    generate: {
+      heading: '표준 근로계약서 초안을 작성하고 있어요',
+      steps: [
+        { n: 1, title: '양식 정리', desc: '고용노동부 표준 양식 적용' },
+        { n: 2, title: '본문 작성', desc: '분석 결과·보완사항 반영, 최저시급 보정' },
+      ],
+    },
   },
   'wage-statement': {
-    title: '임금명세서를 꼼꼼히 살펴보고 있어요',
-    steps: [
-      { n: 1, title: '문서 추출', desc: '명세서 텍스트·표 데이터 추출' },
-      { n: 2, title: '필수 항목 식별', desc: '교부 의무 항목 매칭' },
-      { n: 3, title: '법령 비교', desc: '근로기준법 제48조 등 위반 여부 확인' },
-      { n: 4, title: '리포트 생성', desc: '적절·보완필요·부적절 분류 + 시정안 작성' },
-    ],
-    durationMs: 90000,
+    extract: {
+      heading: '임금명세서를 꼼꼼히 살펴보고 있어요',
+      steps: [
+        { n: 1, title: '문서 추출', desc: '명세서 텍스트·표 데이터 추출' },
+        { n: 2, title: '필수 항목 식별', desc: '교부 의무 항목 매칭' },
+      ],
+    },
+    analyze: {
+      heading: '법령을 비교하고 결과를 정리하고 있어요',
+      steps: [
+        { n: 1, title: '법령 비교', desc: '근로기준법 제48조 등 위반 여부 확인' },
+        { n: 2, title: '리포트 생성', desc: '적절·보완필요·부적절 분류 + 시정안 작성' },
+      ],
+    },
   },
   'service-provider-contract': {
-    title: '노무제공자 계약서를 꼼꼼히 살펴보고 있어요',
-    steps: [
-      { n: 1, title: '문서 추출', desc: '이미지·DOCX·PDF 텍스트로 변환' },
-      { n: 2, title: '슬롯 구조화', desc: '4섹션·16슬롯으로 정리' },
-      { n: 3, title: '법령 비교', desc: '산재보험법·고용보험법·근로자성 위장 검토' },
-      { n: 4, title: '리포트 생성', desc: '적절·보완필요·부적절 분류 + 시정안 작성' },
-    ],
-    durationMs: 90000,
+    extract: {
+      heading: '노무제공자 계약서를 꼼꼼히 살펴보고 있어요',
+      steps: [
+        { n: 1, title: '문서 추출', desc: '이미지·DOCX·PDF 텍스트로 변환' },
+        { n: 2, title: '슬롯 구조화', desc: '4섹션·16슬롯으로 정리' },
+      ],
+    },
+    analyze: {
+      heading: '법령을 비교하고 결과를 정리하고 있어요',
+      steps: [
+        { n: 1, title: '법령 비교', desc: '산재보험법·고용보험법·근로자성 위장 검토' },
+        { n: 2, title: '리포트 생성', desc: '적절·보완필요·부적절 분류 + 시정안 작성' },
+      ],
+    },
+    generate: {
+      heading: '표준 계약서 초안을 작성하고 있어요',
+      steps: [
+        { n: 1, title: '양식 정리', desc: '표준 양식 적용' },
+        { n: 2, title: '본문 작성', desc: '분석 결과·보완사항 반영' },
+      ],
+    },
   },
 };
 
+/** phase 한 개 → 매크로 (완료 phase 는 그 단계의 매크로로 본다: result→analyze, contract→generate). */
+function phaseToMacro(p: string | undefined): Macro {
+  if (p === 'analyzing' || p === 'result') return 'analyze';
+  if (p === 'generating' || p === 'contract') return 'generate';
+  return 'extract'; // idle·extracting·structuring·review·error·undefined
+}
+
+/** 케이스 전체에서 가장 앞선 매크로를 고른다(활성 워크플로는 하나뿐이라 안전). */
+function macroOf(entry: CaseEntry | null | undefined): Macro {
+  if (!entry) return 'extract';
+  const phases = [entry.ec?.phase, entry.wr?.phase, entry.ws?.phase, entry.sc?.phase];
+  let m: Macro = 'extract';
+  for (const p of phases) {
+    const pm = phaseToMacro(p);
+    if (pm === 'generate') return 'generate';
+    if (pm === 'analyze') m = 'analyze';
+  }
+  return m;
+}
+
 /**
- * EC 풀 이식 phase 별 로딩 카피.
- * 'extracting'·'structuring' 은 holistic 한 "검토 준비" 로 묶어서 보여줌.
+ * 매크로 → 진행률 구간 + 체감 시간.
+ *
+ * 검토 본류는 2단계(추출정리 0→50, 법령비교분석 50→100)로 결과가 100%에 도달한다.
+ * 표준문서 생성은 사용자가 '수정본 만들기' 를 눌렀을 때만 일어나는 **별도 짧은 로딩**이라
+ * 0→100 단독 구간으로 둔다(인디케이터에는 본류 2단계만 노출).
  */
-const EC_PHASE_CONFIG: Partial<Record<EcPhase, LoadingConfig>> = {
-  analyzing: {
-    title: '법령을 비교하고 결과를 정리하고 있어요',
-    steps: [
-      { n: 1, title: '법령 비교', desc: '근로기준법·관련 법령 위반 여부 확인' },
-      { n: 2, title: '리포트 생성', desc: '적절·보완필요·부적절 분류 + 개선 권고 작성' },
-    ],
-    durationMs: 30000,
-  },
-  generating: {
-    title: '표준 근로계약서 초안을 작성하고 있어요',
-    steps: [
-      { n: 1, title: '양식 정리', desc: '고용노동부 표준 양식 적용' },
-      { n: 2, title: '본문 작성', desc: '분석 결과·보완사항 반영, 최저시급 보정' },
-    ],
-    durationMs: 15000,
-  },
-};
+function segBounds(macro: Macro): { lo: number; hi: number; durationMs: number } {
+  if (macro === 'extract') return { lo: 0, hi: 50, durationMs: 12000 };
+  if (macro === 'analyze') return { lo: 50, hi: 100, durationMs: 18000 };
+  return { lo: 0, hi: 100, durationMs: 12000 }; // generate — 단독 로딩
+}
 
 interface LoadingScreenProps {
   /** 라우트의 review id — 100% 도달 시 결과 페이지(/review/{id})로 이동에 사용. UI 노출 X. */
   reviewId?: string;
 }
 
-function resolvePhase(reviewId: string | undefined): EcPhase | undefined {
-  if (typeof window === 'undefined' || !reviewId) return undefined;
-  return getCase(reviewId)?.ec?.phase;
-}
-
-function resolveDocType(reviewId: string | undefined): DocumentType {
-  if (typeof window === 'undefined' || !reviewId) return 'work-rules';
-  return getCase(reviewId)?.documentType ?? 'work-rules';
-}
+// SSR 과 첫 클라이언트 렌더가 어긋나지 않도록 동형(isomorphic) 레이아웃 이펙트 사용.
+// 서버엔 useLayoutEffect 가 없으므로 useEffect 로 폴백(no-op).
+const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 export function LoadingScreen({ reviewId }: LoadingScreenProps) {
   const router = useRouter();
   const [apiError, setApiError] = useState<string | null>(null);
-  // 첫 렌더부터 정확한 문서 종류·phase 를 잡기 위해 lazy initializer 로 store 동기 조회.
-  const [docType, setDocType] = useState<DocumentType>(() => resolveDocType(reviewId));
-  const [phase, setPhase] = useState<EcPhase | undefined>(() => resolvePhase(reviewId));
+  // SSR 안전 기본값으로 시작 — 하드 리로드 시 hydration mismatch 방지.
+  // 실제 값은 마운트 직후 레이아웃 이펙트가 store 에서 읽어와 paint 전에 보정한다.
+  const [docType, setDocType] = useState<DocumentType>('work-rules');
+  const [macro, setMacro] = useState<Macro>('extract');
+  // 라우팅 직전 구간 상한까지 끌어올리는 스냅 값.
+  const [snapTo, setSnapTo] = useState<number | null>(null);
+  // 라우팅 시작 후 폴링 재진입 차단(상태 변경으로 effect 가 재시작돼도 안전).
+  const routingRef = useRef(false);
 
-  // 현재 단계가 EC 의 후반(analyze/generate) 인지에 따라 다른 config 선택.
-  const config = useMemo<LoadingConfig>(() => {
-    if (phase && EC_PHASE_CONFIG[phase]) {
-      return EC_PHASE_CONFIG[phase]!;
-    }
-    return DOC_CONFIG[docType] ?? DOC_CONFIG['work-rules'];
-  }, [docType, phase]);
+  const bounds = useMemo(() => segBounds(macro), [macro]);
+  // 현재 매크로의 큰 제목 + 세부 단계 (없으면 extract 로 폴백).
+  const macroDef = DOC_MACROS[docType][macro] ?? DOC_MACROS[docType].extract!;
+  const STEPS = macroDef.steps;
 
-  // mockProgress 는 phase 가 바뀌면 key 변경으로 자동 재시작 — 별도 reset 로직 불필요.
-  // (LoadingScreen 자체가 React 컴포넌트라 useState 가 그대로지만,
-  //  useEffect 의 deps 가 totalDurationMs 라 그 값이 바뀌면 timer 재시작됨)
   const { progress, activeStep } = useMockProgress({
-    totalSteps: config.steps.length,
-    totalDurationMs: config.durationMs,
+    segLo: bounds.lo,
+    segHi: bounds.hi,
+    segDurationMs: bounds.durationMs,
+    snapTo,
+    totalSteps: STEPS.length,
   });
+
+  // 마운트 직후(첫 paint 전) store 에서 문서종류·매크로를 읽어 보정.
+  // 클라이언트 내비게이션은 깜빡임 없이, 하드 리로드는 mismatch 없이 정확해진다.
+  useIsoLayoutEffect(() => {
+    if (!reviewId) return;
+    const entry = getCase(reviewId);
+    if (!entry) return;
+    if (entry.documentType && entry.documentType !== docType) setDocType(entry.documentType);
+    const m = macroOf(entry);
+    if (m !== macro) setMacro(m);
+    // 마운트 1회만 — 이후 변화는 아래 폴링 effect 가 처리.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // store 폴링 — 단계 전환 및 결과 도달 시 페이지 라우팅.
   useEffect(() => {
     if (!reviewId) return;
     const id = window.setInterval(() => {
+      if (routingRef.current) return; // 이미 이동 중 — 중복 라우팅 방지
       const entry = getCase(reviewId);
       if (!entry) return;
 
-      // documentType / phase 둘 다 동기화 (UI 분기 키)
+      // documentType / 매크로 동기화 (UI 분기 키)
       if (entry.documentType && entry.documentType !== docType) {
         setDocType(entry.documentType);
       }
-      const curPhase = entry.ec?.phase;
-      if (curPhase !== phase) {
-        setPhase(curPhase);
+      const curMacro = macroOf(entry);
+      if (curMacro !== macro) {
+        setMacro(curMacro);
       }
 
+      // 라우팅 직전: 현재 구간 상한까지 스냅 → barFill 이 채워진 뒤 이동.
+      // 다음 로딩 인스턴스는 그 상한(=다음 구간 하한)부터 시작 → 연속.
+      const { hi } = segBounds(curMacro);
+      const go = (path: string) => {
+        routingRef.current = true;
+        window.clearInterval(id);
+        setSnapTo(hi);
+        window.setTimeout(() => router.replace(path), 420);
+      };
+      const fail = (msg: string) => {
+        window.clearInterval(id);
+        setApiError(msg);
+      };
+
       // EC 풀 이식 — phase 변화에 따라 다음 페이지로 자동 라우팅.
-      if (curPhase === 'review') {
-        window.clearInterval(id);
-        router.replace(`/review/${reviewId}/ec/review`);
-        return;
-      }
-      if (curPhase === 'result') {
-        window.clearInterval(id);
-        router.replace(`/review/${reviewId}/ec`);
-        return;
-      }
-      if (curPhase === 'contract') {
-        window.clearInterval(id);
-        router.replace(`/review/${reviewId}/ec/contract`);
-        return;
-      }
+      const curPhase = entry.ec?.phase;
+      if (curPhase === 'review') return go(`/review/${reviewId}/ec/review`);
+      if (curPhase === 'result') return go(`/review/${reviewId}/ec`);
+      if (curPhase === 'contract') return go(`/review/${reviewId}/ec/contract`);
 
       // 임금명세서 (beta) — ws.phase 분기.
       const wsPhase = entry.ws?.phase;
-      if (wsPhase === 'review') {
-        window.clearInterval(id);
-        router.replace(`/review/${reviewId}/ws/review`);
-        return;
-      }
-      if (wsPhase === 'result') {
-        window.clearInterval(id);
-        router.replace(`/review/${reviewId}/ws`);
-        return;
-      }
-      if (wsPhase === 'error') {
-        window.clearInterval(id);
-        setApiError(entry.ws?.errorMessage || '임금명세서 분석 실패');
-        return;
-      }
+      if (wsPhase === 'review') return go(`/review/${reviewId}/ws/review`);
+      if (wsPhase === 'result') return go(`/review/${reviewId}/ws`);
+      if (wsPhase === 'error') return fail(entry.ws?.errorMessage || '임금명세서 분석 실패');
 
       // 노무제공자 계약서 (Phase 17) — sc.phase 분기.
       const scPhase = entry.sc?.phase;
-      if (scPhase === 'review') {
-        window.clearInterval(id);
-        router.replace(`/review/${reviewId}/sc/review`);
-        return;
-      }
+      if (scPhase === 'review') return go(`/review/${reviewId}/sc/review`);
       // 수정본 완료 — 'result' 보다 먼저 체크 (둘 다 거쳐가는 흐름에서 contract 우선).
-      if (scPhase === 'contract') {
-        window.clearInterval(id);
-        router.replace(`/review/${reviewId}/sc/contract`);
-        return;
-      }
-      if (scPhase === 'result') {
-        window.clearInterval(id);
-        router.replace(`/review/${reviewId}/sc`);
-        return;
-      }
-      if (scPhase === 'error') {
-        window.clearInterval(id);
-        setApiError(entry.sc?.errorMessage || '노무제공자 계약서 분석 실패');
-        return;
-      }
+      if (scPhase === 'contract') return go(`/review/${reviewId}/sc/contract`);
+      if (scPhase === 'result') return go(`/review/${reviewId}/sc`);
+      if (scPhase === 'error') return fail(entry.sc?.errorMessage || '노무제공자 계약서 분석 실패');
 
       // 취업규칙 — 추출 텍스트 확인 단계. 'analyzing' 은 라우팅하지 않음
       // (분석 완료 시 아래 status='done' 분기가 /review/[id] 로 보냄).
       const wrPhase = entry.wr?.phase;
-      if (wrPhase === 'review') {
-        window.clearInterval(id);
-        router.replace(`/review/${reviewId}/wr/review`);
-        return;
-      }
+      if (wrPhase === 'review') return go(`/review/${reviewId}/wr/review`);
       // 취업규칙 수정본 — 완료 시 contract 페이지로, 생성 중에는 status='done'
       // (기존 분석 완료) 분기가 결과 페이지로 되돌리지 않게 여기서 홀드.
-      if (wrPhase === 'contract') {
-        window.clearInterval(id);
-        router.replace(`/review/${reviewId}/wr/contract`);
-        return;
-      }
-      if (wrPhase === 'generating') {
-        return; // 생성 진행 중 — 폴링 유지
-      }
+      if (wrPhase === 'contract') return go(`/review/${reviewId}/wr/contract`);
+      if (wrPhase === 'generating') return; // 생성 진행 중 — 폴링 유지
 
       // 취업규칙 등 단일 호출 흐름
       if (entry.status === 'done') {
-        window.clearInterval(id);
         const target =
           entry.result?.doc === 'employment-contract'
             ? `/review/${reviewId}/ec`
             : `/review/${reviewId}`;
-        router.replace(target);
-      } else if (entry.status === 'error') {
-        window.clearInterval(id);
-        setApiError(entry.error || '알 수 없는 오류');
+        return go(target);
       }
+      if (entry.status === 'error') return fail(entry.error || '알 수 없는 오류');
     }, 500);
     return () => window.clearInterval(id);
-  }, [reviewId, router, docType, phase]);
-
-  const STEPS = config.steps;
+  }, [reviewId, router, docType, macro]);
 
   return (
     <main className={styles.page}>
@@ -288,7 +313,7 @@ export function LoadingScreen({ reviewId }: LoadingScreenProps) {
         </div>
 
         <div className={styles.eyebrow}>검토 진행중</div>
-        <h2 className={styles.title}>{config.title}</h2>
+        <h2 className={styles.title}>{macroDef.heading}</h2>
         <div className={styles.subtitle}>
           잠시만 기다려 주세요. 페이지를 닫지 마세요.
         </div>
@@ -312,7 +337,7 @@ export function LoadingScreen({ reviewId }: LoadingScreenProps) {
           </div>
         </section>
 
-        {/* 단계 리스트 */}
+        {/* 단계 리스트 — 현재 매크로의 세부 단계 */}
         <ol className={styles.steps} aria-label="검토 단계">
           {STEPS.map((s) => {
             const done = s.n < activeStep;

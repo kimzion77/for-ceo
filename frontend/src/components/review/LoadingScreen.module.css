@@ -15,15 +15,6 @@
   text-align: center;
 }
 
-/* 상단 4-step indicator — EC 흐름에서 전체 진행 위치를 한눈에.
-   .inner(560px) 보다 넓어야 4단계가 잘리지 않으므로 sibling 으로 둠. */
-.bigStepWrap {
-  max-width: 880px;
-  width: 100%;
-  margin: 0 auto 28px;
-  text-align: left;
-}
-
 /* ─── 회전 로더 + 문서 아이콘 ─── */
 .loader {
   position: relative;
