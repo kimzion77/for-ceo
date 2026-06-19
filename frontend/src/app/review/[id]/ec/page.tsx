@@ -763,12 +763,7 @@ function buildRealPages(
   formNode?: ReactNode,
 ): ContractPage[] {
   const pages: ContractPage[] = [];
-  if (formNode) {
-    pages.push({
-      title: '표준 양식',
-      body: <div className={styles.docFormScroll}>{formNode}</div>,
-    });
-  }
+  // 원본 이미지를 첫 페이지(기본)로 — 검토 중 원본과 비교하는 게 핵심.
   if (imageUrl) {
     pages.push({
       title: '원본 이미지',
@@ -785,6 +780,13 @@ function buildRealPages(
           />
         </div>
       ),
+    });
+  }
+  // 표준 양식(구조화 + 보완 칩) — 원본 다음 페이지.
+  if (formNode) {
+    pages.push({
+      title: '표준 양식',
+      body: <div className={styles.docFormScroll}>{formNode}</div>,
     });
   }
   if (extractedText.trim()) {
