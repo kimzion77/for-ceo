@@ -103,9 +103,15 @@ export type EcFormFlags = Partial<
   Record<EcFormFieldId | 'insurance' | 'signature', FieldFlag>
 >;
 
+/** 칸 → 연관 분석 항목명(항목). 칩 클릭 시 우측 상세로 이동하는 데 사용. */
+export type EcFormItems = Partial<
+  Record<EcFormFieldId | 'insurance' | 'signature', string>
+>;
+
 export interface EcFormModel {
   state: ContractFormState;
   flags: EcFormFlags;
+  items: EcFormItems;
 }
 
 /* ───────────────────── 표준 양식 기본 문구 ───────────────────── */
@@ -402,6 +408,7 @@ export function buildEcFormModel(
 ): EcFormModel {
   const fields = {} as Record<EcFormFieldId, string>;
   const flags: EcFormFlags = {};
+  const items: EcFormItems = {};
 
   // ── 1) 원본 값 추출 ──
   for (const id of FIELD_IDS) {
@@ -420,6 +427,7 @@ export function buildEcFormModel(
     const spec = FIELD_SPECS[id];
     const { status, item } = findFlag(analysis, spec.patterns);
     if (!status) continue;
+    if (item) items[id] = item;
     const ov = usableOverride(item ? overrides[item] : undefined);
     if (ov) {
       fields[id] = ov;
@@ -464,6 +472,7 @@ export function buildEcFormModel(
     // 부적절/보완필요 → 표준 양식 기본(4대 보험 모두 체크)으로 보완
     for (const k of INSURANCE_KEYS) insurance[k] = true;
     flags.insurance = 'standard';
+    if (insFlag.item) items.insurance = insFlag.item;
   } else if (insRaw) {
     const t = norm(insRaw);
     insurance.고용보험 = t.includes('고용');
@@ -478,7 +487,10 @@ export function buildEcFormModel(
 
   // ── 6) 서명란 — 자동 보완 불가, 판정만 표시 ──
   const signFlag = findFlag(analysis, ['당사자서명날인', '서명날인', '서명']);
-  if (signFlag.status) flags.signature = 'attention';
+  if (signFlag.status) {
+    flags.signature = 'attention';
+    if (signFlag.item) items.signature = signFlag.item;
+  }
 
   // ── 7) 유형별 분기 — 단시간(요일별 근로시간)·연소자(친권자 동의) ──
   const isPartTime = workerTypes.some((t) => /단시간/.test(t));
@@ -503,7 +515,7 @@ export function buildEcFormModel(
     state.minor = { guardian: '', relation: '', contact: '' };
   }
 
-  return { state, flags };
+  return { state, flags, items };
 }
 
 /* ───────────────────── 텍스트 렌더 (.docx/복사용) ───────────────────── */
@@ -599,25 +611,49 @@ const FLAG_WRAP_CLASS: Record<FieldFlag, string> = {
   attention: styles.flagWarn,
 };
 
-function chipFor(flag: FieldFlag | undefined) {
+function chipFor(flag: FieldFlag | undefined, onClick?: () => void) {
   if (!flag) return null;
-  if (flag === 'attention') {
-    return <em className={`${styles.chip} ${styles.chipWarn}`}>확인필요</em>;
+  const label = flag === 'attention' ? '확인필요' : '보완됨';
+  const cls = `${styles.chip} ${flag === 'attention' ? styles.chipWarn : styles.chipFix}`;
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        className={`${cls} ${styles.chipBtn}`}
+        onClick={onClick}
+        title="이 항목 상세 보기"
+      >
+        {label}
+      </button>
+    );
   }
-  return <em className={`${styles.chip} ${styles.chipFix}`}>보완됨</em>;
+  return <em className={cls}>{label}</em>;
 }
 
 interface ContractFormViewProps {
   value: ContractFormState;
   flags: EcFormFlags;
   onChange: (next: ContractFormState) => void;
+  /** 칸 → 연관 분석 항목명. onFlagClick 과 함께 있으면 칩이 클릭 가능해짐. */
+  flagItems?: EcFormItems;
+  /** 칩 클릭 시 호출(항목명 전달) — 검토 결과 우측 상세로 이동에 사용. */
+  onFlagClick?: (item: string) => void;
 }
 
 export default function ContractFormView({
   value,
   flags,
   onChange,
+  flagItems,
+  onFlagClick,
 }: ContractFormViewProps) {
+  // 칩 클릭 핸들러 — 해당 칸에 연관 항목명이 있고 onFlagClick 이 있을 때만.
+  const chipClick = (
+    key: EcFormFieldId | 'insurance' | 'signature',
+  ): (() => void) | undefined => {
+    const item = flagItems?.[key];
+    return item && onFlagClick ? () => onFlagClick(item) : undefined;
+  };
   const setField = useCallback(
     (id: EcFormFieldId, v: string) => {
       onChange({ ...value, fields: { ...value.fields, [id]: v } });
@@ -684,7 +720,7 @@ export default function ContractFormView({
           aria-label={label}
           spellCheck={false}
         />
-        {chipFor(flag)}
+        {chipFor(flag, chipClick(id))}
       </span>
     );
   };
@@ -705,7 +741,7 @@ export default function ContractFormView({
           aria-label={label}
           spellCheck={false}
         />
-        {chipFor(flag)}
+        {chipFor(flag, chipClick(id))}
       </span>
     );
   };
@@ -845,7 +881,7 @@ export default function ContractFormView({
         <li className={styles.clause}>
           <span className={styles.clauseLabel}>
             8. 사회보험 적용여부(해당란에 체크)
-            {chipFor(flags.insurance)}
+            {chipFor(flags.insurance, chipClick('insurance'))}
           </span>
           <div className={styles.checkRow}>
             {INSURANCE_KEYS.map((k) => (
@@ -948,7 +984,7 @@ export default function ContractFormView({
       <div className={styles.signBlock}>
         {flags.signature && (
           <div className={styles.signNotice}>
-            {chipFor(flags.signature)}
+            {chipFor(flags.signature, chipClick('signature'))}
             <span>서명·날인 누락이 지적됐어요 — 출력 후 양측 서명이 필요해요.</span>
           </div>
         )}

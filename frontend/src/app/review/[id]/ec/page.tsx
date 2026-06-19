@@ -133,12 +133,21 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
         ec.classify?.docKind ?? '',
       );
       return (
-        <ContractFormView value={model.state} flags={model.flags} onChange={() => {}} />
+        <ContractFormView
+          value={model.state}
+          flags={model.flags}
+          onChange={() => {}}
+          flagItems={model.items}
+          onFlagClick={(item) => {
+            const i = violations.findIndex((v) => v.항목 === item);
+            if (i >= 0) handleFocus(i);
+          }}
+        />
       );
     } catch {
       return null;
     }
-  }, [entry]);
+  }, [entry, violations, handleFocus]);
 
   // ─── 모바일 검토앱 (≤720px) — 공용 MobileReviewApp 으로 분기 ───
   const isMobile = useIsMobileViewport();

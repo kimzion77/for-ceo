@@ -210,6 +210,23 @@
   white-space: nowrap;
 }
 
+/* 클릭 가능한 칩(검토 결과) — 누르면 우측 상세로 이동 */
+.chipBtn {
+  cursor: pointer;
+  font-family: inherit;
+  transition: filter 0.12s, transform 0.06s;
+}
+.chipBtn::after {
+  content: ' ›';
+  font-weight: 800;
+}
+.chipBtn:hover {
+  filter: brightness(0.95);
+}
+.chipBtn:active {
+  transform: scale(0.96);
+}
+
 .chipFix {
   background: #d1fae5;
   color: #065f46;
