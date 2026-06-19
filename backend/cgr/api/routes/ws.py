@@ -414,6 +414,57 @@ def post_generate(body: GenerateIn):
     )
 
 
+# ──
+# 2-b') 비동기 생성 (start + poll) — 동기 /generate 는 LLM 시간이 길어
+#       Vercel/게이트웨이 함수 타임아웃에 걸렸다. ec generate 와 동일 해법.
+# ──
+class GenerateResultOut(BaseModel):
+    status: str = Field(..., description="pending | done | error")
+    wage_text: str | None = None
+    error: str | None = None
+    elapsed_sec: float = 0.0
+    model: str = ""
+
+
+@router.post(
+    "/generate/start",
+    response_model=JobStartOut,
+    summary="비동기 표준 명세서 생성 시작 — job_id 반환",
+    dependencies=[Depends(require_api_key)],
+)
+def post_generate_start(body: GenerateIn):
+    def _do() -> str:
+        return generate_service.run(
+            body.analysis_result,
+            body.wage_text,
+            user_overrides=body.user_overrides or None,
+        )
+
+    return JobStartOut(job_id=jobs.start_job(_do))
+
+
+@router.get(
+    "/generate/result/{job_id}",
+    response_model=GenerateResultOut,
+    summary="비동기 표준 명세서 생성 결과 폴링",
+    dependencies=[Depends(require_api_key)],
+)
+def get_generate_result(job_id: str):
+    job = jobs.get_job(job_id)
+    if job is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="생성 작업을 찾을 수 없어요. 작업이 만료됐거나 서버가 재시작됐을 수 있어요. 다시 시도해 주세요.",
+        )
+    return GenerateResultOut(
+        status=job["status"],
+        wage_text=job["result"],
+        error=job["error"],
+        elapsed_sec=job["elapsed"],
+        model=get_llm_model(),
+    )
+
+
 # ─────────────────────────────────────────────
 # 2-c) POST /api/v1/ws/generate-docx — 표준 명세서 .docx 다운로드
 # ─────────────────────────────────────────────

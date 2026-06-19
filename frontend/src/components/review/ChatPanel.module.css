@@ -349,6 +349,9 @@
 
 .chatInput {
   flex: 1;
+  /* flex 아이템 기본 min-width:auto 면 입력칸이 콘텐츠 폭 아래로 안 줄어
+     좁은 모바일 패널에서 옆의 전송 버튼을 화면 밖(overflow:hidden)으로 밀어낸다. */
+  min-width: 0;
   padding: 9px 12px;
   font-family: inherit;
   font-size: 13px;
@@ -371,6 +374,7 @@
 }
 
 .chatSend {
+  flex: none;
   padding: 0 14px;
   background: #2a6fdb;
   color: #ffffff;

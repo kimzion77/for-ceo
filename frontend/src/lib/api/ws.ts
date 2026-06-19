@@ -303,7 +303,26 @@ export async function postWsGenerate(
   },
   opts: { signal?: AbortSignal } = {},
 ): Promise<WsGenerateOut> {
-  return apiPostJson<WsGenerateOut>('/ws/generate', body, opts);
+  // 동기 /ws/generate 는 LLM 생성 시간이 길어 Vercel 함수 타임아웃에 걸렸다.
+  // EC·analyze 와 동일하게 비동기 잡(start + poll)로 우회.
+  const { job_id } = await apiPostJson<{ job_id: string }>(
+    '/ws/generate/start',
+    body,
+    { signal: opts.signal },
+  );
+  return pollJob<WsGenerateOut>(
+    (id) => `/ws/generate/result/${id}`,
+    job_id,
+    (res) =>
+      res.wage_text != null
+        ? ({
+            wage_text: res.wage_text as string,
+            elapsed_sec: (res.elapsed_sec as number) ?? 0,
+            model: (res.model as string) ?? '',
+          } as WsGenerateOut)
+        : undefined,
+    { signal: opts.signal, label: '표준 명세서 생성' },
+  );
 }
 
 /**
