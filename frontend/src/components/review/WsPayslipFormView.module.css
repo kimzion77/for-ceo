@@ -178,6 +178,42 @@
   margin-top: 4px;
 }
 
+/* ─── 인라인 편집 (contentEditable) ─── */
+.edit {
+  display: inline-block;
+  min-width: 24px;
+  min-height: 1.2em;
+  padding: 1px 3px;
+  margin: -1px -3px;
+  border-radius: 3px;
+  outline: none;
+  cursor: text;
+  transition: background 0.12s, box-shadow 0.12s;
+}
+.edit:hover {
+  background: #f1f5f9;
+}
+.edit:focus {
+  background: #fffbea;
+  box-shadow: inset 0 0 0 1.5px #1d6fe0;
+}
+.editRight {
+  text-align: right;
+}
+/* 빈 편집칸 — 클릭 유도 placeholder */
+.edit:empty::before {
+  content: '입력';
+  color: #cbd5e1;
+  font-weight: 400;
+}
+/* 편집 모드 시트 — 칸이 편집 가능함을 옅게 안내 */
+.editable .infoTable td,
+.editable .detailTable tbody td,
+.editable .detailTable tfoot td,
+.editable .calcTable tbody td {
+  background-image: linear-gradient(0deg, rgba(29, 111, 224, 0.03), rgba(29, 111, 224, 0.03));
+}
+
 /* 보완 표시 */
 .sup {
   background: #eef6ff;

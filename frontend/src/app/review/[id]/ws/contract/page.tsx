@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 
 import SiteHeader from '@/components/layout/SiteHeader';
 import WsPayslipFormView from '@/components/review/WsPayslipFormView';
-import { getCase } from '@/lib/reviewStore';
+import { getCase, updateWs } from '@/lib/reviewStore';
 import { downloadWsDocx, type WsPayslipForm } from '@/lib/api/ws';
 import { ApiCallError } from '@/lib/api/client';
 
@@ -73,14 +73,34 @@ export default function WsContractPage({ params }: { params: { id: string } }) {
 
   const [mounted, setMounted] = useState(false);
   const [entry, setEntry] = useState<ReturnType<typeof getCase>>(null);
+  // 편집 가능한 양식 상태 — store 의 생성본으로 초기화, 편집 시 store 에 영속화.
+  const [form, setForm] = useState<WsPayslipForm | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const originalRef = useRef<WsPayslipForm | null>(null);
 
   useEffect(() => {
     setMounted(true);
-    setEntry(getCase(caseId));
+    const e = getCase(caseId);
+    setEntry(e);
+    const f = e?.ws?.generatedWageForm ?? null;
+    setForm(f);
+    originalRef.current = f;
   }, [caseId]);
 
-  const form = entry?.ws?.generatedWageForm ?? null;
   const legacyText = entry?.ws?.generatedWageText ?? '';
+
+  // 인라인 편집 커밋 — 상태 갱신 + store 영속화(새로고침해도 유지).
+  const handleFormChange = (next: WsPayslipForm) => {
+    setForm(next);
+    setDirty(true);
+    updateWs(caseId, { generatedWageForm: next });
+  };
+  const handleRestore = () => {
+    const o = originalRef.current;
+    setForm(o);
+    setDirty(false);
+    updateWs(caseId, { generatedWageForm: o ?? undefined });
+  };
 
   const baseName = useMemo(() => {
     const base = entry?.originalFilename || '임금명세서';
@@ -162,18 +182,32 @@ export default function WsContractPage({ params }: { params: { id: string } }) {
         <header className={styles.topbar}>
           <div className={styles.topbarLeft}>
             <span className={styles.eyebrow}>임금명세서 · 표준 양식</span>
-            <h1 className={styles.title}>시정 반영 표준 임금명세서</h1>
+            <h1 className={styles.title}>
+              시정 반영 표준 임금명세서
+              {dirty && <span className={styles.dirtyBadge}>✎ 편집됨</span>}
+            </h1>
             <p className={styles.subtitle}>
               분석에서 지적된 누락·부적절 항목을 모두 반영해 공식 서식 칸에 채웠습니다.{' '}
-              <span className={styles.supLegend}>보완</span> 표시는 새로 보완된 칸입니다.
+              <span className={styles.supLegend}>보완</span> 표시는 새로 보완된 칸이에요.
+              {form && ' 각 칸을 눌러 직접 수정할 수 있고, 수정은 자동 저장됩니다.'}
             </p>
+            {dirty && (
+              <button
+                type="button"
+                className={`${styles.btnTertiary} noPrint`}
+                onClick={handleRestore}
+                title="AI 생성 원본으로 되돌리기"
+              >
+                ↺ 생성 원본으로 되돌리기
+              </button>
+            )}
           </div>
         </header>
 
-        {/* 공식 서식 양식 뷰 — 단일 컬럼, 가로 폭에 맞춤 */}
+        {/* 공식 서식 양식 뷰 — 단일 컬럼, 가로 폭에 맞춤. 각 칸 인라인 편집. */}
         <section className={styles.formPanel} aria-label="표준 임금명세서 양식">
           {form ? (
-            <WsPayslipFormView form={form} />
+            <WsPayslipFormView form={form} editable onChange={handleFormChange} />
           ) : (
             <pre className={`${styles.body} ${styles.bodyReadonly}`}>{legacyText}</pre>
           )}
