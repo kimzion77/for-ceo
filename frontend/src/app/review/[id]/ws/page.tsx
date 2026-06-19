@@ -13,7 +13,7 @@ import {
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-import { postWsGenerate } from '@/lib/api/ws';
+import { postWsGenerateForm } from '@/lib/api/ws';
 import { ApiCallError } from '@/lib/api/client';
 import type {
   EcAnalysisItem,
@@ -232,15 +232,15 @@ export default function WsResultPage({ params }: { params: { id: string } }) {
     };
     const wageText = entry?.ws?.extractedText ?? '';
 
-    postWsGenerate({
+    postWsGenerateForm({
       analysis_result: mergedAnalysis,
       wage_text: wageText,
       user_overrides: overrides,
     })
-      .then((out) => {
+      .then((form) => {
         updateWs(caseId, {
           phase: 'result',
-          generatedWageText: out.wage_text,
+          generatedWageForm: form,
         });
         router.push(`/review/${caseId}/ws/contract`);
       })

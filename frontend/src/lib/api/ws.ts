@@ -325,6 +325,53 @@ export async function postWsGenerate(
   );
 }
 
+// ─── 구조화 임금명세서 (공식 서식 칸 바인딩용) ───
+export interface WagePayLine {
+  name: string;
+  amount: string;
+  basis?: string;
+  supplemented?: boolean;
+}
+
+export interface WsPayslipForm {
+  settlementPeriod: string;
+  paymentDate: string;
+  deliveryMethod: string;
+  worker: { name?: string; idOrBirth?: string; dept?: string; position?: string };
+  employer: { company?: string; businessNo?: string; ceo?: string; address?: string };
+  workTime: { days?: string; hours?: string; overtime?: string; night?: string; holiday?: string };
+  payments: WagePayLine[];
+  paymentTotal: string;
+  deductions: WagePayLine[];
+  deductionTotal: string;
+  netPay: string;
+  /** 머리말 칸 중 보완된 키 (deliveryMethod, employer …) — 하이라이트용. */
+  supplementedFields: string[];
+  notes: string[];
+}
+
+/** 2-b'' 단계: 분석 결과 → 공식 임금명세서 서식 칸을 채운 구조화 JSON. */
+export async function postWsGenerateForm(
+  body: {
+    analysis_result: import('./types').EcAnalysisResult;
+    wage_text: string;
+    user_overrides?: Record<string, string>;
+  },
+  opts: { signal?: AbortSignal } = {},
+): Promise<WsPayslipForm> {
+  const { job_id } = await apiPostJson<{ job_id: string }>(
+    '/ws/generate-form/start',
+    body,
+    { signal: opts.signal },
+  );
+  return pollJob<WsPayslipForm>(
+    (id) => `/ws/generate-form/result/${id}`,
+    job_id,
+    (res) => (res.form != null ? (res.form as unknown as WsPayslipForm) : undefined),
+    { signal: opts.signal, label: '표준 명세서 생성' },
+  );
+}
+
 /**
  * 2-c 단계: 평문 본문 → .docx 다운로드.
  *

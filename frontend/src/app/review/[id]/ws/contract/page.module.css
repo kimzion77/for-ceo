@@ -86,6 +86,27 @@
   overflow: hidden;
   min-height: 600px;
 }
+
+/* 우측 — 공식 서식 양식 뷰 컨테이너 (자체 스타일 보유) */
+.formPanel {
+  min-width: 0;
+}
+
+/* 보완 표시 범례 (소제목 안 인라인) */
+.supLegend {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  background: var(--color-accent);
+  color: #fff;
+  vertical-align: middle;
+}
+
+@media (max-width: 1020px) {
+  .panel { min-height: 0; }
+}
 .panelHeader {
   display: flex;
   align-items: center;

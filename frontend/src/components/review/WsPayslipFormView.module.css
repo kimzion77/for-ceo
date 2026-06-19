@@ -1,0 +1,288 @@
+/* 공식 임금명세서 서식 비주얼 — A4 문서 느낌 */
+.sheet {
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-md);
+  padding: 28px 26px 32px;
+  max-width: 720px;
+  margin: 0 auto;
+  color: var(--color-text);
+  box-shadow: var(--shadow-sm);
+}
+
+.docTitle {
+  text-align: center;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  margin: 0 0 20px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid var(--color-text);
+}
+
+/* 상단 메타 3칸 */
+.metaGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.twoCol {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.infoBox,
+.workTime {
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+
+.boxHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--color-brand-soft);
+  color: var(--color-brand-strong);
+  font-size: 12.5px;
+  font-weight: 800;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* 키-값 한 줄 */
+.field {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 12px;
+  border-top: 1px solid var(--color-surface-muted);
+  font-size: 13.5px;
+}
+.field:first-of-type {
+  border-top: none;
+}
+.metaGrid .field {
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-sm);
+  flex-direction: column;
+  gap: 3px;
+  background: var(--color-surface);
+}
+
+.fieldLabel {
+  flex: none;
+  min-width: 86px;
+  color: var(--color-text-subtle);
+  font-size: 12px;
+  font-weight: 700;
+}
+.metaGrid .fieldLabel {
+  min-width: 0;
+}
+
+.fieldValue {
+  flex: 1;
+  font-weight: 600;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.empty {
+  color: var(--color-text-subtle);
+  font-style: normal;
+  font-weight: 500;
+}
+
+/* 근로시간 가로 5칸 */
+.workTime {
+  margin-bottom: 16px;
+}
+.workTimeRow {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+}
+.workTimeRow .field {
+  flex-direction: column;
+  gap: 3px;
+  border-top: none;
+  border-left: 1px solid var(--color-surface-muted);
+  text-align: center;
+  align-items: center;
+}
+.workTimeRow .field:first-child {
+  border-left: none;
+}
+
+/* 지급/공제 표 */
+.tableWrap {
+  margin-bottom: 14px;
+}
+.tableTitle {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--color-text);
+  margin: 0 0 6px;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.table th,
+.table td {
+  border: 1px solid var(--color-border);
+  padding: 8px 10px;
+  vertical-align: top;
+}
+.table thead th {
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  font-weight: 700;
+  font-size: 12px;
+  text-align: left;
+}
+.table tfoot td {
+  background: #f8fafc;
+}
+.colName {
+  width: 34%;
+}
+.colName .supBadge {
+  margin-left: 6px;
+}
+.colAmt {
+  width: 26%;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.colBasis {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+.emptyRow {
+  text-align: center;
+  color: var(--color-text-subtle);
+  padding: 14px;
+}
+
+/* 실수령액 강조 */
+.netRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  padding: 14px 18px;
+  background: var(--color-brand);
+  color: #ffffff;
+  border-radius: var(--r-md);
+}
+.netLabel {
+  font-size: 14px;
+  font-weight: 700;
+}
+.netValue {
+  font-size: 20px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 비고 */
+.notes {
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: var(--risk-warn-soft);
+  border: 1px solid var(--risk-warn-border);
+  border-radius: var(--r-sm);
+}
+.notesHead {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--risk-warn-text);
+  margin-bottom: 6px;
+}
+.notes ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.notes li {
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--risk-warn-text);
+}
+
+/* 보완 표시 */
+.supBadge {
+  flex: none;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.4;
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  background: var(--color-accent);
+  color: #ffffff;
+  letter-spacing: 0;
+}
+.rowSup,
+.rowSup .colAmt {
+  background: #eef6ff;
+}
+.fieldSup,
+.boxSup {
+  background: #eef6ff;
+}
+.boxSup .boxHead {
+  background: #dbeafe;
+}
+
+/* 모바일 */
+@media (max-width: 600px) {
+  .sheet {
+    padding: 18px 14px 22px;
+  }
+  .docTitle {
+    font-size: 18px;
+    letter-spacing: 2px;
+  }
+  .metaGrid {
+    grid-template-columns: 1fr;
+  }
+  .twoCol {
+    grid-template-columns: 1fr;
+  }
+  .workTimeRow {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .workTimeRow .field:nth-child(odd) {
+    border-left: none;
+  }
+  .colBasis {
+    display: none;
+  }
+  .colName {
+    width: 55%;
+  }
+  .colAmt {
+    width: 45%;
+  }
+}
+
+/* 인쇄 — 그림자·여백 정리 */
+@media print {
+  .sheet {
+    border: none;
+    box-shadow: none;
+    max-width: none;
+    padding: 0;
+  }
+}

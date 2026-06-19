@@ -465,6 +465,57 @@ def get_generate_result(job_id: str):
     )
 
 
+# ──
+# 2-b'') 구조화 생성 (start + poll) — 공식 임금명세서 서식 칸을 채운 JSON.
+#        프론트 비주얼 양식 뷰(WsPayslipFormView)가 칸별로 바인딩.
+# ──
+class GenerateFormResultOut(BaseModel):
+    status: str = Field(..., description="pending | done | error")
+    form: dict[str, Any] | None = None
+    error: str | None = None
+    elapsed_sec: float = 0.0
+    model: str = ""
+
+
+@router.post(
+    "/generate-form/start",
+    response_model=JobStartOut,
+    summary="비동기 구조화 임금명세서 생성 시작 — job_id 반환",
+    dependencies=[Depends(require_api_key)],
+)
+def post_generate_form_start(body: GenerateIn):
+    def _do() -> dict[str, Any]:
+        return generate_service.run_structured(
+            body.analysis_result,
+            body.wage_text,
+            user_overrides=body.user_overrides or None,
+        )
+
+    return JobStartOut(job_id=jobs.start_job(_do))
+
+
+@router.get(
+    "/generate-form/result/{job_id}",
+    response_model=GenerateFormResultOut,
+    summary="비동기 구조화 임금명세서 생성 결과 폴링",
+    dependencies=[Depends(require_api_key)],
+)
+def get_generate_form_result(job_id: str):
+    job = jobs.get_job(job_id)
+    if job is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="생성 작업을 찾을 수 없어요. 작업이 만료됐거나 서버가 재시작됐을 수 있어요. 다시 시도해 주세요.",
+        )
+    return GenerateFormResultOut(
+        status=job["status"],
+        form=job["result"],
+        error=job["error"],
+        elapsed_sec=job["elapsed"],
+        model=get_llm_model(),
+    )
+
+
 # ─────────────────────────────────────────────
 # 2-c) POST /api/v1/ws/generate-docx — 표준 명세서 .docx 다운로드
 # ─────────────────────────────────────────────

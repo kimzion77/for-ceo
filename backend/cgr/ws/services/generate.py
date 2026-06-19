@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 
+import json
 import time
 from typing import Any
 
@@ -183,3 +184,126 @@ def run(
             raise
 
     raise RuntimeError(f"ws generate 호출 실패: {last_err}")
+
+
+# ════════════════════════════════════════════════════════════════
+# 구조화 출력 — 공식 임금명세서 서식(공란)을 칸별로 채우기 위한 JSON.
+# 프론트의 비주얼 양식 뷰(WsPayslipFormView)가 각 칸에 그대로 바인딩.
+# ════════════════════════════════════════════════════════════════
+
+_FORM_SYSTEM_PROMPT = """\
+당신은 한국 노동법(근로기준법 제48조 + 시행령 제27조의2) 전문가입니다.
+
+[작업]
+(1) 원본 임금명세서 텍스트 + (2) 위반 분석 결과를 바탕으로, 고용노동부 표준
+임금명세서 서식의 각 칸을 채운 **구조화 JSON** 을 출력하세요. 분석에서 지적된
+'부적절'/'보완필요' 항목은 모두 시정해 반영합니다.
+
+[출력 — 반드시 아래 JSON 스키마. 키는 영문 그대로, 값은 한국어]
+{
+  "settlementPeriod": "산정 기간 (예: 2026-05-01 ~ 2026-05-31), 모르면 ''",
+  "paymentDate": "지급일 (YYYY-MM-DD), 모르면 ''",
+  "deliveryMethod": "교부 방식 (서면/이메일/사내게시 등), 모르면 ''",
+  "worker":   { "name": "성명", "idOrBirth": "사번 또는 생년월일", "dept": "부서", "position": "직급" },
+  "employer": { "company": "상호", "businessNo": "사업자등록번호", "ceo": "대표자", "address": "주소" },
+  "workTime": { "days": "근로일수", "hours": "총 근로시간", "overtime": "연장", "night": "야간", "holiday": "휴일" },
+  "payments":   [ { "name": "기본급", "amount": "1,800,000", "basis": "계산방법(없으면 '')", "supplemented": false } ],
+  "paymentTotal": "지급 총액",
+  "deductions": [ { "name": "국민연금", "amount": "81,000", "basis": "보수월액의 4.5%", "supplemented": false } ],
+  "deductionTotal": "공제 총액",
+  "netPay": "실수령액",
+  "supplementedFields": ["deliveryMethod", "employer", ...],
+  "notes": ["보완·확인 필요 사항 한 줄씩"]
+}
+
+[규칙]
+- 금액은 숫자 콤마 표기('1,234,560'), 단위 '원' 은 붙이지 않는다.
+- 원본에서 알 수 없는 값은 '' 로 두고 notes 에 '[확인 필요] ...' 로 적는다. 임의 추정 금지.
+- 분석으로 새로 추가·보완한 지급/공제 항목은 그 항목의 "supplemented": true.
+- 머리말 칸(교부 방식·사용자 정보 등)을 보완했으면 그 키를 supplementedFields 에 넣는다.
+- 설명문("~해야 해요" 등)은 명세서 표기로 변환. JSON 외 텍스트 출력 금지.
+"""
+
+
+_FORM_FALLBACK: dict[str, Any] = {
+    "settlementPeriod": "", "paymentDate": "", "deliveryMethod": "",
+    "worker": {}, "employer": {}, "workTime": {},
+    "payments": [], "paymentTotal": "",
+    "deductions": [], "deductionTotal": "", "netPay": "",
+    "supplementedFields": [], "notes": [],
+}
+
+
+def _safe_json(raw: str) -> dict[str, Any] | None:
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except Exception:
+        cleaned = raw.strip().lstrip("```json").lstrip("```").rstrip("```")
+        try:
+            return json.loads(cleaned)
+        except Exception:
+            return None
+
+
+def run_structured(
+    analysis_result: dict[str, Any],
+    wage_text: str,
+    *,
+    user_overrides: dict[str, str] | None = None,
+    model: str | None = None,
+) -> dict[str, Any]:
+    """분석 결과 → 공식 임금명세서 서식 칸을 채운 구조화 dict."""
+    if not isinstance(analysis_result, dict):
+        raise ValueError("analysis_result 가 dict 가 아닙니다.")
+
+    analysis_result = mask_pii_in_payload(analysis_result)
+    wage_text = mask_pii_text(wage_text)
+
+    model_name = get_llm_model(model)
+    user_prompt = _build_user_prompt(analysis_result, wage_text, user_overrides)
+
+    cache_key = llm_cache.make_key(
+        system=_FORM_SYSTEM_PROMPT,
+        user=user_prompt,
+        schema={"kind": "ws_generate_form"},
+        model=model_name,
+    )
+    cached = llm_cache.get(cache_key)
+    if cached and isinstance(cached.get("form"), dict):
+        return cached["form"]
+
+    client = OpenAI(api_key=get_api_key(), timeout=_CALL_TIMEOUT)
+    last_err: Exception | None = None
+    for attempt in range(_MAX_RETRIES):
+        try:
+            resp = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": _FORM_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt},
+                ],
+                response_format={"type": "json_object"},
+                temperature=0,
+                top_p=1,
+            )
+            raw = resp.choices[0].message.content or ""
+            data = _safe_json(raw)
+            if not isinstance(data, dict):
+                raise RuntimeError(f"ws generate-form 응답 형식 오류: {raw[:200]}")
+            # 안전 기본값 머지 — 누락 키 있어도 프론트가 안전하게 렌더.
+            form = {**_FORM_FALLBACK, **data}
+            llm_cache.put(cache_key, {"form": form})
+            return form
+        except (APITimeoutError, APIConnectionError, RateLimitError) as e:
+            last_err = e
+            if attempt < _MAX_RETRIES - 1:
+                time.sleep(_RETRY_BACKOFF[attempt])
+                continue
+            raise
+        except Exception as e:
+            last_err = e
+            raise
+
+    raise RuntimeError(f"ws generate-form 호출 실패: {last_err}")

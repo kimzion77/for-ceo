@@ -117,6 +117,8 @@ export interface WsWorkflow {
   analysisResult?: EcAnalysisResult;
   /** /ws/generate 결과 — 수정 반영된 표준 임금명세서 텍스트. */
   generatedWageText?: string;
+  /** /ws/generate-form 결과 — 공식 서식 칸을 채운 구조화 임금명세서(비주얼 양식 뷰용). */
+  generatedWageForm?: import('@/lib/api/ws').WsPayslipForm;
   errorMessage?: string;
   userOverrides?: Record<string, string>;
 }
