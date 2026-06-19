@@ -222,6 +222,17 @@ _FORM_SYSTEM_PROMPT = """\
 - 분석으로 새로 추가·보완한 지급/공제 항목은 그 항목의 "supplemented": true.
 - 머리말 칸(교부 방식·사용자 정보 등)을 보완했으면 그 키를 supplementedFields 에 넣는다.
 - 설명문("~해야 해요" 등)은 명세서 표기로 변환. JSON 외 텍스트 출력 금지.
+
+[계산방법(산출식) 필수 — 가장 중요]
+- 연장근로수당·야간근로수당·휴일근로수당·주휴수당·연차수당처럼 출근일·시간에 따라
+  금액이 정해지는 '변동 수당'은 해당 payments 항목의 "basis"(계산방법)를 **반드시** 채운다
+  (근로기준법 시행령 제27조의2 — 계산기초 기재 의무).
+- 원본 명세서에 산출식이 없더라도 비워두지 말고, 아래 [계산 공식 참조]의 표준 공식으로
+  basis 를 채운다. 예: "통상시급 9,860원 × 1.5 × 연장 10h = 147,900".
+- 통상시급·시간 등 계산에 필요한 값이 원본에 없으면, 공식만이라도 적고 빈 값은
+  '[작성 필요]' 로 표시한다. 예: "[작성 필요] 통상시급 × 1.5 × 연장시간".
+  이렇게 산출식을 새로 보완한 항목은 "supplemented": true, notes 에도 '[작성 필요] …' 추가.
+- 기본급·식대 등 고정 항목은 basis 가 없어도 무방('').
 """
 
 
@@ -247,6 +258,30 @@ def _safe_json(raw: str) -> dict[str, Any] | None:
             return None
 
 
+def _wage_formula_reference() -> str:
+    """가이드 DB(wage_calc_formula 수당 계열)에서 변동수당 계산공식을 끌어와
+    프롬프트 참조 블록으로. 산출식을 표준 공식대로 채우도록 LLM 에 제공."""
+    try:
+        from cgr import db as _db
+
+        with _db.connect() as conn:
+            rows = conn.execute(
+                "SELECT calc_name, formula, conditions FROM wage_calc_formula "
+                "WHERE category = '수당' ORDER BY code"
+            ).fetchall()
+    except Exception:
+        return ""
+    if not rows:
+        return ""
+    lines = ["[계산 공식 참조 — 변동 수당 basis(계산방법)는 이 공식으로 기재]"]
+    for name, formula, cond in rows:
+        line = f"- {name}: {formula}"
+        if cond:
+            line += f" (조건: {cond})"
+        lines.append(line)
+    return "\n".join(lines)
+
+
 def run_structured(
     analysis_result: dict[str, Any],
     wage_text: str,
@@ -263,6 +298,9 @@ def run_structured(
 
     model_name = get_llm_model(model)
     user_prompt = _build_user_prompt(analysis_result, wage_text, user_overrides)
+    _ref = _wage_formula_reference()
+    if _ref:
+        user_prompt = f"{user_prompt}\n\n{_ref}"
 
     cache_key = llm_cache.make_key(
         system=_FORM_SYSTEM_PROMPT,
