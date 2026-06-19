@@ -64,12 +64,6 @@ export const INSURANCE_KEYS = [
 ] as const;
 export type InsuranceKey = (typeof INSURANCE_KEYS)[number];
 
-export interface PartTimeRow {
-  day: string;
-  work: string;
-  rest: string;
-}
-
 export interface MinorConsent {
   guardian: string;
   relation: string;
@@ -85,8 +79,6 @@ export interface ContractFormState {
   contractType?: string;
   /** 분류 유형 목록 — 유형별 섹션 분기용. */
   workerTypes?: string[];
-  /** 단시간 — 요일별 근로시간 (해당 유형일 때만). */
-  partTime?: PartTimeRow[];
   /** 연소자(18세 미만) — 친권자(후견인) 동의 (해당 유형일 때만). */
   minor?: MinorConsent;
 }
@@ -493,7 +485,6 @@ export function buildEcFormModel(
   }
 
   // ── 7) 유형별 분기 — 단시간(요일별 근로시간)·연소자(친권자 동의) ──
-  const isPartTime = workerTypes.some((t) => /단시간/.test(t));
   const isMinor = workerTypes.some((t) => /연소/.test(t));
   const contractType = typeLabel || workerTypes.join('·') || '';
 
@@ -504,13 +495,6 @@ export function buildEcFormModel(
     contractType,
     workerTypes,
   };
-  if (isPartTime) {
-    state.partTime = ['월', '화', '수', '목', '금', '토', '일'].map((day) => ({
-      day,
-      work: '',
-      rest: '',
-    }));
-  }
   if (isMinor) {
     state.minor = { guardian: '', relation: '', contact: '' };
   }
@@ -546,13 +530,6 @@ export function buildContractText(state: ContractFormState): string {
   L.push(
     `5. 근무일/휴일 : 근무일 ${blank(f.workDays)}, 주휴일 ${blank(f.weeklyHoliday)}`,
   );
-  if (state.partTime && state.partTime.some((r) => r.work.trim() || r.rest.trim())) {
-    L.push('   ※ 근로일별 근로시간(단시간)');
-    for (const r of state.partTime) {
-      if (!r.work.trim() && !r.rest.trim()) continue;
-      L.push(`     - ${r.day}요일 : 근로시간 ${blank(r.work, 6)} (휴게 ${blank(r.rest, 6)})`);
-    }
-  }
   L.push('6. 임  금');
   L.push(`  - 월(일, 시간)급 : ${blank(f.wageAmount)}`);
   L.push(`  - 상여금 : ${blank(f.bonus)}`);
@@ -677,17 +654,6 @@ export default function ContractFormView({
     el.style.height = `${el.scrollHeight}px`;
   }, []);
 
-  const setPartTime = useCallback(
-    (i: number, key: keyof PartTimeRow, v: string) => {
-      if (!value.partTime) return;
-      const list = value.partTime.map((r, idx) =>
-        idx === i ? { ...r, [key]: v } : r,
-      );
-      onChange({ ...value, partTime: list });
-    },
-    [value, onChange],
-  );
-
   const setMinor = useCallback(
     (key: keyof MinorConsent, v: string) => {
       const base: MinorConsent = value.minor ?? {
@@ -797,50 +763,6 @@ export default function ContractFormView({
           <span className={styles.inlineText}>, 주휴일</span>
           {renderField('weeklyHoliday', '주휴일', 'sm')}
         </li>
-
-        {value.partTime && (
-          <li className={styles.clause}>
-            <span className={styles.clauseLabel}>
-              근로일별 근로시간 <em className={styles.typeMini}>단시간</em>
-            </span>
-            <table className={styles.ptTable}>
-              <thead>
-                <tr>
-                  <th>요일</th>
-                  <th>근로시간</th>
-                  <th>휴게시간</th>
-                </tr>
-              </thead>
-              <tbody>
-                {value.partTime.map((r, i) => (
-                  <tr key={r.day}>
-                    <td className={styles.ptDay}>{r.day}</td>
-                    <td>
-                      <input
-                        type="text"
-                        className={styles.ptInput}
-                        value={r.work}
-                        placeholder="예: 09:00~13:00"
-                        onChange={(e) => setPartTime(i, 'work', e.target.value)}
-                        aria-label={`${r.day}요일 근로시간`}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="text"
-                        className={styles.ptInput}
-                        value={r.rest}
-                        placeholder="예: 12:00~12:30"
-                        onChange={(e) => setPartTime(i, 'rest', e.target.value)}
-                        aria-label={`${r.day}요일 휴게시간`}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </li>
-        )}
 
         <li className={styles.clause}>
           <span className={styles.clauseLabel}>6. 임 금</span>
