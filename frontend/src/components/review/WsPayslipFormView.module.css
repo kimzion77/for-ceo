@@ -3,7 +3,8 @@
   background: #ffffff;
   border: 1px solid #111827;
   padding: 22px 22px 26px;
-  max-width: 640px;
+  width: 100%;
+  max-width: 100%;
   margin: 0 auto;
   color: #111827;
   font-size: 13px;

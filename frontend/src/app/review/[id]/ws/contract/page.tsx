@@ -152,6 +152,13 @@ export default function WsContractPage({ params }: { params: { id: string } }) {
     <main className={styles.page}>
       <SiteHeader />
       <div className={styles.layout}>
+        {/* 검토 결과로 — 맨 위 */}
+        <div className={`${styles.backRow} noPrint`}>
+          <Link href={`/review/${caseId}/ws`} className={styles.btnSecondary}>
+            ← 검토 결과로
+          </Link>
+        </div>
+
         <header className={styles.topbar}>
           <div className={styles.topbarLeft}>
             <span className={styles.eyebrow}>임금명세서 · 표준 양식</span>
@@ -161,37 +168,16 @@ export default function WsContractPage({ params }: { params: { id: string } }) {
               <span className={styles.supLegend}>보완</span> 표시는 새로 보완된 칸입니다.
             </p>
           </div>
-          <div className={`${styles.topbarRight} noPrint`}>
-            <Link href={`/review/${caseId}/ws`} className={styles.btnSecondary}>
-              ← 검토 결과로
-            </Link>
-          </div>
         </header>
 
-        <div className={`${styles.split} printStack`}>
-          {/* 좌 — 원본 (참고) */}
-          <section className={`${styles.panel} noPrint`} aria-label="원본 임금명세서">
-            <header className={styles.panelHeader}>
-              <span className={styles.panelIcon}>📋</span>
-              <div>
-                <div className={styles.panelTitle}>원본 명세서</div>
-                <div className={styles.panelHint}>참고용</div>
-              </div>
-            </header>
-            <pre className={`${styles.body} ${styles.bodyReadonly}`}>
-              {entry?.ws?.extractedText || '(추출 텍스트 없음)'}
-            </pre>
-          </section>
-
-          {/* 우 — 공식 서식 양식 뷰 (또는 구버전 텍스트) */}
-          <section className={styles.formPanel} aria-label="표준 임금명세서 양식">
-            {form ? (
-              <WsPayslipFormView form={form} />
-            ) : (
-              <pre className={`${styles.body} ${styles.bodyReadonly}`}>{legacyText}</pre>
-            )}
-          </section>
-        </div>
+        {/* 공식 서식 양식 뷰 — 단일 컬럼, 가로 폭에 맞춤 */}
+        <section className={styles.formPanel} aria-label="표준 임금명세서 양식">
+          {form ? (
+            <WsPayslipFormView form={form} />
+          ) : (
+            <pre className={`${styles.body} ${styles.bodyReadonly}`}>{legacyText}</pre>
+          )}
+        </section>
 
         {/* 액션 바 */}
         <div className={`${styles.actionBar} noPrint`}>

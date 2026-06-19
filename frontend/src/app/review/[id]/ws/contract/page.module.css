@@ -4,9 +4,15 @@
   font-family: var(--font-sans);
 }
 .layout {
-  max-width: 1340px;
+  /* 단일 컬럼(양식 1개) — 문서 폭에 맞춰 가운데 정렬 */
+  max-width: 880px;
   margin: 0 auto;
-  padding: 24px 24px 60px;
+  padding: 18px 24px 60px;
+}
+
+/* 상단 — 검토 결과로 (맨 위) */
+.backRow {
+  margin-bottom: 12px;
 }
 .containerSimple {
   max-width: 720px;
