@@ -583,6 +583,16 @@ export function buildContractText(state: ContractFormState): string {
 
 /* ───────────────────────── 컴포넌트 ───────────────────────── */
 
+/** 근로자 유형 → 고용노동부 표준근로계약서 공식 제목(괄호 변형). */
+function ecOfficialTitle(workerTypes: string[] = []): string {
+  const has = (re: RegExp) => workerTypes.some((t) => re.test(t));
+  if (has(/연소/)) return '표준근로계약서(연소근로자)';
+  if (has(/외국인/)) return '표준근로계약서(외국인근로자)';
+  if (has(/단시간/)) return '표준근로계약서(단시간근로자)';
+  if (has(/기간제|일용/)) return '표준근로계약서(기간의 정함이 있는 경우)';
+  return '표준근로계약서(기간의 정함이 없는 경우)';
+}
+
 const FLAG_WRAP_CLASS: Record<FieldFlag, string> = {
   standard: styles.flagFix,
   override: styles.flagFix,
@@ -702,13 +712,9 @@ export default function ContractFormView({
 
   return (
     <div className={styles.paper}>
-      <h2 className={styles.formTitle}>표 준 근 로 계 약 서</h2>
-      {value.contractType && (
-        <div className={styles.typeBadgeRow}>
-          <span className={styles.typeBadge}>{value.contractType}</span>
-          <span className={styles.typeBadgeHint}>근로자 유형에 맞춘 서식이에요</span>
-        </div>
-      )}
+      <div className={styles.titleBox}>
+        <h2 className={styles.formTitle}>{ecOfficialTitle(value.workerTypes)}</h2>
+      </div>
 
       <p className={styles.intro}>
         {renderField('employerName', '사업주 명칭', 'md')}

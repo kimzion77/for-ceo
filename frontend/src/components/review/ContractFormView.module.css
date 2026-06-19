@@ -1,13 +1,14 @@
 /* 표준근로계약서 양식 — A4 종이 카드 재현. */
 
 .paper {
-  max-width: 800px;
+  width: 100%;
+  max-width: 820px;
   margin: 0 auto;
   background: #ffffff;
   border: 1px solid var(--color-border, #d6dbe3);
   border-radius: var(--r-lg, 12px);
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.06);
-  padding: 44px 48px 52px;
+  padding: 40px 44px 48px;
   color: #1e293b;
   font-family: var(--font-sans);
   font-size: 14px;
@@ -15,13 +16,32 @@
   word-break: keep-all;
 }
 
-.formTitle {
+/* 공식 서식처럼 제목을 테두리 박스로 (가운데) */
+.titleBox {
   text-align: center;
-  font-size: 22px;
+  margin: 0 0 22px;
+}
+.formTitle {
+  display: inline-block;
+  border: 2px solid #0f172a;
+  padding: 8px 24px;
+  text-align: center;
+  font-size: 18px;
   font-weight: 800;
-  letter-spacing: 6px;
-  margin: 0 0 26px;
+  letter-spacing: 0.5px;
+  margin: 0;
   color: #0f172a;
+  word-break: keep-all;
+}
+@media (max-width: 600px) {
+  .paper {
+    padding: 20px 16px 26px;
+  }
+  .formTitle {
+    font-size: 14px;
+    padding: 7px 12px;
+    letter-spacing: 0;
+  }
 }
 
 .intro {

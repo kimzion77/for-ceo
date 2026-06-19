@@ -54,11 +54,18 @@
   font-weight: 700;
 }
 
+/* 상단 — 검토 결과로 */
+.backRow {
+  margin-bottom: 12px;
+}
+
+/* 다운로드·인쇄 — 양식 하단 */
 .actions {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
-  margin-bottom: 16px;
+  margin: 18px 0 8px;
+  justify-content: center;
 }
 
 /* ── 양식/텍스트 보기 토글 ── */

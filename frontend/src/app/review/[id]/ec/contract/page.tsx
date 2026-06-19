@@ -206,6 +206,11 @@ export default function EcContractPage({
             {toast}
           </div>
         )}
+        <div className={`${styles.backRow} noPrint`}>
+          <Link href={`/review/${caseId}/ec`} className={styles.btnSecondary}>
+            ← 검토 결과로
+          </Link>
+        </div>
         <div className={styles.head}>
           {activeView === 'text' && dirty && (
             <span className={styles.dirtyBadge}>✎ 편집됨</span>
@@ -267,7 +272,25 @@ export default function EcContractPage({
           </div>
         )}
 
-        <div className={styles.actions}>
+        {activeView === 'form' && effectiveForm && formModel ? (
+          <ContractFormView
+            value={effectiveForm}
+            flags={formModel.flags}
+            onChange={setFormState}
+          />
+        ) : (
+          <textarea
+            className={styles.contractEditor}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            spellCheck={false}
+            placeholder="생성된 계약서 본문이 없어요. [양식 보기]를 사용해 주세요."
+            aria-label="표준 근로계약서 본문 (편집 가능)"
+          />
+        )}
+
+        {/* 다운로드·인쇄 — 양식 하단 */}
+        <div className={`${styles.actions} noPrint`}>
           <button
             type="button"
             className={styles.btnPrimary}
@@ -310,27 +333,7 @@ export default function EcContractPage({
                 : '↺ 원본으로 되돌리기'}
             </button>
           )}
-          <Link href={`/review/${caseId}/ec`} className={styles.btnSecondary}>
-            ← 검토 결과
-          </Link>
         </div>
-
-        {activeView === 'form' && effectiveForm && formModel ? (
-          <ContractFormView
-            value={effectiveForm}
-            flags={formModel.flags}
-            onChange={setFormState}
-          />
-        ) : (
-          <textarea
-            className={styles.contractEditor}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            spellCheck={false}
-            placeholder="생성된 계약서 본문이 없어요. [양식 보기]를 사용해 주세요."
-            aria-label="표준 근로계약서 본문 (편집 가능)"
-          />
-        )}
 
         <div className={styles.copyHint}>
           ※ 표준 양식은 참고용입니다. 사업장 실정에 맞게 사업주·근로자가 협의하여 확정·서명해 주세요.
