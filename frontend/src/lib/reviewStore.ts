@@ -230,9 +230,15 @@ const LS_INDEX_KEY = 'cgr.review.index'; // 케이스 ID 배열 (정렬·삭제�
 
 function persist(caseId: string, entry: CaseEntry) {
   if (typeof window === 'undefined') return;
-  // blob: URL 은 페이지 새로고침 시 무효화되므로 직렬화에서 제외
-  const { originalUrl: _omitUrl, ...persistable } = entry;
-  void _omitUrl;
+  // blob: URL 은 페이지 새로고침 시 무효화되므로 직렬화에서 제외.
+  // 단 data: URL(다운스케일 미리보기)은 영구 보존 가능 → 유지해 새로고침/이력 복원
+  // 후에도 좌측 원본 사진이 살아있게 한다.
+  let persistable: Partial<CaseEntry> = entry;
+  if (!entry.originalUrl || !entry.originalUrl.startsWith('data:')) {
+    const { originalUrl: _omitUrl, ...rest } = entry;
+    void _omitUrl;
+    persistable = rest;
+  }
   const serialized = JSON.stringify(persistable);
   // 1) sessionStorage — 즉시 복구·새로고침 보존
   try {

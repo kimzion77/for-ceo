@@ -24,7 +24,7 @@ import { postEcClassify, postEcExtract, postEcStructure } from '@/lib/api/ec';
 import { postWrClassify } from '@/lib/api/review';
 import { postWsClassify, postWsExtract } from '@/lib/api/ws';
 import { postScExtract, postScStructure } from '@/lib/api/sc';
-import { extractAllText } from '@/lib/uploadPrep';
+import { extractAllText, fileToDisplayDataUrl } from '@/lib/uploadPrep';
 import { ApiCallError } from '@/lib/api/client';
 import {
   makeTempCaseId,
@@ -153,7 +153,11 @@ export default function HomePage() {
     // docx/hwp/pdf 는 미리보기 없이 카드만.
     const first = files[0];
     const isImage = first.type.startsWith('image/');
-    const originalUrl = isImage ? URL.createObjectURL(first) : undefined;
+    // 사진은 다운스케일 data: URL 로 — 새로고침·검토 이력 복원 후에도 좌측 원본
+    // 미리보기가 살아있게(저장소에 직렬화 가능). 변환 실패 시 blob URL 폴백.
+    const originalUrl = isImage
+      ? (await fileToDisplayDataUrl(first)) ?? URL.createObjectURL(first)
+      : undefined;
     startCase(caseId, docType, {
       originalUrl,
       originalFilename: first.name,

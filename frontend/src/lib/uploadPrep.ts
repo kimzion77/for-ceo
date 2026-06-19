@@ -115,6 +115,41 @@ export async function compressImageFile(file: File): Promise<File> {
   return file;
 }
 
+/** 결과 화면 좌측 미리보기용 최대 변(긴 쪽) — 표시용이라 작게. */
+const PREVIEW_MAX_DIM = 1400;
+
+/**
+ * 업로드 이미지를 **결과 화면 미리보기용 data: URL** 로 변환.
+ *
+ * 왜: 업로드 시 만든 blob URL 은 새로고침·검토 이력 복원 시 무효화돼 좌측 원본
+ * 사진이 사라진다(저장소에 직렬화 불가). data: URL 은 저장소에 그대로 남길 수
+ * 있어, 새로고침/이력에서도 사진을 다시 볼 수 있다. 표시 전용이라 1400px·JPEG
+ * 0.72 로 다운스케일해 용량을 줄인다(localStorage 용량 보호).
+ *
+ * 이미지가 아니거나 변환 실패 시 null → 호출부에서 blob URL 로 폴백.
+ */
+export async function fileToDisplayDataUrl(file: File): Promise<string | null> {
+  if (!isImageFile(file)) return null;
+  let img: HTMLImageElement;
+  try {
+    img = await loadImage(file);
+  } catch {
+    return null;
+  }
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  const scale = Math.min(1, PREVIEW_MAX_DIM / Math.max(img.width, img.height));
+  canvas.width = Math.max(1, Math.round(img.width * scale));
+  canvas.height = Math.max(1, Math.round(img.height * scale));
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  try {
+    return canvas.toDataURL('image/jpeg', 0.72);
+  } catch {
+    return null; // tainted canvas 등 — 폴백
+  }
+}
+
 /** 페이지 구분자 — 다중 파일의 추출 텍스트를 이어붙일 때. */
 function pageSeparator(idx: number, total: number): string {
   return total > 1 ? `\n\n──────── (${idx + 1}/${total} 페이지) ────────\n\n` : '';

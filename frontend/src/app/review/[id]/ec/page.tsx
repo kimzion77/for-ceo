@@ -65,6 +65,9 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
   const [mounted, setMounted] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
+  /** "제안 모두 반영" 결과 안내 메시지 (잠깐 표시). */
+  const [bulkMsg, setBulkMsg] = useState<string | null>(null);
+  const bulkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** 캐러셀의 현재 활성 항목 인덱스 — ChatPanel 컨텍스트로 사용. */
   const [activeFindingIndex, setActiveFindingIndex] = useState(0);
   /** 좌(요약 칩·본문 마크) ↔ 우(상세 카드) 동기화용 focus 인덱스 (0-based, sortedResults 기준). */
@@ -220,6 +223,30 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
   const verdictKey = (analysis.overallStatus || '보완필요').trim();
   const verdictStyle = VERDICT_STYLES[verdictKey] ?? VERDICT_STYLES.보완필요;
 
+  // 제안 모두 반영 — 모든 위반·보완 항목의 제안 표현(개선권고 또는 이미 담은 표현)을
+  // 한 번에 userOverrides 에 저장. 항목별 '문서에 반영'을 일일이 누르지 않아도 됨.
+  const handleApplyAll = () => {
+    const prev = getCase(caseId)?.ec?.userOverrides ?? {};
+    const next = { ...prev };
+    let n = 0;
+    for (const v of violations) {
+      const sug = (next[v.항목] ?? v.개선권고 ?? '').trim();
+      if (sug) {
+        next[v.항목] = sug;
+        n += 1;
+      }
+    }
+    updateEc(caseId, { userOverrides: next });
+    setEntry(getCase(caseId)); // 카드(SuggestBlock)가 '반영됨'으로 갱신되도록 재읽기
+    setBulkMsg(
+      n > 0
+        ? `✓ ${n}개 항목의 제안을 모두 반영했어요 — '표준 계약서 생성' 시 본문에 그대로 사용됩니다.`
+        : '반영할 제안 표현이 없어요.',
+    );
+    if (bulkTimerRef.current) clearTimeout(bulkTimerRef.current);
+    bulkTimerRef.current = setTimeout(() => setBulkMsg(null), 4500);
+  };
+
   // 표준 계약서 생성 — 데스크톱 CTA 와 모바일 '내 수정본 → 표준 계약서 만들기' 가 공유.
   const handleGenerate = () => {
     setGenerating(true);
@@ -368,6 +395,15 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
               </Link>
               <button
                 type="button"
+                className={styles.btnSecondary}
+                onClick={handleApplyAll}
+                disabled={generating || violations.length === 0}
+                title="모든 위반·보완 항목의 제안 표현을 한 번에 반영합니다"
+              >
+                ✨ 제안 모두 반영
+              </button>
+              <button
+                type="button"
                 className={styles.btnPrimary}
                 onClick={handleGenerate}
                 disabled={generating}
@@ -375,6 +411,27 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
                 {generating ? '계약서 생성 중…' : '표준 계약서 생성'}
               </button>
             </div>
+
+            {bulkMsg && (
+              <div
+                className="noPrint"
+                role="status"
+                aria-live="polite"
+                style={{
+                  marginTop: 10,
+                  padding: '10px 14px',
+                  borderRadius: 10,
+                  background: 'rgba(5, 150, 105, 0.08)',
+                  border: '1px solid rgba(5, 150, 105, 0.35)',
+                  color: '#065f46',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  lineHeight: 1.55,
+                }}
+              >
+                {bulkMsg}
+              </div>
+            )}
 
             {genError && (
               <div className={styles.error}>

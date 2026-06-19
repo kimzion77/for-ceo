@@ -16,7 +16,7 @@
  * 모든 칸은 controlled input — 수정 즉시 onChange 로 상위(page)에 전달되어
  * 다운로드(.docx)/복사/인쇄가 항상 최신 편집본을 사용한다.
  */
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 
 import type {
   EcAnalysisResult,
@@ -104,6 +104,8 @@ export interface EcFormModel {
   state: ContractFormState;
   flags: EcFormFlags;
   items: EcFormItems;
+  /** 칸 → 수정 권고안(개선권고 또는 사용자 보완 표현). 점 호버 팝오버·복사용. */
+  suggestions: EcFormItems;
 }
 
 /* ───────────────────── 표준 양식 기본 문구 ───────────────────── */
@@ -401,6 +403,13 @@ export function buildEcFormModel(
   const fields = {} as Record<EcFormFieldId, string>;
   const flags: EcFormFlags = {};
   const items: EcFormItems = {};
+  const suggestions: EcFormItems = {};
+
+  // 항목명 → 수정 권고안(개선권고 또는 사용자 보완 표현) 한 줄 추출 헬퍼.
+  const suggestFor = (itemName: string): string =>
+    (overrides[itemName] ??
+      analysis?.results?.find((r) => r.항목 === itemName)?.개선권고 ??
+      '').trim();
 
   // ── 1) 원본 값 추출 ──
   for (const id of FIELD_IDS) {
@@ -419,7 +428,11 @@ export function buildEcFormModel(
     const spec = FIELD_SPECS[id];
     const { status, item } = findFlag(analysis, spec.patterns);
     if (!status) continue;
-    if (item) items[id] = item;
+    if (item) {
+      items[id] = item;
+      const sug = suggestFor(item);
+      if (sug) suggestions[id] = sug;
+    }
     const ov = usableOverride(item ? overrides[item] : undefined);
     if (ov) {
       fields[id] = ov;
@@ -464,7 +477,11 @@ export function buildEcFormModel(
     // 부적절/보완필요 → 표준 양식 기본(4대 보험 모두 체크)으로 보완
     for (const k of INSURANCE_KEYS) insurance[k] = true;
     flags.insurance = 'standard';
-    if (insFlag.item) items.insurance = insFlag.item;
+    if (insFlag.item) {
+      items.insurance = insFlag.item;
+      const sug = suggestFor(insFlag.item);
+      if (sug) suggestions.insurance = sug;
+    }
   } else if (insRaw) {
     const t = norm(insRaw);
     insurance.고용보험 = t.includes('고용');
@@ -481,7 +498,11 @@ export function buildEcFormModel(
   const signFlag = findFlag(analysis, ['당사자서명날인', '서명날인', '서명']);
   if (signFlag.status) {
     flags.signature = 'attention';
-    if (signFlag.item) items.signature = signFlag.item;
+    if (signFlag.item) {
+      items.signature = signFlag.item;
+      const sug = suggestFor(signFlag.item);
+      if (sug) suggestions.signature = sug;
+    }
   }
 
   // ── 7) 유형별 분기 — 단시간(요일별 근로시간)·연소자(친권자 동의) ──
@@ -499,7 +520,7 @@ export function buildEcFormModel(
     state.minor = { guardian: '', relation: '', contact: '' };
   }
 
-  return { state, flags, items };
+  return { state, flags, items, suggestions };
 }
 
 /* ───────────────────── 텍스트 렌더 (.docx/복사용) ───────────────────── */
@@ -589,27 +610,86 @@ const FLAG_WRAP_CLASS: Record<FieldFlag, string> = {
 };
 
 /**
- * 칸 옆 상태 표시 — 텍스트 배지는 양식 레이아웃을 깨뜨려서, 색만 가진
- * 작은 점(dot)으로 표시한다. 색: 초록=보완됨, 주황=확인 필요.
- * 의미는 hover(title)·aria-label 로 전달.
+ * 칸 옆 상태 점(dot) — 텍스트 배지가 양식 레이아웃을 깨뜨려 색 점으로 표시.
+ * 색: 초록=보완됨, 주황=확인 필요. 의미는 title/aria-label.
+ *
+ * 수정 권고안(suggestion)이 있으면 **호버 시 팝오버**로 그 권고안을 보여주고
+ * '복사' 로 바로 붙여넣을 수 있다. (onClick 이 있으면 검토 결과 네비용 클릭 점 —
+ * 현재 작성 화면에선 미사용.)
  */
-function chipFor(flag: FieldFlag | undefined, onClick?: () => void) {
+function DotMarker({
+  flag,
+  suggestion,
+  onClick,
+}: {
+  flag: FieldFlag | undefined;
+  suggestion?: string;
+  onClick?: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
   if (!flag) return null;
   const isWarn = flag === 'attention';
   const label = isWarn ? '확인 필요' : '보완됨';
-  const cls = `${styles.dot} ${isWarn ? styles.dotWarn : styles.dotFix}`;
+  const dotCls = `${styles.dot} ${isWarn ? styles.dotWarn : styles.dotFix}`;
+
   if (onClick) {
     return (
       <button
         type="button"
-        className={`${cls} ${styles.dotBtn}`}
+        className={`${dotCls} ${styles.dotBtn}`}
         onClick={onClick}
         title={`${label} — 상세 보기`}
         aria-label={label}
       />
     );
   }
-  return <span className={cls} title={label} aria-label={label} />;
+
+  if (!suggestion) {
+    return <span className={dotCls} title={label} aria-label={label} />;
+  }
+
+  const copy = async () => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(suggestion);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = suggestion;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+      }
+    } catch {
+      /* noop */
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <span className={styles.dotWrap}>
+      <span className={dotCls} title={label} aria-label={label} tabIndex={0} />
+      <span className={styles.dotPop} role="tooltip">
+        <span
+          className={`${styles.dotPopTag} ${isWarn ? styles.dotPopTagWarn : styles.dotPopTagFix}`}
+        >
+          {isWarn ? '확인 필요 — 권고안' : '보완 예시'}
+        </span>
+        <span className={styles.dotPopText}>{suggestion}</span>
+        <button
+          type="button"
+          className={styles.dotPopCopy}
+          onClick={copy}
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          {copied ? '✓ 복사됨' : '📋 복사해서 붙여넣기'}
+        </button>
+      </span>
+    </span>
+  );
 }
 
 interface ContractFormViewProps {
@@ -620,6 +700,8 @@ interface ContractFormViewProps {
   flagItems?: EcFormItems;
   /** 칩 클릭 시 호출(항목명 전달) — 검토 결과 우측 상세로 이동에 사용. */
   onFlagClick?: (item: string) => void;
+  /** 칸 → 수정 권고안. 점 호버 시 팝오버로 보여주고 복사 가능. */
+  suggestions?: EcFormItems;
 }
 
 export default function ContractFormView({
@@ -628,6 +710,7 @@ export default function ContractFormView({
   onChange,
   flagItems,
   onFlagClick,
+  suggestions,
 }: ContractFormViewProps) {
   // 칩 클릭 핸들러 — 해당 칸에 연관 항목명이 있고 onFlagClick 이 있을 때만.
   const chipClick = (
@@ -691,7 +774,7 @@ export default function ContractFormView({
           aria-label={label}
           spellCheck={false}
         />
-        {chipFor(flag, chipClick(id))}
+        <DotMarker flag={flag} suggestion={suggestions?.[id]} onClick={chipClick(id)} />
       </span>
     );
   };
@@ -712,7 +795,7 @@ export default function ContractFormView({
           aria-label={label}
           spellCheck={false}
         />
-        {chipFor(flag, chipClick(id))}
+        <DotMarker flag={flag} suggestion={suggestions?.[id]} onClick={chipClick(id)} />
       </span>
     );
   };
@@ -808,7 +891,11 @@ export default function ContractFormView({
         <li className={styles.clause}>
           <span className={styles.clauseLabel}>
             8. 사회보험 적용여부(해당란에 체크)
-            {chipFor(flags.insurance, chipClick('insurance'))}
+            <DotMarker
+              flag={flags.insurance}
+              suggestion={suggestions?.insurance}
+              onClick={chipClick('insurance')}
+            />
           </span>
           <div className={styles.checkRow}>
             {INSURANCE_KEYS.map((k) => (
@@ -911,7 +998,11 @@ export default function ContractFormView({
       <div className={styles.signBlock}>
         {flags.signature && (
           <div className={styles.signNotice}>
-            {chipFor(flags.signature, chipClick('signature'))}
+            <DotMarker
+              flag={flags.signature}
+              suggestion={suggestions?.signature}
+              onClick={chipClick('signature')}
+            />
             <span>서명·날인 누락이 지적됐어요 — 출력 후 양측 서명이 필요해요.</span>
           </div>
         )}

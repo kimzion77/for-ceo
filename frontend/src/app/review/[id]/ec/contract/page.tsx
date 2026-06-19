@@ -207,6 +207,7 @@ export default function EcContractPage({
             value={effectiveForm}
             flags={formModel.flags}
             onChange={setFormState}
+            suggestions={formModel.suggestions}
           />
         ) : (
           <textarea
