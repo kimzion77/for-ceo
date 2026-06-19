@@ -64,10 +64,16 @@ export default function EcContractPage({
     const ec = entry?.ec;
     if (!ec?.structuredData) return null;
     try {
+      // 근로자 유형 — 분류 확정값 우선, 없으면 폼 입력값. 유형별 서식 분기에 사용.
+      const workerTypes =
+        ec.classify?.workerTypes ?? ec.workerTypes ?? [];
+      const typeLabel = ec.classify?.docKind ?? '';
       return buildEcFormModel(
         ec.structuredData,
         ec.analysisResult ?? null,
         ec.userOverrides ?? {},
+        workerTypes,
+        typeLabel,
       );
     } catch {
       return null;

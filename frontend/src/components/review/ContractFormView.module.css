@@ -393,3 +393,78 @@
     background: transparent !important;
   }
 }
+
+/* ─── 근로자 유형 배지 + 유형별 섹션 ─── */
+.typeBadgeRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  margin: -6px 0 14px;
+  flex-wrap: wrap;
+}
+.typeBadge {
+  display: inline-block;
+  padding: 3px 12px;
+  background: var(--color-brand);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+}
+.typeBadgeHint {
+  font-size: 11.5px;
+  color: var(--color-text-subtle);
+}
+.typeMini {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  background: var(--color-brand-soft);
+  color: var(--color-brand-strong);
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 800;
+  font-style: normal;
+  vertical-align: middle;
+}
+
+/* 단시간 요일별 근로시간 표 */
+.ptTable {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 13px;
+}
+.ptTable th,
+.ptTable td {
+  border: 1px solid var(--color-border);
+  padding: 5px 8px;
+  text-align: center;
+}
+.ptTable th {
+  background: var(--color-surface-muted);
+  font-weight: 700;
+  font-size: 12px;
+}
+.ptDay {
+  width: 56px;
+  font-weight: 700;
+  background: var(--color-surface-muted);
+}
+.ptInput {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  text-align: center;
+  padding: 2px 4px;
+}
+.ptInput:focus {
+  background: #fffbea;
+  box-shadow: inset 0 0 0 1.5px var(--color-accent);
+  border-radius: 3px;
+}

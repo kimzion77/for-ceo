@@ -64,11 +64,31 @@ export const INSURANCE_KEYS = [
 ] as const;
 export type InsuranceKey = (typeof INSURANCE_KEYS)[number];
 
+export interface PartTimeRow {
+  day: string;
+  work: string;
+  rest: string;
+}
+
+export interface MinorConsent {
+  guardian: string;
+  relation: string;
+  contact: string;
+}
+
 export interface ContractFormState {
   fields: Record<EcFormFieldId, string>;
   insurance: Record<InsuranceKey, boolean>;
   /** 1번 조항 라벨 — 기간의 정함 여부에 따라 (structuredData 값으로 결정). */
   periodLabel: '근로개시일' | '근로계약기간';
+  /** 근로자 유형 표시 라벨 (예: "기간제·단시간"). */
+  contractType?: string;
+  /** 분류 유형 목록 — 유형별 섹션 분기용. */
+  workerTypes?: string[];
+  /** 단시간 — 요일별 근로시간 (해당 유형일 때만). */
+  partTime?: PartTimeRow[];
+  /** 연소자(18세 미만) — 친권자(후견인) 동의 (해당 유형일 때만). */
+  minor?: MinorConsent;
 }
 
 /**
@@ -377,6 +397,8 @@ export function buildEcFormModel(
   sd: EcStructuredData,
   analysis: EcAnalysisResult | null,
   overrides: Record<string, string>,
+  workerTypes: string[] = [],
+  typeLabel = '',
 ): EcFormModel {
   const fields = {} as Record<EcFormFieldId, string>;
   const flags: EcFormFlags = {};
@@ -418,9 +440,12 @@ export function buildEcFormModel(
     fields.delivery = STANDARD_PHRASES.delivery ?? '';
   }
 
-  // ── 4) 1번 조항 라벨 — 기간의 정함 여부 (값 형태로 결정) ──
+  // ── 4) 1번 조항 라벨 — 유형(기간제·일용직) 우선, 없으면 값 형태로 결정 ──
+  const hasTerm = workerTypes.some((t) => /기간제|일용/.test(t));
   const periodLabel: ContractFormState['periodLabel'] =
-    /[~∼]|까지/.test(fields.startDate) ? '근로계약기간' : '근로개시일';
+    hasTerm || /[~∼]|까지/.test(fields.startDate)
+      ? '근로계약기간'
+      : '근로개시일';
 
   // ── 5) 사회보험 체크박스 ──
   const insurance = {
@@ -455,7 +480,30 @@ export function buildEcFormModel(
   const signFlag = findFlag(analysis, ['당사자서명날인', '서명날인', '서명']);
   if (signFlag.status) flags.signature = 'attention';
 
-  return { state: { fields, insurance, periodLabel }, flags };
+  // ── 7) 유형별 분기 — 단시간(요일별 근로시간)·연소자(친권자 동의) ──
+  const isPartTime = workerTypes.some((t) => /단시간/.test(t));
+  const isMinor = workerTypes.some((t) => /연소/.test(t));
+  const contractType = typeLabel || workerTypes.join('·') || '';
+
+  const state: ContractFormState = {
+    fields,
+    insurance,
+    periodLabel,
+    contractType,
+    workerTypes,
+  };
+  if (isPartTime) {
+    state.partTime = ['월', '화', '수', '목', '금', '토', '일'].map((day) => ({
+      day,
+      work: '',
+      rest: '',
+    }));
+  }
+  if (isMinor) {
+    state.minor = { guardian: '', relation: '', contact: '' };
+  }
+
+  return { state, flags };
 }
 
 /* ───────────────────── 텍스트 렌더 (.docx/복사용) ───────────────────── */
@@ -471,6 +519,7 @@ export function buildContractText(state: ContractFormState): string {
   const box = (on: boolean) => (on ? '■' : '□');
   const L: string[] = [];
   L.push('표 준 근 로 계 약 서');
+  if (state.contractType) L.push(`(유형: ${state.contractType})`);
   L.push('');
   L.push(
     `${blank(f.employerName, 12)} (이하 “사업주”라 함)과(와) ${blank(f.workerName, 12)} (이하 “근로자”라 함)은 다음과 같이 근로계약을 체결한다.`,
@@ -485,6 +534,13 @@ export function buildContractText(state: ContractFormState): string {
   L.push(
     `5. 근무일/휴일 : 근무일 ${blank(f.workDays)}, 주휴일 ${blank(f.weeklyHoliday)}`,
   );
+  if (state.partTime && state.partTime.some((r) => r.work.trim() || r.rest.trim())) {
+    L.push('   ※ 근로일별 근로시간(단시간)');
+    for (const r of state.partTime) {
+      if (!r.work.trim() && !r.rest.trim()) continue;
+      L.push(`     - ${r.day}요일 : 근로시간 ${blank(r.work, 6)} (휴게 ${blank(r.rest, 6)})`);
+    }
+  }
   L.push('6. 임  금');
   L.push(`  - 월(일, 시간)급 : ${blank(f.wageAmount)}`);
   L.push(`  - 상여금 : ${blank(f.bonus)}`);
@@ -503,6 +559,14 @@ export function buildContractText(state: ContractFormState): string {
   L.push(`  - ${blank(f.compliance)}`);
   L.push('11. 기  타');
   L.push(`  - ${blank(f.etcClause)}`);
+  if (state.minor) {
+    L.push('');
+    L.push('12. 친권자(후견인) 동의 (연소근로자)');
+    L.push(`  - 친권자(후견인) 성명 : ${blank(state.minor.guardian)}`);
+    L.push(`  - 근로자와의 관계 : ${blank(state.minor.relation)}`);
+    L.push(`  - 연락처 : ${blank(state.minor.contact, 8)}`);
+    L.push('  - 첨부 : 가족관계증명서, 친권자(후견인) 동의서');
+  }
   L.push('');
   L.push(f.contractDate.trim() ? f.contractDate.trim() : '        년    월    일');
   L.push('');
@@ -567,6 +631,29 @@ export default function ContractFormView({
     el.style.height = `${el.scrollHeight}px`;
   }, []);
 
+  const setPartTime = useCallback(
+    (i: number, key: keyof PartTimeRow, v: string) => {
+      if (!value.partTime) return;
+      const list = value.partTime.map((r, idx) =>
+        idx === i ? { ...r, [key]: v } : r,
+      );
+      onChange({ ...value, partTime: list });
+    },
+    [value, onChange],
+  );
+
+  const setMinor = useCallback(
+    (key: keyof MinorConsent, v: string) => {
+      const base: MinorConsent = value.minor ?? {
+        guardian: '',
+        relation: '',
+        contact: '',
+      };
+      onChange({ ...value, minor: { ...base, [key]: v } });
+    },
+    [value, onChange],
+  );
+
   // 주의: 컴포넌트가 아닌 일반 함수 — 매 렌더 새 컴포넌트 타입이 되면
   // input 이 remount 되어 포커스를 잃는다.
   const renderField = (
@@ -616,6 +703,12 @@ export default function ContractFormView({
   return (
     <div className={styles.paper}>
       <h2 className={styles.formTitle}>표 준 근 로 계 약 서</h2>
+      {value.contractType && (
+        <div className={styles.typeBadgeRow}>
+          <span className={styles.typeBadge}>{value.contractType}</span>
+          <span className={styles.typeBadgeHint}>근로자 유형에 맞춘 서식이에요</span>
+        </div>
+      )}
 
       <p className={styles.intro}>
         {renderField('employerName', '사업주 명칭', 'md')}
@@ -657,6 +750,50 @@ export default function ContractFormView({
           <span className={styles.inlineText}>, 주휴일</span>
           {renderField('weeklyHoliday', '주휴일', 'sm')}
         </li>
+
+        {value.partTime && (
+          <li className={styles.clause}>
+            <span className={styles.clauseLabel}>
+              근로일별 근로시간 <em className={styles.typeMini}>단시간</em>
+            </span>
+            <table className={styles.ptTable}>
+              <thead>
+                <tr>
+                  <th>요일</th>
+                  <th>근로시간</th>
+                  <th>휴게시간</th>
+                </tr>
+              </thead>
+              <tbody>
+                {value.partTime.map((r, i) => (
+                  <tr key={r.day}>
+                    <td className={styles.ptDay}>{r.day}</td>
+                    <td>
+                      <input
+                        type="text"
+                        className={styles.ptInput}
+                        value={r.work}
+                        placeholder="예: 09:00~13:00"
+                        onChange={(e) => setPartTime(i, 'work', e.target.value)}
+                        aria-label={`${r.day}요일 근로시간`}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="text"
+                        className={styles.ptInput}
+                        value={r.rest}
+                        placeholder="예: 12:00~12:30"
+                        onChange={(e) => setPartTime(i, 'rest', e.target.value)}
+                        aria-label={`${r.day}요일 휴게시간`}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </li>
+        )}
 
         <li className={styles.clause}>
           <span className={styles.clauseLabel}>6. 임 금</span>
@@ -739,6 +876,58 @@ export default function ContractFormView({
             {renderArea('etcClause', '기타')}
           </div>
         </li>
+
+        {value.minor && (
+          <li className={styles.clause}>
+            <span className={styles.clauseLabel}>
+              12. 친권자(후견인) 동의 <em className={styles.typeMini}>연소근로자</em>
+            </span>
+            <ul className={styles.subList}>
+              <li className={styles.subLine}>
+                <span className={styles.subLabel}>- 친권자(후견인) 성명 :</span>
+                <span className={styles.fieldWrap}>
+                  <input
+                    type="text"
+                    className={`${styles.field} ${styles.w_lg}`}
+                    value={value.minor.guardian}
+                    onChange={(e) => setMinor('guardian', e.target.value)}
+                    aria-label="친권자 성명"
+                  />
+                </span>
+              </li>
+              <li className={styles.subLine}>
+                <span className={styles.subLabel}>- 근로자와의 관계 :</span>
+                <span className={styles.fieldWrap}>
+                  <input
+                    type="text"
+                    className={`${styles.field} ${styles.w_md}`}
+                    value={value.minor.relation}
+                    onChange={(e) => setMinor('relation', e.target.value)}
+                    aria-label="근로자와의 관계"
+                  />
+                </span>
+              </li>
+              <li className={styles.subLine}>
+                <span className={styles.subLabel}>- 연락처 :</span>
+                <span className={styles.fieldWrap}>
+                  <input
+                    type="text"
+                    className={`${styles.field} ${styles.w_lg}`}
+                    value={value.minor.contact}
+                    onChange={(e) => setMinor('contact', e.target.value)}
+                    aria-label="친권자 연락처"
+                  />
+                </span>
+              </li>
+              <li className={styles.subLine}>
+                <span className={styles.subLabel}>- 첨부 :</span>
+                <span className={styles.inlineText}>
+                  가족관계증명서, 친권자(후견인) 동의서
+                </span>
+              </li>
+            </ul>
+          </li>
+        )}
       </ol>
 
       <div className={styles.dateRow}>
