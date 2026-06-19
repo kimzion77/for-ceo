@@ -185,11 +185,11 @@ export default function EcContractPage({
           {activeView === 'form' ? (
             <>
               <strong>고용노동부 표준 서식</strong>에 검토하신 계약 내용을{' '}
-              <strong>그대로 채워 넣은 양식</strong>이에요.{' '}
-              <span className={styles.legendFix}>보완됨</span> 칸은
+              <strong>그대로 채워 넣은 양식</strong>이에요. 칸 옆{' '}
+              <span className={styles.legendFix}>보완됨</span> 점은
               부적절·보완필요 판정을 표준 문구(또는 직접 담은 표현)로 채운
-              것이고, <span className={styles.legendWarn}>확인필요</span> 칸은
-              직접 확인 후 입력이 필요해요. 모든 칸은 클릭해서 수정할 수
+              칸, <span className={styles.legendWarn}>확인필요</span> 점은
+              직접 확인 후 입력이 필요한 칸이에요. 모든 칸은 클릭해서 수정할 수
               있습니다.
             </>
           ) : (

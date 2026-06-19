@@ -198,45 +198,38 @@
   padding-left: 8px;
 }
 
-.chip {
+/* 보완됨/확인필요 — 칸 옆 작은 색 점. 텍스트 배지가 양식을 깨뜨려 점으로 대체.
+   초록=보완됨, 주황=확인 필요. 의미는 hover(title)·aria-label 로 전달. */
+.dot {
   flex: 0 0 auto;
-  font-style: normal;
-  font-size: 10.5px;
-  font-weight: 700;
-  line-height: 1;
-  padding: 3px 7px;
-  border-radius: 999px;
-  letter-spacing: 0.2px;
-  white-space: nowrap;
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-left: 3px;
+  vertical-align: middle;
 }
 
-/* 클릭 가능한 칩(검토 결과) — 누르면 우측 상세로 이동 */
-.chipBtn {
+.dotFix {
+  background: #059669; /* 초록 — 표준 문구로 보완됨 */
+}
+
+.dotWarn {
+  background: #d97706; /* 주황 — 직접 확인 필요 */
+}
+
+/* 클릭 가능한 점(검토 결과에서 재사용 시) — 누르면 우측 상세로 이동 */
+.dotBtn {
   cursor: pointer;
-  font-family: inherit;
-  transition: filter 0.12s, transform 0.06s;
+  padding: 0;
+  border: none;
+  transition: transform 0.08s;
 }
-.chipBtn::after {
-  content: ' ›';
-  font-weight: 800;
+.dotBtn:hover {
+  transform: scale(1.3);
 }
-.chipBtn:hover {
-  filter: brightness(0.95);
-}
-.chipBtn:active {
-  transform: scale(0.96);
-}
-
-.chipFix {
-  background: #d1fae5;
-  color: #065f46;
-  border: 1px solid #6ee7b7;
-}
-
-.chipWarn {
-  background: #fef3c7;
-  color: #92400e;
-  border: 1px solid #fde68a;
+.dotBtn:active {
+  transform: scale(1.05);
 }
 
 /* ── 사회보험 체크박스 ── */
@@ -425,7 +418,7 @@
     display: none !important;
   }
 
-  .chip,
+  .dot,
   .signNotice {
     display: none !important;
   }

@@ -588,23 +588,28 @@ const FLAG_WRAP_CLASS: Record<FieldFlag, string> = {
   attention: styles.flagWarn,
 };
 
+/**
+ * 칸 옆 상태 표시 — 텍스트 배지는 양식 레이아웃을 깨뜨려서, 색만 가진
+ * 작은 점(dot)으로 표시한다. 색: 초록=보완됨, 주황=확인 필요.
+ * 의미는 hover(title)·aria-label 로 전달.
+ */
 function chipFor(flag: FieldFlag | undefined, onClick?: () => void) {
   if (!flag) return null;
-  const label = flag === 'attention' ? '확인필요' : '보완됨';
-  const cls = `${styles.chip} ${flag === 'attention' ? styles.chipWarn : styles.chipFix}`;
+  const isWarn = flag === 'attention';
+  const label = isWarn ? '확인 필요' : '보완됨';
+  const cls = `${styles.dot} ${isWarn ? styles.dotWarn : styles.dotFix}`;
   if (onClick) {
     return (
       <button
         type="button"
-        className={`${cls} ${styles.chipBtn}`}
+        className={`${cls} ${styles.dotBtn}`}
         onClick={onClick}
-        title="이 항목 상세 보기"
-      >
-        {label}
-      </button>
+        title={`${label} — 상세 보기`}
+        aria-label={label}
+      />
     );
   }
-  return <em className={cls}>{label}</em>;
+  return <span className={cls} title={label} aria-label={label} />;
 }
 
 interface ContractFormViewProps {

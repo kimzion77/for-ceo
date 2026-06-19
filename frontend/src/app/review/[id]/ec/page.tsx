@@ -22,9 +22,6 @@ import type {
   EcChatTurn,
 } from '@/lib/api/types';
 import SiteHeader from '@/components/layout/SiteHeader';
-import ContractFormView, {
-  buildEcFormModel,
-} from '@/components/review/ContractFormView';
 import MobileReviewApp, {
   useIsMobileViewport,
   type MobileFinding,
@@ -118,36 +115,9 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
     [sortedResults],
   );
 
-  // 문서 패널용 — 공식 표준계약서 양식 뷰(읽기 전용). structuredData 로 칸을 채우고
-  // 부적절·보완필요 칸에 '보완됨/확인필요' 칩 표시. (계약서 페이지의 ContractFormView 재사용)
-  const ecFormNode = useMemo(() => {
-    const ec = entry?.ec;
-    if (!ec?.structuredData) return null;
-    try {
-      const wt = ec.classify?.workerTypes ?? ec.workerTypes ?? [];
-      const model = buildEcFormModel(
-        ec.structuredData,
-        ec.analysisResult ?? null,
-        ec.userOverrides ?? {},
-        wt,
-        ec.classify?.docKind ?? '',
-      );
-      return (
-        <ContractFormView
-          value={model.state}
-          flags={model.flags}
-          onChange={() => {}}
-          flagItems={model.items}
-          onFlagClick={(item) => {
-            const i = violations.findIndex((v) => v.항목 === item);
-            if (i >= 0) handleFocus(i);
-          }}
-        />
-      );
-    } catch {
-      return null;
-    }
-  }, [entry, violations, handleFocus]);
+  // 검토 결과 문서 패널은 원본 이미지 + 추출 텍스트만 — 표준 양식(폼) 뷰는
+  // 사용자 요청으로 제거함(결과 화면에선 원본과 비교가 핵심). 표준 양식은
+  // 'ec/contract'(표준 계약서 만들기) 화면에서만 보여준다.
 
   // ─── 모바일 검토앱 (≤720px) — 공용 MobileReviewApp 으로 분기 ───
   const isMobile = useIsMobileViewport();
@@ -336,7 +306,6 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
               entry?.originalKind === 'image' ? entry?.originalUrl : undefined
             }
             extractedText={entry?.ec?.extractedText ?? ''}
-            formNode={ecFormNode}
             findings={violations}
             board={requirementBoard}
             focusedIndex={focusedIndex}
