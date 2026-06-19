@@ -45,8 +45,8 @@
 }
 
 .intro {
-  margin: 0 0 22px;
-  line-height: 2.1;
+  margin: 0 0 14px;
+  line-height: 1.8;
 }
 
 .introText,
@@ -62,11 +62,11 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 9px;
 }
 
 .clause {
-  line-height: 2;
+  line-height: 1.75;
 }
 
 .clauseLabel {
@@ -390,7 +390,22 @@
     border-radius: 0;
     box-shadow: none;
     padding: 0;
-    font-size: 12.5px;
+    font-size: 11.5px;
+    line-height: 1.4;
+  }
+  /* A4 한 장에 맞게 간격 압축 */
+  .intro {
+    margin-bottom: 8px;
+    line-height: 1.4;
+  }
+  .clauses {
+    gap: 5px;
+  }
+  .clause {
+    line-height: 1.4;
+  }
+  .typeBadgeRow {
+    display: none !important;
   }
 
   .chip,

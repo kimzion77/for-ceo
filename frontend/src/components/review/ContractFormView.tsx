@@ -714,6 +714,11 @@ export default function ContractFormView({
     <div className={styles.paper}>
       <div className={styles.titleBox}>
         <h2 className={styles.formTitle}>{ecOfficialTitle(value.workerTypes)}</h2>
+        {value.contractType && (
+          <div className={styles.typeBadgeRow}>
+            <span className={styles.typeBadge}>{value.contractType}</span>
+          </div>
+        )}
       </div>
 
       <p className={styles.intro}>

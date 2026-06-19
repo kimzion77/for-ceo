@@ -135,18 +135,6 @@ export default function WsContractPage({ params }: { params: { id: string } }) {
     );
   }
 
-  const handleDownloadTxt = () => {
-    const blob = new Blob([exportText], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${baseName}_표준명세서.txt`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  };
-
   const handleDownloadDocx = async () => {
     setDownloadingDocx(true);
     setDownloadError(null);
@@ -227,13 +215,6 @@ export default function WsContractPage({ params }: { params: { id: string } }) {
             title="브라우저 인쇄 — PDF 저장 가능"
           >
             📄 인쇄·PDF
-          </button>
-          <button
-            type="button"
-            className={styles.btnSecondary}
-            onClick={handleDownloadTxt}
-          >
-            ⬇ 텍스트 (.txt)
           </button>
           <button
             type="button"

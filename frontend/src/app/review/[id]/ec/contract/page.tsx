@@ -38,7 +38,6 @@ export default function EcContractPage({
   const [entry, setEntry] = useState<ReturnType<typeof getCase>>(null);
   const [draft, setDraft] = useState<string>('');
   const originalRef = useRef<string>('');
-  const [copied, setCopied] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [downloadingDocx, setDownloadingDocx] = useState(false);
@@ -102,20 +101,6 @@ export default function EcContractPage({
     toastTimer.current = setTimeout(() => setToast(null), 2400);
   };
 
-  const handleDownload = useCallback(() => {
-    if (!activeText) return;
-    const blob = new Blob([activeText], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${filenameBase}_표준양식.txt`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    pushToast('✓ 텍스트 파일로 저장됨');
-  }, [activeText, filenameBase]);
-
   const handleDownloadDocx = useCallback(async () => {
     if (!activeText) return;
     setDownloadingDocx(true);
@@ -142,28 +127,6 @@ export default function EcContractPage({
     if (typeof window === 'undefined') return;
     window.print();
   }, []);
-
-  const handleCopy = useCallback(async () => {
-    if (!activeText) return;
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(activeText);
-      } else {
-        const ta = document.createElement('textarea');
-        ta.value = activeText;
-        ta.style.position = 'fixed';
-        ta.style.left = '-9999px';
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        ta.remove();
-      }
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch {
-      /* noop */
-    }
-  }, [activeText]);
 
   const handleReset = () => {
     if (activeView === 'form') {
@@ -273,20 +236,6 @@ export default function EcContractPage({
             onClick={handlePrint}
           >
             🖨 인쇄 / PDF
-          </button>
-          <button
-            type="button"
-            className={styles.btnSecondary}
-            onClick={handleDownload}
-          >
-            ⬇ 텍스트 (.txt)
-          </button>
-          <button
-            type="button"
-            className={styles.btnSecondary}
-            onClick={handleCopy}
-          >
-            {copied ? '✓ 복사됨' : '📋 클립보드 복사'}
           </button>
           {((activeView === 'form' && formDirty) ||
             (activeView === 'text' && dirty)) && (
