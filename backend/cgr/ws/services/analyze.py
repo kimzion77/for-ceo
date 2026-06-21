@@ -223,7 +223,9 @@ def run(
         raise RuntimeError("적용 가능한 슬롯이 없습니다 — 카탈로그·컨텍스트 확인 필요.")
 
     model_name = get_llm_model(model)
-    sys_prompt = _SYSTEM_PROMPT
+    from cgr import prompt_store
+
+    sys_prompt = prompt_store.get_or_default("ws_analyze", _SYSTEM_PROMPT)
     user_prompt = _build_user_prompt(
         wage_text,
         applicable,

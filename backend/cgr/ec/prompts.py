@@ -18,27 +18,67 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from cgr import datadir, prompt_store
 
-_PROMPTS_PATH = (
+
+# baked(이미지 번들) 기본본 — 최초 1회 볼륨으로 시드되는 원본
+_BAKED_PROMPTS_PATH = (
     Path(__file__).resolve().parent.parent.parent / "data" / "prompts" / "ec_prompts.json"
 )
+# 하위호환 별칭
+_PROMPTS_PATH = _BAKED_PROMPTS_PATH
+
+
+def _active_path() -> Path:
+    """편집·영구화용 활성 경로(볼륨). 없으면 baked 본을 한 번 복사해 시드."""
+    p = datadir.prompts_dir() / "ec_prompts.json"
+    if not p.exists() and _BAKED_PROMPTS_PATH.exists():
+        try:
+            p.write_text(
+                _BAKED_PROMPTS_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+            )
+        except Exception:
+            pass
+    return p
 
 
 @lru_cache(maxsize=1)
 def _load() -> dict[str, str]:
-    """JSON 파일에서 프롬프트 4종 로드. 누락 시 KeyError 로 빠르게 실패."""
-    if not _PROMPTS_PATH.exists():
-        raise FileNotFoundError(
-            f"EC 프롬프트 파일 없음: {_PROMPTS_PATH}. "
-            f"기존 1. 근로계약서/기존/server/prompts.json 으로부터 마이그레이션이 필요합니다."
-        )
-    with _PROMPTS_PATH.open(encoding="utf-8") as f:
+    """활성 JSON(볼륨, 없으면 baked)에서 프롬프트 로드. 누락 시 빠르게 실패."""
+    path = _active_path()
+    if not path.exists():
+        path = _BAKED_PROMPTS_PATH
+    if not path.exists():
+        raise FileNotFoundError(f"EC 프롬프트 파일 없음: {path}")
+    with path.open(encoding="utf-8") as f:
         data = json.load(f)
     required = ("STRUCTURE_PROMPT", "ANALYSIS_PROMPT", "GENERATION_PROMPT")
     missing = [k for k in required if k not in data]
     if missing:
-        raise KeyError(f"EC 프롬프트 누락 키: {missing} (파일: {_PROMPTS_PATH})")
+        raise KeyError(f"EC 프롬프트 누락 키: {missing} (파일: {path})")
     return data
+
+
+def get_prompt_raw(key: str) -> str:
+    """관리자 편집용 — 특정 프롬프트 원문 반환(없으면 빈 문자열)."""
+    return _load().get(key, "")
+
+
+def save_prompt(key: str, content: str) -> None:
+    """관리자 편집 저장 — 활성 JSON 갱신 후 캐시 무효화(즉시 적용)."""
+    import os
+
+    path = _active_path()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except Exception:
+        data = dict(_load())
+    data[key] = content
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, path)
+    _load.cache_clear()
+    get_chat_system_prompt.cache_clear()
 
 
 def get_structure_prompt() -> str:
@@ -120,9 +160,10 @@ def _extract_mapping_section(analysis_prompt: str) -> str:
 
 @lru_cache(maxsize=1)
 def get_chat_system_prompt() -> str:
-    """챗봇 system prompt — base 톤 + ANALYSIS_PROMPT 의 매핑 테이블."""
+    """챗봇 system prompt — base 톤(관리자 override 가능) + ANALYSIS_PROMPT 매핑 테이블."""
     mapping = _extract_mapping_section(get_analysis_prompt())
-    return _CHAT_SYSTEM_BASE + (mapping or "(매핑 테이블 로드 실패)")
+    base = prompt_store.get_or_default("ec_chat_base", _CHAT_SYSTEM_BASE)
+    return base + (mapping or "(매핑 테이블 로드 실패)")
 
 
 # 하위 호환 — 기존 코드가 import 하던 상수도 동적 빌더 결과로.

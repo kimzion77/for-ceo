@@ -14,7 +14,9 @@ import time
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+
+from cgr import upload_tracker
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
@@ -55,13 +57,22 @@ class ExtractOut(BaseModel):
     dependencies=[Depends(require_api_key)],
 )
 async def post_extract(
+    request: Request,
     file: UploadFile = File(..., description="임금명세서 파일"),
 ):
     t0 = time.time()
     suffix = Path(file.filename or "upload.bin").suffix or ".bin"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tf:
-        tf.write(await file.read())
+        content = await file.read()
+        tf.write(content)
         tmp_path = Path(tf.name)
+    upload_tracker.record_upload(
+        content=content,
+        filename=file.filename or "",
+        mime=file.content_type or "",
+        service="임금명세서",
+        request=request,
+    )
     try:
         try:
             text = parse_to_text(tmp_path)

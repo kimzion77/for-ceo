@@ -954,8 +954,12 @@ def post_guide_chat(body: GuideChatIn) -> GuideChatOut:
     from cgr.config import get_api_key, get_llm_model
 
     model_name = get_llm_model()
+    from cgr import prompt_store
+
+    # 관리자 override 가 있으면 그 프롬프트, 없으면 코드 기본값 (즉시 적용)
+    system_prompt = prompt_store.get_or_default("guide_chat", _GUIDE_CHAT_SYSTEM)
     cache_key = llm_cache.make_key(
-        system=_GUIDE_CHAT_SYSTEM,
+        system=system_prompt,
         user=user_prompt,
         schema={"kind": "guide_chat"},
         model=model_name,
@@ -981,7 +985,7 @@ def post_guide_chat(body: GuideChatIn) -> GuideChatOut:
             resp = client.chat.completions.create(
                 model=model_name,
                 messages=[
-                    {"role": "system", "content": _GUIDE_CHAT_SYSTEM},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
                 temperature=0,

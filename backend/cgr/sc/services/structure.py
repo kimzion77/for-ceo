@@ -65,7 +65,9 @@ def run(extracted_text: str, *, model: str | None = None) -> dict[str, Any]:
     extracted_text = mask_pii_text(extracted_text)
 
     model_name = get_llm_model(model)
-    sys_prompt = prompts.STRUCTURE_PROMPT
+    from cgr import prompt_store
+
+    sys_prompt = prompt_store.get_or_default("sc_structure", prompts.STRUCTURE_PROMPT)
     user_prompt = prompts.build_structure_user_prompt(extracted_text)
 
     cache_key = llm_cache.make_key(

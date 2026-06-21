@@ -13,7 +13,9 @@ import time
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+
+from cgr import upload_tracker
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
@@ -46,13 +48,20 @@ class ExtractOut(BaseModel):
     summary="노무제공자 계약서 파일 → 텍스트 추출 (OCR 포함)",
     dependencies=[Depends(require_api_key)],
 )
-async def post_extract(file: UploadFile = File(...)):
+async def post_extract(request: Request, file: UploadFile = File(...)):
     t0 = time.time()
     suffix = Path(file.filename or "upload.bin").suffix or ".bin"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tf:
         content = await file.read()
         tf.write(content)
         tmp_path = Path(tf.name)
+    upload_tracker.record_upload(
+        content=content,
+        filename=file.filename or "",
+        mime=file.content_type or "",
+        service="노무계약서",
+        request=request,
+    )
     try:
         try:
             text = parse_to_text(tmp_path)

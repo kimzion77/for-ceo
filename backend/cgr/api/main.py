@@ -22,7 +22,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
-from cgr.api.routes import admin, ec, guide, history, master_db, review, sc, slots, topics, wr_classify, ws
+from cgr.api.routes import admin, ec, guide, history, master_db, review, sc, slots, topics, track, wr_classify, ws
 from cgr.api.schemas import HealthResponse
 
 
@@ -77,6 +77,19 @@ app.include_router(topics.router, prefix=API_PREFIX)
 app.include_router(ws.router, prefix=API_PREFIX)
 app.include_router(sc.router, prefix=API_PREFIX)
 app.include_router(guide.router, prefix=API_PREFIX)
+app.include_router(track.router, prefix=API_PREFIX)
+
+
+# ─── startup 유지보수 — 업로드 보관기간 정리(배포/재시작 시 1회) ───
+@app.on_event("startup")
+async def _startup_maintenance() -> None:
+    try:
+        from cgr.web.admin.store import analytics, settings_store
+
+        days = int(settings_store.get("upload_retention_days", 30) or 30)
+        analytics.cleanup_old_uploads(days)
+    except Exception:
+        pass
 
 
 # ─── 헬스 체크 (인증 불요) ──────────────────

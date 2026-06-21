@@ -171,12 +171,20 @@ def _format_prohibited_patterns(slots: list[dict[str, Any]]) -> str:
 
 
 def get_analysis_prompt() -> str:
-    """슬롯 카탈로그 + 금지 표현을 인라인한 system prompt."""
+    """슬롯 카탈로그 + 금지 표현을 인라인한 system prompt. (관리자 override 가능)"""
     slots = _load_slots()
-    return _ANALYZE_TEMPLATE.format(
-        slot_catalog=_format_slot_catalog(slots),
-        prohibited_patterns=_format_prohibited_patterns(slots),
-    )
+    catalog = _format_slot_catalog(slots)
+    prohibited = _format_prohibited_patterns(slots)
+    from cgr import prompt_store
+
+    tmpl = prompt_store.get_or_default("sc_analyze", _ANALYZE_TEMPLATE)
+    try:
+        return tmpl.format(slot_catalog=catalog, prohibited_patterns=prohibited)
+    except Exception:
+        # override 템플릿이 placeholder 를 깨뜨렸으면 기본 템플릿으로 안전 폴백
+        return _ANALYZE_TEMPLATE.format(
+            slot_catalog=catalog, prohibited_patterns=prohibited
+        )
 
 
 def build_analyze_user_prompt(

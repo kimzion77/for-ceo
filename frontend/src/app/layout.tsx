@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import '@/styles/globals.css';
 import WarmupPing from '@/components/WarmupPing';
+import VisitPing from '@/components/VisitPing';
 
 export const metadata: Metadata = {
   title: '노동법 자율점검 — 취업규칙 검토 AI',
@@ -35,6 +36,8 @@ export default function RootLayout({
       <body>
         {/* 백엔드 warm-up — Render 무료 sleep 방지 (어떤 페이지든 마운트되면 1회 핑) */}
         <WarmupPing />
+        {/* 익명 방문 집계 — 관리자 대시보드 통계용 (개인정보 미수집) */}
+        <VisitPing />
         {children}
       </body>
     </html>

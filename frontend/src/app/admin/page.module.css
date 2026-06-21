@@ -1,0 +1,385 @@
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 28px 20px 60px;
+  font-family: var(--font-sans, inherit);
+  color: var(--color-text, #1e293b);
+}
+
+.center {
+  padding: 80px 0;
+  text-align: center;
+  color: var(--color-text-muted, #64748b);
+}
+
+.err {
+  margin: 16px 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  font-size: 14px;
+}
+
+.muted {
+  color: var(--color-text-subtle, #94a3b8);
+  font-size: 13px;
+}
+
+/* ─── 로그인 ─── */
+.loginCard {
+  max-width: 360px;
+  margin: 80px auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 28px 24px;
+  background: #fff;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 14px;
+  box-shadow: 0 6px 24px rgba(15, 27, 45, 0.08);
+}
+.loginTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+}
+.loginSub {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--color-text-muted, #64748b);
+}
+.loginInput {
+  padding: 11px 13px;
+  font-size: 15px;
+  border: 1px solid var(--color-border, #cbd5e1);
+  border-radius: 9px;
+  outline: none;
+}
+.loginInput:focus {
+  border-color: var(--color-brand, #2a6fdb);
+}
+.loginErr {
+  font-size: 13px;
+  color: #b91c1c;
+}
+.loginBtn {
+  padding: 11px;
+  background: var(--color-brand, #2a6fdb);
+  color: #fff;
+  border: none;
+  border-radius: 9px;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+}
+.loginBtn:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+
+/* ─── 헤더·탭 ─── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 800;
+}
+.logout {
+  padding: 8px 14px;
+  background: var(--color-surface, #f1f5f9);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--color-text, #334155);
+}
+.tabs {
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  margin-bottom: 18px;
+}
+.tab,
+.tabOn {
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--color-text-muted, #64748b);
+}
+.tabOn {
+  color: var(--color-brand, #2a6fdb);
+  border-bottom-color: var(--color-brand, #2a6fdb);
+  font-weight: 800;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.h2 {
+  margin: 22px 0 8px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* ─── 카드 ─── */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+.card {
+  padding: 18px;
+  background: #fff;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 12px;
+  text-align: center;
+}
+.cardNum {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--color-brand, #2a6fdb);
+}
+.cardLabel {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--color-text-muted, #64748b);
+}
+
+/* ─── 일별 추이 막대 ─── */
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.barRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+}
+.barDate {
+  flex: 0 0 44px;
+  color: var(--color-text-subtle, #94a3b8);
+}
+.barTrack {
+  flex: 1 1 auto;
+  height: 12px;
+  background: #f1f5f9;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.barFill {
+  display: block;
+  height: 100%;
+  background: var(--color-brand, #2a6fdb);
+  border-radius: 999px;
+}
+.barVal {
+  flex: 0 0 120px;
+  text-align: right;
+  color: var(--color-text-muted, #64748b);
+}
+
+/* ─── 서비스 칩 ─── */
+.svcRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.svcChip {
+  padding: 6px 12px;
+  background: var(--color-surface, #f1f5f9);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 999px;
+  font-size: 13px;
+}
+
+/* ─── 업로드 표 ─── */
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 10px;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.table th,
+.table td {
+  padding: 9px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border, #eef2f7);
+  white-space: nowrap;
+}
+.table th {
+  background: var(--color-surface, #f8fafc);
+  font-weight: 700;
+  color: var(--color-text-muted, #475569);
+}
+.fname {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.linkBtn {
+  background: none;
+  border: none;
+  color: var(--color-brand, #2a6fdb);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: none;
+  padding: 0 4px;
+}
+
+/* ─── 미리보기 모달 ─── */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 100;
+}
+.modalBody {
+  background: #fff;
+  border-radius: 12px;
+  max-width: 90vw;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.modalHead {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  font-size: 13px;
+}
+.modalHead .fname {
+  flex: 1 1 auto;
+}
+.previewImg {
+  max-width: 80vw;
+  max-height: 76vh;
+  object-fit: contain;
+  display: block;
+}
+.previewFrame {
+  width: 80vw;
+  height: 76vh;
+  border: none;
+}
+
+/* ─── 프롬프트 편집 ─── */
+.promptLayout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 16px;
+}
+@media (max-width: 720px) {
+  .promptLayout {
+    grid-template-columns: 1fr;
+  }
+}
+.promptList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.promptGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.promptGroupName {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--color-text-subtle, #94a3b8);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  padding: 2px 4px;
+}
+.promptItem,
+.promptItemOn {
+  text-align: left;
+  padding: 9px 12px;
+  background: #fff;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 8px;
+  font-size: 13.5px;
+  cursor: pointer;
+  color: var(--color-text, #334155);
+}
+.promptItemOn {
+  border-color: var(--color-brand, #2a6fdb);
+  background: var(--color-brand-soft, #eef4fe);
+  color: var(--color-brand-strong, #1d4ed8);
+  font-weight: 700;
+}
+.promptEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.promptHead {
+  font-size: 15px;
+}
+.promptArea {
+  width: 100%;
+  min-height: 420px;
+  resize: vertical;
+  padding: 14px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 13px;
+  line-height: 1.6;
+  border: 1px solid var(--color-border, #cbd5e1);
+  border-radius: 10px;
+  outline: none;
+  white-space: pre-wrap;
+}
+.promptArea:focus {
+  border-color: var(--color-brand, #2a6fdb);
+}
+.promptFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.saveBtn {
+  padding: 10px 18px;
+  background: var(--color-brand, #2a6fdb);
+  color: #fff;
+  border: none;
+  border-radius: 9px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+}
+.saveBtn:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}

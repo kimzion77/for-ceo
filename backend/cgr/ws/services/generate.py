@@ -142,7 +142,9 @@ def run(
     wage_text = mask_pii_text(wage_text)
 
     model_name = get_llm_model(model)
-    sys_prompt = _SYSTEM_PROMPT
+    from cgr import prompt_store
+
+    sys_prompt = prompt_store.get_or_default("ws_generate", _SYSTEM_PROMPT)
     user_prompt = _build_user_prompt(analysis_result, wage_text, user_overrides)
 
     cache_key = llm_cache.make_key(
@@ -297,13 +299,16 @@ def run_structured(
     wage_text = mask_pii_text(wage_text)
 
     model_name = get_llm_model(model)
+    from cgr import prompt_store
+
+    form_sys = prompt_store.get_or_default("ws_form", _FORM_SYSTEM_PROMPT)
     user_prompt = _build_user_prompt(analysis_result, wage_text, user_overrides)
     _ref = _wage_formula_reference()
     if _ref:
         user_prompt = f"{user_prompt}\n\n{_ref}"
 
     cache_key = llm_cache.make_key(
-        system=_FORM_SYSTEM_PROMPT,
+        system=form_sys,
         user=user_prompt,
         schema={"kind": "ws_generate_form"},
         model=model_name,
@@ -319,7 +324,7 @@ def run_structured(
             resp = client.chat.completions.create(
                 model=model_name,
                 messages=[
-                    {"role": "system", "content": _FORM_SYSTEM_PROMPT},
+                    {"role": "system", "content": form_sys},
                     {"role": "user", "content": user_prompt},
                 ],
                 response_format={"type": "json_object"},

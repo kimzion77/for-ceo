@@ -44,6 +44,11 @@ backend/data/llm_cache/
 backend/data/access_log.jsonl
 backend/data/review_history.jsonl
 
+# ─── 관리자 런타임 데이터 (영구 볼륨/로컬 — 커밋 금지) ───
+backend/data/events.db
+backend/data/uploads/
+backend/data/prompts/*.txt
+
 # ─── 마스터 DB (재시드 가능) — 시드 결과물이라 포함 옵션
 # 기본은 포함 (간편 setup). 운영 환경에선 별도 시드 후 사용 권장.
 # backend/data/master.db

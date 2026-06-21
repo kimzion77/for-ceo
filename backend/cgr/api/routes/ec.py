@@ -17,10 +17,11 @@ import time
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
+from cgr import upload_tracker
 from cgr.api.auth import require_api_key
 from cgr.api import jobs
 from cgr.config import get_llm_model
@@ -60,6 +61,7 @@ class ExtractOut(BaseModel):
     dependencies=[Depends(require_api_key)],
 )
 async def post_extract(
+    request: Request,
     file: UploadFile = File(..., description="검토 대상 근로계약서 파일"),
 ):
     t0 = time.time()
@@ -68,6 +70,13 @@ async def post_extract(
         content = await file.read()
         tf.write(content)
         tmp_path = Path(tf.name)
+    upload_tracker.record_upload(
+        content=content,
+        filename=file.filename or "",
+        mime=file.content_type or "",
+        service="근로계약서",
+        request=request,
+    )
     try:
         try:
             text = parse_to_text(tmp_path)

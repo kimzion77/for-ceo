@@ -9,10 +9,13 @@ GET    /api/v1/admin/stats           : 종합 통계 (슬롯·캐시·이력)
 from __future__ import annotations
 
 from collections import Counter
+from pathlib import Path
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
-from cgr import llm_cache
+from cgr import datadir, llm_cache, prompt_store
 from cgr.api.auth import require_admin_key, require_api_key
 from cgr.api.schemas import (
     CacheClearOut,
@@ -22,7 +25,7 @@ from cgr.api.schemas import (
     StatsOut,
 )
 from cgr.master_db import get_master_db
-from cgr.web.admin.store import history, settings_store, slot_writer
+from cgr.web.admin.store import analytics, history, settings_store, slot_writer
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -128,3 +131,79 @@ async def get_admin_stats() -> StatsOut:
         n_reviews=len(hist_rows),
         n_cache=cache_stats.get("entries", 0),
     )
+
+
+# ─── 사용량 분석 (대시보드) ──────────────────
+@router.get(
+    "/analytics",
+    summary="사용량 통계 — 방문수·DAU/WAU/MAU·업로드",
+    dependencies=[Depends(require_admin_key)],
+)
+async def get_analytics() -> dict:
+    return analytics.analytics_summary()
+
+
+# ─── 업로드 기록 ────────────────────────────
+@router.get(
+    "/uploads",
+    summary="업로드 기록 목록 (익명)",
+    dependencies=[Depends(require_admin_key)],
+)
+async def get_uploads(
+    limit: int = 100, offset: int = 0, service: str | None = None
+) -> dict:
+    rows, total = analytics.list_uploads(
+        limit=min(max(limit, 1), 500), offset=max(offset, 0), service=service
+    )
+    for r in rows:
+        sp = r.pop("stored_path", "") or ""
+        r["has_file"] = bool(sp and Path(sp).exists())
+    return {"items": rows, "total": total}
+
+
+@router.get(
+    "/uploads/{uid}/file",
+    summary="업로드 파일 열람 (이미지 인라인)",
+    dependencies=[Depends(require_admin_key)],
+)
+async def get_upload_file(uid: int):
+    rec = analytics.get_upload(uid)
+    if not rec or not rec.get("stored_path"):
+        raise HTTPException(status_code=404, detail="파일 기록이 없습니다.")
+    p = Path(rec["stored_path"])
+    # 경로 가드 — uploads_dir 하위만 허용
+    try:
+        p.resolve().relative_to(datadir.uploads_dir().resolve())
+    except Exception:
+        raise HTTPException(status_code=403, detail="허용되지 않은 경로.")
+    if not p.exists():
+        raise HTTPException(status_code=404, detail="파일이 삭제되었습니다(보관기간 만료).")
+    media = rec.get("mime") or "application/octet-stream"
+    return FileResponse(str(p), media_type=media, filename=rec.get("filename") or p.name)
+
+
+# ─── 프롬프트 편집 (즉시 적용) ────────────────
+class PromptSaveIn(BaseModel):
+    key: str
+    content: str
+
+
+@router.get(
+    "/prompts",
+    summary="편집형 프롬프트 목록 + 현재 내용",
+    dependencies=[Depends(require_admin_key)],
+)
+async def get_prompts() -> dict:
+    return {"prompts": prompt_store.list_prompts(include_content=True)}
+
+
+@router.put(
+    "/prompts",
+    summary="프롬프트 저장 (저장 즉시 적용)",
+    dependencies=[Depends(require_admin_key)],
+)
+async def put_prompt(body: PromptSaveIn) -> dict:
+    ok = prompt_store.save_prompt(body.key, body.content)
+    if not ok:
+        raise HTTPException(status_code=404, detail=f"알 수 없는 프롬프트 키: {body.key}")
+    return {"ok": True, "key": body.key}

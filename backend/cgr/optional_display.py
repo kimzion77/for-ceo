@@ -113,10 +113,13 @@ def _call_extract(
             }
         },
     }
+    from cgr import prompt_store
+
+    sys_p = prompt_store.get_or_default("optional_display", _SYSTEM_PROMPT)
     resp = client.chat.completions.create(
         model=model,
         messages=[
-            {"role": "system", "content": _SYSTEM_PROMPT},
+            {"role": "system", "content": sys_p},
             {"role": "user", "content": user},
         ],
         tools=[

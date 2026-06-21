@@ -6,6 +6,8 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 
+import { ADMIN_COOKIE, verifySession } from '@/lib/adminAuth';
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8503';
 const API_PREFIX = '/api/v1';
 const API_KEY = process.env.CGR_API_KEY ?? '';
@@ -42,6 +44,19 @@ async function handler(
   { params }: { params: { path: string[] } },
 ) {
   const parts = params.path ?? [];
+
+  // ── 관리자 경로 보안 게이트 ──
+  // BFF 가 admin 경로에 ADMIN_API_KEY 를 자동 주입하므로, 유효한 admin_session
+  // 쿠키(비밀번호 로그인 발급) 가 없으면 키 주입 전에 401 로 차단한다.
+  if (isAdminPath(parts)) {
+    if (!verifySession(req.cookies.get(ADMIN_COOKIE)?.value)) {
+      return NextResponse.json(
+        { detail: '관리자 인증이 필요합니다. /admin 에서 로그인하세요.' },
+        { status: 401 },
+      );
+    }
+  }
+
   const url = `${API_BASE}${API_PREFIX}/${parts.join('/')}${req.nextUrl.search}`;
 
   const ct = req.headers.get('content-type') ?? '';
