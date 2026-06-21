@@ -822,7 +822,10 @@ _GUIDE_CHAT_SYSTEM = (
     "     '죄송하지만 사업주 노무 관리 범위 밖 질문이라 답변드리기 어려워요. 노동법·근로조건·\n"
     "      보험·서식·계산 등 다른 노무 관련 질문이 있으시면 도와드릴게요.'\n"
     "   (예: '맛집 추천', '오늘 날씨', '주식 사는 법', '코딩 도와줘' 등 → 거절 문구만)\n"
-    "   범위 밖이면 '관련 법령:' 줄과 [추천질문] 섹션 모두 출력 금지.\n\n"
+    "   범위 밖이면 '관련 법령:' 줄과 [추천질문] 섹션 모두 출력 금지.\n"
+    "8) **제재·처벌 표현 규칙(엄수)** — '전과', '벌금=형사처벌(전과)' 같은 표현은 절대 쓰지 마라.\n"
+    "   위반 시 불이익은 반드시 '과태료·벌금 등 행정·형사 제재로 이어질 수 있습니다' 처럼\n"
+    "   중립적으로 안내하고, 'A=B(전과)' 식 등식·낙인적 표현은 쓰지 않는다.\n\n"
     "[후속 추천 질문 — 반드시 출력]\n"
     "답변 본문 + '관련 법령' 표시 다음에 빈 줄 한 칸 후 정확히 다음 형식으로 추가:\n"
     "  [추천질문]\n"
@@ -877,6 +880,37 @@ def _extract_followups(answer: str) -> tuple[str, list[str]]:
     return body, items
 
 
+def _sanitize_sanctions(text: str) -> str:
+    """제재·처벌 표현 결정적 정제.
+
+    사용자 요구: '전과', '벌금=형사처벌(전과)' 같은 낙인적·등식형 표현 금지.
+    위반 불이익은 '과태료·벌금 등 행정·형사 제재' 로 중립 안내.
+    LLM 준수에 의존하지 않도록 (a) 가이드 DB 컨텍스트, (b) 최종 답변 본문 양쪽에
+    적용한다. (같은 입력 → 같은 출력: 결정성 유지)
+    """
+    if not text:
+        return text
+    import re
+
+    s = text
+    for a, b in (
+        ("벌금=형사처벌(전과)", "과태료·벌금 등 행정·형사 제재"),
+        ("벌금 = 형사처벌(전과)", "과태료·벌금 등 행정·형사 제재"),
+        ("형사처벌(전과)", "형사 제재"),
+        ("벌금=형사처벌", "벌금 등 형사 제재"),
+        ("벌금 = 형사처벌", "벌금 등 형사 제재"),
+    ):
+        s = s.replace(a, b)
+    # 괄호 주석 '(전과...)' 제거
+    s = re.sub(r"\s*\(\s*전과[^)]*\)", "", s)
+    # 잔여 '전과(+조사)' 언급 제거 (낙인 표현 차단)
+    s = re.sub(r"전과(가|는|을|를|로|기록)?", "", s)
+    # 치환 흔적 정리 — 이중 공백 / 구두점 앞 공백
+    s = re.sub(r"[ \t]{2,}", " ", s)
+    s = re.sub(r"\s+([,.)])", r"\1", s)
+    return s.strip()
+
+
 @router.post(
     "/chat",
     response_model=GuideChatOut,
@@ -888,8 +922,9 @@ def post_guide_chat(body: GuideChatIn) -> GuideChatOut:
     if not msg:
         raise HTTPException(status_code=422, detail="질문이 비어있어요.")
 
-    # 가이드 DB 검색 → LLM 컨텍스트
+    # 가이드 DB 검색 → LLM 컨텍스트 (제재 표현 정제 후 주입 — LLM이 '전과' 등을 echo 못 하게)
     ctx_text, sources = _search_guide_context(msg)
+    ctx_text = _sanitize_sanctions(ctx_text)
 
     # 이전 대화 (최근 6턴)
     hist_lines: list[str] = []
@@ -928,6 +963,7 @@ def post_guide_chat(body: GuideChatIn) -> GuideChatOut:
     cached = llm_cache.get(cache_key)
     if cached and isinstance(cached.get("text"), str):
         body, fups = _extract_followups(cached["text"])
+        body = _sanitize_sanctions(body)
         rel_forms, clarify = _detect_related_forms(msg, body)
         return GuideChatOut(
             answer=body,
@@ -956,6 +992,7 @@ def post_guide_chat(body: GuideChatIn) -> GuideChatOut:
                 raise RuntimeError("chat 응답이 비어 있습니다.")
             llm_cache.put(cache_key, {"text": text})
             body, fups = _extract_followups(text)
+            body = _sanitize_sanctions(body)
             rel_forms, clarify = _detect_related_forms(msg, body)
             return GuideChatOut(
                 answer=body,

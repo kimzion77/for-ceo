@@ -283,9 +283,8 @@ export default function MobileOcrConfirm({
           <InfoIcon />
         </span>
         <p className={styles.bannerText}>
-          전체 글자는 안 보여드려요.{' '}
-          <strong>읽기 어렵거나 비어 있는 곳</strong>만 모아 드릴게요 — 확인하고
-          고쳐 주세요.
+          <strong>확인이 필요한 곳</strong>을 모았어요 — 내용을 확인하고 고쳐
+          주세요.
         </p>
       </div>
 

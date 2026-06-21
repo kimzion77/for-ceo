@@ -502,7 +502,9 @@
 }
 
 .chatLandingInput {
-  flex: 1;
+  flex: 1 1 auto;
+  /* min-width:0 없으면 placeholder 폭만큼 안 줄어 '질문' 버튼이 박스 밖으로 밀림(깨짐). */
+  min-width: 0;
   border: none;
   outline: none;
   font-size: 16px;
@@ -517,6 +519,7 @@
 }
 
 .chatLandingSubmit {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1406,7 +1409,10 @@
 }
 
 .chatInput {
-  flex: 1;
+  flex: 1 1 auto;
+  /* min-width:0 없으면 flex 아이템이 콘텐츠(placeholder) 폭 이하로 안 줄어
+     좁은 화면에서 옆의 '질문' 버튼을 입력행 밖으로 밀어낸다(깨짐). */
+  min-width: 0;
   padding: 10px 12px;
   font-family: inherit;
   font-size: 14px;
@@ -1421,6 +1427,8 @@
 }
 
 .chatSend {
+  flex: 0 0 auto;
+  white-space: nowrap;
   padding: 0 18px;
   background: var(--color-brand);
   color: #fff;
