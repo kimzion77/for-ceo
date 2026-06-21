@@ -645,6 +645,68 @@
   display: none;
 }
 
+/* ─── 바로가기 — 아이콘 타일 그리드 (챗봇 홈 B안) ─── */
+.tilesWrap {
+  margin-top: 34px;
+  padding-top: 22px;
+  border-top: 1px solid var(--color-border, #e5e4de);
+}
+.tilesLabel {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--color-text-subtle, #8b92a0);
+  letter-spacing: 0.02em;
+  text-align: left;
+  margin: 0 2px 12px;
+}
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--color-border, #e5e4de);
+  background: var(--color-surface, #fff);
+  border-radius: 14px;
+  padding: 16px 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--color-text, #1a1d24);
+  text-align: center;
+  line-height: 1.3;
+  cursor: pointer;
+  transition: border-color 0.13s, box-shadow 0.13s, transform 0.13s;
+}
+.tile:hover {
+  border-color: var(--color-brand, #0b3d91);
+  box-shadow: 0 4px 14px rgba(11, 61, 145, 0.1);
+  transform: translateY(-1px);
+}
+.tileIc {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--color-brand-soft, #e8eef9);
+  color: var(--color-brand, #0b3d91);
+}
+/* 감독 대비 서류 — warm 톤 강조 */
+.tileAlt .tileIc {
+  background: #fbf1e3;
+  color: #c4730e;
+}
+@media (max-width: 560px) {
+  .tiles {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 /* 가이드 데이터 Excel 다운로드 영역 */
 .chatLandingDownload {
   margin-top: 22px;

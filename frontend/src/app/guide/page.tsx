@@ -787,16 +787,64 @@ function GuideChatTab({ overview: _overview }: { overview: GuideOverview | null 
           ))}
         </div>
 
-        {/* 빠른 메뉴 (서식·계산·카탈로그) — 미니멀 하단 footer */}
-        <div className={styles.chatLandingFooter}>
-          <button type="button" className={styles.chatLandingFooterBtn} onClick={() => { setFormCategory(''); setIntent('form'); }}>📄 서식 받기</button>
-          <button type="button" className={styles.chatLandingFooterBtn} onClick={() => setIntent('calc')}>🧮 계산 도움</button>
-          <span className={styles.chatLandingFooterDot}>·</span>
-          <button type="button" className={styles.chatLandingFooterLink} onClick={() => setMode('duties')}>의무</button>
-          <button type="button" className={styles.chatLandingFooterLink} onClick={() => setMode('stages')}>단계별 의무</button>
-          <button type="button" className={styles.chatLandingFooterLink} onClick={() => setMode('glossary')}>용어</button>
-          <button type="button" className={styles.chatLandingFooterLink} onClick={() => setMode('orgs')}>기관</button>
-          <button type="button" className={styles.chatLandingFooterLink} onClick={() => setMode('docs')}>비치 서류</button>
+        {/* 바로가기 — 아이콘 타일 그리드 (B안) */}
+        <div className={styles.tilesWrap}>
+          <div className={styles.tilesLabel}>바로가기</div>
+          <div className={styles.tiles}>
+            <button type="button" className={styles.tile} onClick={() => setIntent('calc')} aria-label="계산기">
+              <span className={styles.tileIc} aria-hidden>
+                <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 7h8M8 11h2M12 11h2M8 15h2M12 15h2" /></svg>
+              </span>
+              계산기
+            </button>
+            <button type="button" className={styles.tile} onClick={() => { setFormCategory(''); setIntent('form'); }} aria-label="서식 받기">
+              <span className={styles.tileIc} aria-hidden>
+                <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><path d="M14 3v6h6" /></svg>
+              </span>
+              서식 받기
+            </button>
+            <button type="button" className={styles.tile} onClick={() => setMode('duties')} aria-label="의무">
+              <span className={styles.tileIc} aria-hidden>
+                <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3 8-8" /><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9" /></svg>
+              </span>
+              의무
+            </button>
+            <button type="button" className={styles.tile} onClick={() => setMode('stages')} aria-label="단계별 의무">
+              <span className={styles.tileIc} aria-hidden>
+                <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><circle cx="6" cy="6" r="2" /><circle cx="6" cy="18" r="2" /><path d="M6 8v8M9 6h9M9 18h9" /></svg>
+              </span>
+              단계별 의무
+            </button>
+            <button type="button" className={styles.tile} onClick={() => setMode('glossary')} aria-label="용어">
+              <span className={styles.tileIc} aria-hidden>
+                <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z" /><path d="M4 17a2 2 0 0 1 2-2h12" /></svg>
+              </span>
+              용어
+            </button>
+            <button type="button" className={styles.tile} onClick={() => setMode('orgs')} aria-label="기관 연락처">
+              <span className={styles.tileIc} aria-hidden>
+                <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6" /></svg>
+              </span>
+              기관 연락처
+            </button>
+            <button type="button" className={styles.tile} onClick={() => setMode('docs')} aria-label="비치 서류">
+              <span className={styles.tileIc} aria-hidden>
+                <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 8h6M9 12h6M9 16h4" /></svg>
+              </span>
+              비치 서류
+            </button>
+            <button
+              type="button"
+              className={`${styles.tile} ${styles.tileAlt}`}
+              onClick={() => { setIntent('consult'); void send('근로감독 대비로 갖춰야 할 서류는 무엇인가요?'); }}
+              aria-label="감독 대비 서류"
+            >
+              <span className={styles.tileIc} aria-hidden>
+                <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z" /><path d="M9 12l2 2 4-4" /></svg>
+              </span>
+              감독 대비 서류
+            </button>
+          </div>
         </div>
       </div>
     );
