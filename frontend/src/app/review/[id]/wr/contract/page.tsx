@@ -8,6 +8,7 @@ import WrDocumentView, {
   countWrChanges,
   stripWrMarkers,
 } from '@/components/review/WrDocumentView';
+import WrComparisonView from '@/components/review/WrComparisonView';
 import { getCase, updateWr } from '@/lib/reviewStore';
 import { downloadWrDocx } from '@/lib/api/review';
 import { ApiCallError } from '@/lib/api/client';
@@ -38,7 +39,7 @@ export default function WrContractPage({ params }: { params: { id: string } }) {
   /** 마커 포함 canonical 본문 — 문서 뷰 편집·텍스트 뷰 편집 모두 여기로 수렴. */
   const [draft, setDraft] = useState('');
   const [dirty, setDirty] = useState(false);
-  const [view, setView] = useState<'doc' | 'text'>('doc');
+  const [view, setView] = useState<'doc' | 'text' | 'compare'>('doc');
   const [downloadingDocx, setDownloadingDocx] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const originalRef = useRef('');
@@ -140,6 +141,10 @@ export default function WrContractPage({ params }: { params: { id: string } }) {
     }
   };
 
+  // 신구대조표 — work-rules 검토 결과 findings 에서 결정적으로 구성.
+  const wrFindings =
+    entry.result?.doc === 'work-rules' ? entry.result.data.findings : [];
+
   return (
     <main className={styles.page}>
       <SiteHeader />
@@ -187,6 +192,15 @@ export default function WrContractPage({ params }: { params: { id: string } }) {
               onClick={() => setView('text')}
             >
               ≡ 텍스트 보기
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === 'compare'}
+              className={`${styles.viewBtn} ${view === 'compare' ? styles.viewBtnActive : ''}`}
+              onClick={() => setView('compare')}
+            >
+              🆚 신구대조표
             </button>
           </div>
           {dirty && (
@@ -270,7 +284,16 @@ export default function WrContractPage({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        {/* 액션 바 */}
+        {/* ── 신구대조표 보기 (검토 findings 기반·편집 가능) ── */}
+        {view === 'compare' && (
+          <WrComparisonView
+            findings={wrFindings}
+            filename={entry?.originalFilename || '취업규칙'}
+          />
+        )}
+
+        {/* 액션 바 — 신구대조표 뷰는 자체 인쇄/다운로드 버튼을 가짐 */}
+        {view !== 'compare' && (
         <div className={`${styles.actionBar} noPrint`}>
           <button
             type="button"
@@ -304,6 +327,7 @@ export default function WrContractPage({ params }: { params: { id: string } }) {
             {downloadingDocx ? '변환 중…' : '⬇ Word 문서 (.docx)'}
           </button>
         </div>
+        )}
 
         {downloadError && (
           <div className={`${styles.errorBox} noPrint`}>
