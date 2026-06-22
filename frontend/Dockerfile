@@ -1,0 +1,23 @@
+# 프론트엔드(Next.js 14) 프로덕션 이미지 — build 후 `next start`.
+# BFF·관리자 로그인이 서버사이드라 정적 export 가 아니라 Node 런타임으로 띄운다.
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+# NEXT_PUBLIC_* 는 빌드 시점에 인라인됨 → 백엔드 내부 주소를 빌드 ARG 로 주입
+# (compose 네트워크에서 backend 서비스명:포트). 서버사이드 BFF 만 사용.
+ARG NEXT_PUBLIC_API_BASE=http://backend:8080
+ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE
+RUN npm run build
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/next.config.mjs ./next.config.mjs
+EXPOSE 3000
+# package.json: "start": "next start -p 3000"
+CMD ["npm", "run", "start"]

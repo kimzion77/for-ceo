@@ -1,0 +1,62 @@
+# moellab.info 자체 서버 배포 — backend(FastAPI) + frontend(Next.js) + Caddy(자동 HTTPS)
+#
+#   1) cp .env.docker.example .env   후 값 채우기 (특히 OPENAI_API_KEY, ADMIN_*, 도메인)
+#   2) docker compose up -d --build
+#   3) moellab.info DNS A레코드가 이 서버를 가리키면 Caddy 가 HTTPS 인증서를 자동 발급
+#
+# 구조: 인터넷 → Caddy(443) → frontend(3000) → (서버사이드 BFF) → backend(8080, 내부 전용)
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      API_KEY: ${API_KEY}
+      ADMIN_API_KEY: ${ADMIN_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.4-mini}
+      CGR_DATA_DIR: /data
+      PORT: "8080"
+    volumes:
+      - cgr_data:/data        # 통계·업로드·편집 프롬프트 영구 보존
+    expose:
+      - "8080"                # 내부 네트워크만 — 인터넷 비노출
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE: http://backend:8080
+    environment:
+      CGR_API_KEY: ${CGR_API_KEY}
+      CGR_ADMIN_API_KEY: ${CGR_ADMIN_API_KEY}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET}
+      NODE_ENV: production
+    expose:
+      - "3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-moellab.info}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+    restart: unless-stopped
+
+volumes:
+  cgr_data:
+  caddy_data:
+  caddy_config:

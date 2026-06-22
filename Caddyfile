@@ -1,0 +1,6 @@
+# Caddy 리버스 프록시 — moellab.info → frontend:3000, HTTPS 자동(Let's Encrypt).
+# 도메인은 compose 의 SITE_ADDRESS 환경변수로 주입(기본 moellab.info).
+{$SITE_ADDRESS:moellab.info} {
+	encode gzip
+	reverse_proxy frontend:3000
+}
