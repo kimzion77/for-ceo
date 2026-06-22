@@ -165,7 +165,9 @@ export default function EcContractPage({
           business_size: ec?.businessSize ?? '',
           worker_types: ec?.classify?.workerTypes ?? ec?.workerTypes ?? [],
         });
-        const flag: 'ok' | 'invalid' = out.적절성 === '적절' ? 'ok' : 'invalid';
+        // 부적정(빈칸·위반)만 빨강 ! — 적절·보완필요(기재됨)는 초록 ✓.
+        // (보완필요를 빨강으로 두면 '하란대로 채웠는데 안 바뀜'으로 혼란)
+        const flag: 'ok' | 'invalid' = out.적절성 === '부적정' ? 'invalid' : 'ok';
         setRevalidated((s) => ({
           ...s,
           [id]: { flag, reason: out.이유, example: out.작성예시 },
