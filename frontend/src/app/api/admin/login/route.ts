@@ -15,8 +15,9 @@ import { ADMIN_COOKIE, SESSION_MAX_AGE, signSession, verifySession } from '@/lib
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
-  const expected = process.env.ADMIN_PASSWORD || '';
-  if (!expected || !process.env.ADMIN_SESSION_SECRET) {
+  // trim — Vercel 값에 끼어든 후행 공백/줄바꿈으로 비교가 깨지는 흔한 사고 방지
+  const expected = (process.env.ADMIN_PASSWORD || '').trim();
+  if (!expected || !(process.env.ADMIN_SESSION_SECRET || '').trim()) {
     return NextResponse.json(
       { ok: false, detail: '관리자 로그인이 설정되지 않았어요 (ADMIN_PASSWORD/ADMIN_SESSION_SECRET 미설정).' },
       { status: 503 },
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
   } catch {
     password = '';
   }
-  if (!password || password !== expected) {
+  if (!password.trim() || password.trim() !== expected) {
     return NextResponse.json({ ok: false, detail: '비밀번호가 올바르지 않아요.' }, { status: 401 });
   }
   const res = NextResponse.json({ ok: true });
