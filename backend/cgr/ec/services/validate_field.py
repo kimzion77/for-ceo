@@ -34,7 +34,17 @@ _SYSTEM_PROMPT = """\
 - "부적정": 빈칸이거나 법정 필수 내용이 누락·법 위반 소지가 있음.
 
 [출력 — JSON 한 개만, 다른 텍스트 금지]
-{"적절성": "적절" | "보완필요" | "부적정", "이유": "판정 근거 한 줄(40자 내외)"}
+{
+  "적절성": "적절" | "보완필요" | "부적정",
+  "이유": "판정 근거 한 줄(40자 내외)",
+  "작성예시": "적절이 아니면, 이 칸에 그대로 적을 수 있는 간단한 예시 문구 한 줄. 적절이면 빈 문자열"
+}
+
+[작성예시 규칙]
+- "부적정"·"보완필요" 일 때만 채운다. 그 칸에 **그대로 입력 가능한** 구체적 예시(법정 기준 충족).
+  예) 휴게시간 → "근로시간 4시간마다 30분 이상 부여"
+  예) 업무내용 → "생산보조 — 포장·출고보조 등 OO라인 담당"
+- "적절" 이면 "작성예시": "" (빈 문자열).
 """
 
 
@@ -64,7 +74,7 @@ def validate_field(
     value = mask_pii_text((value or "").strip())
     worker_types = worker_types or []
     if not field:
-        return {"적절성": "보완필요", "이유": "항목명이 비어 있습니다."}
+        return {"적절성": "보완필요", "이유": "항목명이 비어 있습니다.", "작성예시": ""}
 
     model_name = get_llm_model(model)
     user_prompt = (
@@ -103,14 +113,18 @@ def validate_field(
             )
             data = _safe_json(resp.choices[0].message.content or "")
             verdict = "보완필요"
+            reason = ""
+            example = ""
             if isinstance(data, dict):
                 v = str(data.get("적절성") or "").strip()
                 if v in ("적절", "보완필요", "부적정"):
                     verdict = v
                 reason = str(data.get("이유") or "").strip()
-            else:
-                reason = ""
-            out = {"적절성": verdict, "이유": reason}
+                example = str(data.get("작성예시") or "").strip()
+            # 적절이면 예시 불필요
+            if verdict == "적절":
+                example = ""
+            out = {"적절성": verdict, "이유": reason, "작성예시": example}
             llm_cache.put(cache_key, {"verdict": out})
             return out
         except (APITimeoutError, APIConnectionError, RateLimitError) as e:

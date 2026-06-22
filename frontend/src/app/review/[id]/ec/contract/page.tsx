@@ -46,7 +46,7 @@ export default function EcContractPage({
   const [formState, setFormState] = useState<ContractFormState | null>(null);
   /** 칸별 재검토 결과 — 사용자가 고친 뒤 AI 재판정(✓ 적정 / ! 부적정). */
   const [revalidated, setRevalidated] = useState<
-    Record<string, { flag: 'ok' | 'invalid'; reason?: string }>
+    Record<string, { flag: 'ok' | 'invalid'; reason?: string; example?: string }>
   >({});
   const [validating, setValidating] = useState<Record<string, boolean>>({});
   const lastCheckedRef = useRef<Record<string, string>>({});
@@ -166,7 +166,10 @@ export default function EcContractPage({
           worker_types: ec?.classify?.workerTypes ?? ec?.workerTypes ?? [],
         });
         const flag: 'ok' | 'invalid' = out.적절성 === '적절' ? 'ok' : 'invalid';
-        setRevalidated((s) => ({ ...s, [id]: { flag, reason: out.이유 } }));
+        setRevalidated((s) => ({
+          ...s,
+          [id]: { flag, reason: out.이유, example: out.작성예시 },
+        }));
       } catch {
         /* 실패 시 원래 점 유지 */
       } finally {

@@ -266,6 +266,29 @@
   }
 }
 
+/* 부적정 칸 밑줄 — 간단 작성 예시 (화면 전용, 인쇄 제외) */
+.fieldExample {
+  display: block;
+  flex-basis: 100%;
+  width: 100%;
+  margin: 3px 0 7px;
+  padding-left: 14px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #b45309;
+  word-break: break-word;
+}
+.fieldExampleTag {
+  display: inline-block;
+  margin-right: 6px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #92400e;
+  background: #fef3c7;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
 /* 클릭 가능한 점(검토 결과에서 재사용 시) — 누르면 우측 상세로 이동 */
 .dotBtn {
   cursor: pointer;
@@ -541,7 +564,8 @@
   .dotPop,
   .signNotice,
   .mark,
-  .revalidating {
+  .revalidating,
+  .fieldExample {
     display: none !important;
   }
 

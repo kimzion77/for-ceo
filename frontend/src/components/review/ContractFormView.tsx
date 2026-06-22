@@ -746,7 +746,10 @@ interface ContractFormViewProps {
   suggestions?: EcFormItems;
   /** 칸별 재검토 결과 — 사용자가 고친 뒤 AI 재판정(✓ 적정 / ! 부적정). flags 를 덮어쓴다. */
   revalidated?: Partial<
-    Record<EcFormFieldId, { flag: 'ok' | 'invalid'; reason?: string }>
+    Record<
+      EcFormFieldId,
+      { flag: 'ok' | 'invalid'; reason?: string; example?: string }
+    >
   >;
   /** 칸별 재검토 진행 중 표시. */
   validating?: Partial<Record<EcFormFieldId, boolean>>;
@@ -815,6 +818,18 @@ export default function ContractFormView({
   const effSuggestion = (id: EcFormFieldId): string | undefined =>
     revalidated?.[id] ? revalidated[id]?.reason : suggestions?.[id];
 
+  // 부적정 재검토 칸 밑줄에 띄울 간단 작성 예시 (있으면).
+  const renderExample = (id: EcFormFieldId) => {
+    const rv = revalidated?.[id];
+    if (!rv || rv.flag !== 'invalid' || !rv.example) return null;
+    return (
+      <span className={styles.fieldExample}>
+        <span className={styles.fieldExampleTag}>작성 예시</span>
+        {rv.example}
+      </span>
+    );
+  };
+
   const renderField = (
     id: EcFormFieldId,
     label: string,
@@ -822,54 +837,60 @@ export default function ContractFormView({
   ) => {
     const flag = effFlag(id);
     return (
-      <span
-        className={`${styles.fieldWrap} ${flag ? FLAG_WRAP_CLASS[flag] : ''}`}
-      >
-        <input
-          type="text"
-          className={`${styles.field} ${styles[`w_${w}`]}`}
-          value={value.fields[id]}
-          onChange={(e) => setField(id, e.target.value)}
-          onBlur={(e) => onFieldBlur?.(id, e.target.value, label)}
-          aria-label={label}
-          spellCheck={false}
-        />
-        {validating?.[id] ? (
-          <span className={styles.revalidating} title="재검토 중" aria-label="재검토 중">
-            ⟳
-          </span>
-        ) : (
-          <DotMarker flag={flag} suggestion={effSuggestion(id)} onClick={chipClick(id)} />
-        )}
-      </span>
+      <>
+        <span
+          className={`${styles.fieldWrap} ${flag ? FLAG_WRAP_CLASS[flag] : ''}`}
+        >
+          <input
+            type="text"
+            className={`${styles.field} ${styles[`w_${w}`]}`}
+            value={value.fields[id]}
+            onChange={(e) => setField(id, e.target.value)}
+            onBlur={(e) => onFieldBlur?.(id, e.target.value, label)}
+            aria-label={label}
+            spellCheck={false}
+          />
+          {validating?.[id] ? (
+            <span className={styles.revalidating} title="재검토 중" aria-label="재검토 중">
+              ⟳
+            </span>
+          ) : (
+            <DotMarker flag={flag} suggestion={effSuggestion(id)} onClick={chipClick(id)} />
+          )}
+        </span>
+        {renderExample(id)}
+      </>
     );
   };
 
   const renderArea = (id: EcFormFieldId, label: string) => {
     const flag = effFlag(id);
     return (
-      <span
-        className={`${styles.areaWrap} ${flag ? FLAG_WRAP_CLASS[flag] : ''}`}
-      >
-        <textarea
-          ref={autoGrow}
-          rows={2}
-          className={styles.area}
-          value={value.fields[id]}
-          onChange={(e) => setField(id, e.target.value)}
-          onInput={(e) => autoGrow(e.currentTarget)}
-          onBlur={(e) => onFieldBlur?.(id, e.target.value, label)}
-          aria-label={label}
-          spellCheck={false}
-        />
-        {validating?.[id] ? (
-          <span className={styles.revalidating} title="재검토 중" aria-label="재검토 중">
-            ⟳
-          </span>
-        ) : (
-          <DotMarker flag={flag} suggestion={effSuggestion(id)} onClick={chipClick(id)} />
-        )}
-      </span>
+      <>
+        <span
+          className={`${styles.areaWrap} ${flag ? FLAG_WRAP_CLASS[flag] : ''}`}
+        >
+          <textarea
+            ref={autoGrow}
+            rows={2}
+            className={styles.area}
+            value={value.fields[id]}
+            onChange={(e) => setField(id, e.target.value)}
+            onInput={(e) => autoGrow(e.currentTarget)}
+            onBlur={(e) => onFieldBlur?.(id, e.target.value, label)}
+            aria-label={label}
+            spellCheck={false}
+          />
+          {validating?.[id] ? (
+            <span className={styles.revalidating} title="재검토 중" aria-label="재검토 중">
+              ⟳
+            </span>
+          ) : (
+            <DotMarker flag={flag} suggestion={effSuggestion(id)} onClick={chipClick(id)} />
+          )}
+        </span>
+        {renderExample(id)}
+      </>
     );
   };
 

@@ -236,7 +236,11 @@ export async function postEcValidateField(
     worker_types?: string[];
   },
   opts: { signal?: AbortSignal } = {},
-): Promise<{ 적절성: '적절' | '보완필요' | '부적정' | string; 이유: string }> {
+): Promise<{
+  적절성: '적절' | '보완필요' | '부적정' | string;
+  이유: string;
+  작성예시: string;
+}> {
   return apiPostJson('/ec/validate-field', body, { signal: opts.signal });
 }
 

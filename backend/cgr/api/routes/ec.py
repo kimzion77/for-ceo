@@ -412,6 +412,7 @@ class ValidateFieldIn(BaseModel):
 class ValidateFieldOut(BaseModel):
     적절성: str = Field(..., description="적절 | 보완필요 | 부적정")
     이유: str = ""
+    작성예시: str = Field(default="", description="부적정·보완필요 시 그대로 쓸 수 있는 간단 예시")
 
 
 @router.post(
