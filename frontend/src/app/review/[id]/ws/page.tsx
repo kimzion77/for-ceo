@@ -1715,7 +1715,12 @@ function FindingCarousel({
   controlledIndex,
   onIndexChange,
 }: FindingCarouselProps) {
-  const [index, setIndex] = useState(0);
+  // ★remount(제안 일괄 담기 시 key 변경) 시 index 를 controlledIndex 로 초기화한다.
+  //  0 으로 리셋하면 controlledIndex(focusedIndex)와 어긋나 두 동기화 effect 가 서로
+  //  밀어내며 무한 진동(부들부들)한다. 처음부터 일치시켜 진동을 차단.
+  const [index, setIndex] = useState(() =>
+    typeof controlledIndex === 'number' && controlledIndex >= 0 ? controlledIndex : 0,
+  );
   const startXRef = useRef<number | null>(null);
   // 부모로 인덱스 통보
   useEffect(() => {
