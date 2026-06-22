@@ -454,3 +454,116 @@
   margin: 0 0 8px;
   font-family: var(--font-mono, ui-monospace, monospace);
 }
+
+/* ─── 로그 상세: 원본 업로드 ─── */
+.logImg {
+  display: block;
+  max-width: 100%;
+  max-height: 420px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 8px;
+  margin: 0 0 10px;
+  object-fit: contain;
+  cursor: zoom-in;
+}
+.fileLink {
+  display: inline-block;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-accent, #2563eb);
+  text-decoration: none;
+  margin: 0 0 10px;
+}
+
+/* ─── 로그 상세: 위반/누락 카드 ─── */
+.logSummary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  margin: 0 0 10px;
+}
+.sumPill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-surface, #f1f5f9);
+  border: 1px solid var(--color-border, #e2e8f0);
+  font-size: 12px;
+  font-weight: 700;
+}
+.findingList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+.finding {
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 8px;
+  padding: 9px 11px;
+  background: var(--color-card, #fff);
+}
+.findingHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 4px;
+}
+.bucket {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #fff;
+  background: #64748b;
+}
+.bViol {
+  background: #dc2626;
+}
+.bMiss {
+  background: #ea580c;
+}
+.bWarn {
+  background: #d97706;
+}
+.bCheck {
+  background: #2563eb;
+}
+.bOk {
+  background: #16a34a;
+}
+.findingArt {
+  font-weight: 800;
+  font-size: 13px;
+}
+.sev {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--color-text-subtle, #94a3b8);
+}
+.findingReason {
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 2px 0;
+}
+.findingQuote {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--color-text-muted, #475569);
+  border-left: 3px solid var(--color-border, #e2e8f0);
+  padding-left: 9px;
+  margin: 4px 0;
+}
+.findingFix {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--color-accent, #2563eb);
+  margin-top: 3px;
+}

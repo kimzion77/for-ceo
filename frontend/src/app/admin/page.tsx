@@ -207,6 +207,78 @@ function DashTab() {
 /* ─── 로그 (챗봇·검토 Input/Output) ─── */
 const LOG_KINDS = ['', '챗봇', '근로계약서', '임금명세서', '취업규칙'];
 
+const BUCKET_CLASS: Record<string, string> = {
+  위반: styles.bViol,
+  누락: styles.bMiss,
+  주의: styles.bWarn,
+  검토필요: styles.bCheck,
+  적정: styles.bOk,
+};
+
+/** 로그 출력 렌더 — 취업규칙은 위반/누락 카드, 그 외 JSON 은 들여쓰기, 평문은 그대로. */
+function LogOutput({ text }: { text: string }) {
+  const [raw, setRaw] = useState(false);
+  let parsed: { [k: string]: unknown } | null = null;
+  try {
+    const p = JSON.parse(text);
+    if (p && typeof p === 'object') parsed = p;
+  } catch {
+    /* not json */
+  }
+
+  // 취업규칙 — AI 가 잡아낸 위반/누락 상세
+  if (parsed && Array.isArray((parsed as { flagged?: unknown }).flagged)) {
+    const flagged = (parsed.flagged as Record<string, unknown>[]) || [];
+    const total = Number(parsed.flagged_total ?? flagged.length);
+    const summary = (parsed.summary as Record<string, number>) || {};
+    return (
+      <div>
+        <div className={styles.logSummary}>
+          종합 판정 <b>{String(parsed.overall || '-')}</b>
+          {Object.entries(summary).map(([k, v]) => (
+            <span key={k} className={styles.sumPill}>
+              {k} {String(v)}
+            </span>
+          ))}
+        </div>
+        {flagged.length === 0 ? (
+          <div className={styles.muted}>지적사항 없음 (적정 {String(parsed.ok_count ?? 0)}건)</div>
+        ) : (
+          <div className={styles.findingList}>
+            {flagged.map((f, i) => (
+              <div key={i} className={styles.finding}>
+                <div className={styles.findingHead}>
+                  <span className={`${styles.bucket} ${BUCKET_CLASS[String(f.bucket)] || ''}`}>
+                    {String(f.bucket)}
+                  </span>
+                  <span className={styles.findingArt}>
+                    제{String(f.article)}조 {String(f.title || '')}
+                  </span>
+                  {f.severity ? <span className={styles.sev}>{String(f.severity)}</span> : null}
+                </div>
+                {f.reason ? <div className={styles.findingReason}>{String(f.reason)}</div> : null}
+                {f.quote ? <div className={styles.findingQuote}>“{String(f.quote)}”</div> : null}
+                {f.fix ? <div className={styles.findingFix}>권고: {String(f.fix)}</div> : null}
+              </div>
+            ))}
+          </div>
+        )}
+        {total > flagged.length && (
+          <div className={styles.muted}>외 {total - flagged.length}건 더 — 원본 JSON 참조</div>
+        )}
+        <button className={styles.linkBtn} onClick={() => setRaw((v) => !v)}>
+          {raw ? '원본 숨기기' : '원본 JSON 보기'}
+        </button>
+        {raw && <pre className={styles.logPre}>{text}</pre>}
+      </div>
+    );
+  }
+
+  // EC/WS 등 — JSON 이면 보기 좋게 들여쓰기
+  if (parsed) return <pre className={styles.logPre}>{JSON.stringify(parsed, null, 2)}</pre>;
+  return <pre className={styles.logPre}>{text}</pre>;
+}
+
 function LogsTab() {
   const [rows, setRows] = useState<LogRow[] | null>(null);
   const [total, setTotal] = useState(0);
@@ -309,10 +381,33 @@ function LogsTab() {
               </button>
             </div>
             <div className={styles.logDetailBody}>
+              {detail.upload?.has_file && (
+                <>
+                  <div className={styles.logDetailLabel}>원본 업로드</div>
+                  {detail.upload.mime.startsWith('image/') ? (
+                    <a href={uploadFileUrl(detail.upload.id)} target="_blank" rel="noreferrer">
+                      <img
+                        className={styles.logImg}
+                        src={uploadFileUrl(detail.upload.id)}
+                        alt={detail.upload.filename}
+                      />
+                    </a>
+                  ) : (
+                    <a
+                      className={styles.fileLink}
+                      href={uploadFileUrl(detail.upload.id)}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      📎 {detail.upload.filename || '파일 열기'}
+                    </a>
+                  )}
+                </>
+              )}
               <div className={styles.logDetailLabel}>입력 (Input)</div>
               <pre className={styles.logPre}>{detail.input_text}</pre>
-              <div className={styles.logDetailLabel}>출력 (Output)</div>
-              <pre className={styles.logPre}>{detail.output_text}</pre>
+              <div className={styles.logDetailLabel}>AI 검토 결과 (Output)</div>
+              <LogOutput text={detail.output_text} />
             </div>
           </div>
         </div>

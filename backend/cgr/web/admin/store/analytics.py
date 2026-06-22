@@ -49,7 +49,9 @@ CREATE TABLE IF NOT EXISTS interaction_log (
   model       TEXT,
   input_text  TEXT,
   output_text TEXT,
-  visitor     TEXT
+  visitor     TEXT,
+  case_id     TEXT,    -- 검토 케이스 id (upload_record.case_id 와 연결)
+  upload_id   INTEGER  -- 원본 업로드 파일 id (upload_record.id) — 상세에서 이미지 열람
 );
 CREATE INDEX IF NOT EXISTS idx_interaction_ts ON interaction_log(ts);
 CREATE INDEX IF NOT EXISTS idx_interaction_kind ON interaction_log(kind);
@@ -68,6 +70,15 @@ def _connect() -> Iterator[sqlite3.Connection]:
     try:
         if not _ensured:
             conn.executescript(_SCHEMA)
+            # 기존 DB 마이그레이션 — 컬럼이 없으면 추가(있으면 무시)
+            for _ddl in (
+                "ALTER TABLE interaction_log ADD COLUMN case_id TEXT",
+                "ALTER TABLE interaction_log ADD COLUMN upload_id INTEGER",
+            ):
+                try:
+                    conn.execute(_ddl)
+                except Exception:
+                    pass
             _ensured = True
         yield conn
         conn.commit()
@@ -158,17 +169,22 @@ def log_interaction(
     input_text: str,
     output_text: str,
     visitor: str | None,
+    case_id: str | None = None,
+    upload_id: int | None = None,
 ) -> None:
-    """LLM 상호작용 1건 기록. PII 는 호출 측에서 마스킹된 본문이 들어온다. 실패해도 silent."""
+    """LLM 상호작용 1건 기록. PII 는 호출 측에서 마스킹된 본문이 들어온다. 실패해도 silent.
+
+    case_id / upload_id 를 주면 상세 화면에서 원본 업로드 파일(이미지 포함)을 함께 열람한다.
+    """
     try:
         with _connect() as c:
             c.execute(
-                "INSERT INTO interaction_log(ts,kind,model,input_text,output_text,visitor) "
-                "VALUES(?,?,?,?,?,?)",
+                "INSERT INTO interaction_log(ts,kind,model,input_text,output_text,visitor,case_id,upload_id) "
+                "VALUES(?,?,?,?,?,?,?,?)",
                 (
                     _now(), (kind or "")[:40], (model or "")[:80],
                     (input_text or "")[:8000], (output_text or "")[:12000],
-                    (visitor or "")[:64],
+                    (visitor or "")[:64], ((case_id or "")[:120] or None), upload_id,
                 ),
             )
     except Exception:
@@ -202,9 +218,43 @@ def list_interactions(
 
 
 def get_interaction(iid: int) -> dict[str, Any] | None:
+    """로그 1건 상세 — 연결된 원본 업로드(파일/이미지) 메타를 함께 붙여 반환.
+
+    upload_id 가 있으면 그 파일, 없으면 같은 case_id 의 최근 업로드를 찾아 연결한다.
+    """
     with _connect() as c:
         r = c.execute("SELECT * FROM interaction_log WHERE id=?", (iid,)).fetchone()
-    return dict(r) if r else None
+        if not r:
+            return None
+        rec = dict(r)
+        up = None
+        uid = rec.get("upload_id")
+        cid = (rec.get("case_id") or "").strip()
+        if uid:
+            up = c.execute(
+                "SELECT id,filename,mime,ext,size,stored_path FROM upload_record WHERE id=?",
+                (uid,),
+            ).fetchone()
+        if up is None and cid:
+            up = c.execute(
+                "SELECT id,filename,mime,ext,size,stored_path FROM upload_record "
+                "WHERE case_id=? ORDER BY id DESC LIMIT 1",
+                (cid,),
+            ).fetchone()
+    if up is not None:
+        u = dict(up)
+        sp = u.pop("stored_path", "") or ""
+        rec["upload"] = {
+            "id": u["id"],
+            "filename": u.get("filename") or "",
+            "mime": u.get("mime") or "",
+            "ext": u.get("ext") or "",
+            "size": u.get("size") or 0,
+            "has_file": bool(sp and Path(sp).exists()),
+        }
+    else:
+        rec["upload"] = None
+    return rec
 
 
 def cleanup_old_uploads(retention_days: int = 30) -> int:

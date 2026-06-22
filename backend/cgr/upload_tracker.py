@@ -67,8 +67,11 @@ def record_upload(
     service: str,
     request: Any | None = None,
     case_id: str | None = None,
-) -> None:
-    """업로드 1건 기록(메타 + 파일 저장). 절대 예외를 밖으로 던지지 않는다."""
+) -> int | None:
+    """업로드 1건 기록(메타 + 파일 저장). 절대 예외를 밖으로 던지지 않는다.
+
+    저장된 업로드 레코드 id 를 반환(실패 시 None) — 상호작용 로그와 연결하는 데 쓴다.
+    """
     try:
         ext = (Path(filename or "").suffix.lower().lstrip(".")) or "bin"
         uid = uuid.uuid4().hex
@@ -79,7 +82,7 @@ def record_upload(
             stored = str(dest)
         except Exception:
             stored = ""
-        analytics.add_upload(
+        return analytics.add_upload(
             service=service,
             filename=filename or "",
             size=len(content or b""),
@@ -90,4 +93,4 @@ def record_upload(
             stored_path=stored,
         )
     except Exception:
-        pass
+        return None

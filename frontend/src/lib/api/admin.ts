@@ -122,6 +122,15 @@ export interface LogRow {
   output_preview: string;
 }
 
+export interface LogUpload {
+  id: number;
+  filename: string;
+  mime: string;
+  ext: string;
+  size: number;
+  has_file: boolean;
+}
+
 export interface LogDetail {
   id: number;
   ts: string;
@@ -130,6 +139,9 @@ export interface LogDetail {
   visitor: string;
   input_text: string;
   output_text: string;
+  case_id?: string | null;
+  upload_id?: number | null;
+  upload?: LogUpload | null;
 }
 
 export async function getLogs(

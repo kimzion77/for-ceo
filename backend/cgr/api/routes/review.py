@@ -310,19 +310,63 @@ def _run_work_rules(
             )
 
     try:
+        import json as _json
+        import mimetypes as _mt
+
+        from cgr import upload_tracker as _ut
         from cgr.web.admin.store import analytics as _an
 
-        _summary = ", ".join(f"{k} {v}" for k, v in (report.summary or {}).items())
+        # (1) 원본 업로드 파일 보관 — 상세 화면에서 이미지/문서 열람 (case_id 로 연결)
+        _upload_id: int | None = None
+        try:
+            _content = tmp_path.read_bytes()
+            _mime = _mt.guess_type(filename)[0] or ""
+            _upload_id = _ut.record_upload(
+                content=_content,
+                filename=filename,
+                mime=_mime,
+                service="취업규칙",
+                case_id=report.case_id,
+            )
+        except Exception:
+            _upload_id = None
+
+        # (2) 무엇을 위반/누락으로 잡았는지 — 조항·판정·근거·원문 인용·권고까지 전체 기록
+        _flagged: list[dict] = []
+        _ok = 0
+        for _ar in report.article_results:
+            for _f in _ar.findings:
+                _b = classify(_f)
+                if _b == "적정":
+                    _ok += 1
+                    continue
+                _flagged.append(
+                    {
+                        "article": _f.article,
+                        "title": (_ar.title or "")[:120],
+                        "bucket": _b,
+                        "severity": _f.severity or "",
+                        "reason": (_f.reason or "")[:600],
+                        "quote": ((_f.extracted.quote if _f.extracted else "") or "")[:400],
+                        "fix": (_f.fix_example or "")[:600],
+                    }
+                )
+        _payload = {
+            "overall": report.overall_label or "",
+            "summary": dict(report.summary or {}),
+            "flagged": _flagged[:80],
+            "flagged_total": len(_flagged),
+            "ok_count": _ok,
+            "case_id": report.case_id,
+        }
         _an.log_interaction(
             kind="취업규칙",
             model=get_llm_model(),
             input_text=f"[취업규칙 검토] {filename}",
-            output_text=(
-                f"종합 판정: {report.overall_label or ''}\n"
-                f"집계: {_summary}\n"
-                f"(조항 {len(report.article_results)}건 검토)"
-            )[:8000],
+            output_text=_json.dumps(_payload, ensure_ascii=False)[:12000],
             visitor="",
+            case_id=report.case_id,
+            upload_id=_upload_id,
         )
     except Exception:
         pass
