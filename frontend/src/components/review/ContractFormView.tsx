@@ -818,14 +818,18 @@ export default function ContractFormView({
   const effSuggestion = (id: EcFormFieldId): string | undefined =>
     revalidated?.[id] ? revalidated[id]?.reason : suggestions?.[id];
 
-  // 부적정 재검토 칸 밑줄에 띄울 간단 작성 예시 (있으면).
+  // 부적정 재검토 칸 밑줄에 띄울 간단 작성 예시.
+  // 재검토 작성예시(rv.example)가 비면 그 항목의 기존 개선권고(suggestions)로 폴백 →
+  // 부적정인데 예시가 안 뜨는 일이 없도록.
   const renderExample = (id: EcFormFieldId) => {
     const rv = revalidated?.[id];
-    if (!rv || rv.flag !== 'invalid' || !rv.example) return null;
+    if (!rv || rv.flag !== 'invalid') return null;
+    const ex = (rv.example || '').trim() || (suggestions?.[id] || '').trim();
+    if (!ex) return null;
     return (
       <span className={styles.fieldExample}>
         <span className={styles.fieldExampleTag}>작성 예시</span>
-        {rv.example}
+        {ex}
       </span>
     );
   };

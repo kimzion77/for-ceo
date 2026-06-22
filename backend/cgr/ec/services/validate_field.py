@@ -41,7 +41,8 @@ _SYSTEM_PROMPT = """\
 }
 
 [작성예시 규칙]
-- "부적정"·"보완필요" 일 때만 채운다. 그 칸에 **그대로 입력 가능한** 구체적 예시(법정 기준 충족).
+- "부적정"·"보완필요" 이면 **반드시** 비어있지 않게 채운다(빈 문자열 금지). 그 칸에
+  **그대로 입력 가능한** 구체적 예시(법정 기준 충족)를 한 줄로.
   예) 휴게시간 → "근로시간 4시간마다 30분 이상 부여"
   예) 업무내용 → "생산보조 — 포장·출고보조 등 OO라인 담당"
 - "적절" 이면 "작성예시": "" (빈 문자열).
@@ -90,7 +91,7 @@ def validate_field(
     cache_key = llm_cache.make_key(
         system=_SYSTEM_PROMPT,
         user=user_prompt,
-        schema={"kind": "ec_validate_field"},
+        schema={"kind": "ec_validate_field_v2"},
         model=model_name,
     )
     cached = llm_cache.get(cache_key)
