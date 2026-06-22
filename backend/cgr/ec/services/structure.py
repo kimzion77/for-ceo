@@ -119,6 +119,8 @@ def run(extracted_text: str, *, model: str | None = None) -> dict[str, Any]:
                 response_format={"type": "json_object"},
                 temperature=0,
                 top_p=1,
+                # 구조화는 값 추출이라 장황한 산문 불요 → verbosity low 로 생성 단축.
+                verbosity="low",
             )
             raw = resp.choices[0].message.content or ""
             data = prompts.safe_json_parse(raw, default=None)

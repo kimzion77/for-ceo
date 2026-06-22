@@ -103,8 +103,11 @@ def _load_via_openpyxl(path: Path) -> dict[int, dict[str, Any]] | None:
 def _load_via_zip(path: Path) -> dict[int, dict[str, Any]]:
     """openpyxl 실패 시 raw zip + sharedStrings 로 직접 파싱 (빈출지적 xlsx에서 검증된 방식)."""
     import re
-    import xml.etree.ElementTree as ET
     import zipfile
+
+    # xlsx 내부 XML 파싱도 XXE 안전한 defusedxml 사용(심층 방어). 정상 xlsx 는 DTD 가
+    # 없어 동작에 영향 없음. (KISA 'XML 외부개체 참조' / OWASP A05)
+    import defusedxml.ElementTree as ET
 
     ns = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
     with zipfile.ZipFile(str(path)) as z:

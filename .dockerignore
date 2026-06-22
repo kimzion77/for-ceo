@@ -28,6 +28,15 @@ backend/docs/
 .git/
 .github/
 
+# 백업 스냅샷 — 운영 이미지에 불필요 + 옛 취약 코드 사본이 섞여 공격면만 키움
+backend/backups/
+**/backups/
+
+# 테스트·보안스캔 산출물
+backend/tests/
+**/tests/
+.sec/
+
 # 임베딩 인덱스는 포함 (topic_index.json) — 검토에 사용될 수 있음
 # 단 재생성 가능하면 제외 고려. 현재는 포함 유지.
 

@@ -254,19 +254,23 @@ def download_form(code: str):
 
     local_filename = row["local_filename"]
     if local_filename:
-        path = _FORMS_DIR / local_filename
-        if path.is_file():
+        # 경로조작 방어(국정원 8대/KISA '경로 조작 및 자원 삽입') — DB 값이라도
+        # ../ 등으로 _FORMS_DIR 밖을 가리키지 못하게 basename + 컨테인먼트 이중 확인.
+        safe_name = Path(local_filename).name
+        path = (_FORMS_DIR / safe_name).resolve()
+        forms_root = _FORMS_DIR.resolve()
+        if forms_root in path.parents and path.is_file():
             # Content-Disposition 헤더 — starlette/HTTP 표준이 latin-1 강제하므로
             # 한국어 파일명을 그대로 넣으면 UnicodeEncodeError. 해결:
             #   1) ASCII fallback (코드 기반) — 모든 브라우저가 인식
             #   2) RFC 5987 `filename*=UTF-8''<percent-encoded>` — 한국어 그대로 노출
             # 최신 브라우저는 filename* 우선 → 한국어 파일명으로 저장됨.
             # `quote` 가 ASCII 외 문자만 percent-encode 하므로 영문 파일명은 그대로.
-            ext = Path(local_filename).suffix or ".bin"
+            ext = Path(safe_name).suffix or ".bin"
             ascii_fallback = f"{row['code']}{ext}"
             cd = (
                 f"attachment; filename=\"{ascii_fallback}\"; "
-                f"filename*=UTF-8''{quote(local_filename)}"
+                f"filename*=UTF-8''{quote(safe_name)}"
             )
             return FileResponse(
                 path,

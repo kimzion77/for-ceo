@@ -70,3 +70,6 @@ desktop.ini
 *.local
 .history/
 .cache/
+
+# 보안 스캔 산출물(로컬 전용)
+.sec/

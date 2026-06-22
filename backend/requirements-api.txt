@@ -27,3 +27,6 @@ olefile>=0.46           # HWP(OLE) 파서 — cgr.parsers.hwp 가 startup 시 im
 fastapi>=0.110
 uvicorn[standard]>=0.30
 python-multipart>=0.0.9
+
+# XML 파싱 보안(XXE/엔티티폭탄 방지) — KISA 시큐어코딩/OWASP
+defusedxml>=0.7

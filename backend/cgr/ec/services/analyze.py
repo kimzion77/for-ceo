@@ -138,6 +138,9 @@ def run(
                 response_format={"type": "json_object"},
                 temperature=0,
                 top_p=1,
+                # gpt-5.x 출력 장황함 축소 — 33항목 JSON 생성 시간을 ~15-20% 단축.
+                # 스키마/판단은 유지하고 산문만 간결화(측정: 4778→3767 토큰).
+                verbosity="low",
             )
             raw = resp.choices[0].message.content or ""
             data = prompts.safe_json_parse(raw, default=None)

@@ -28,6 +28,11 @@ COPY ["취업규칙 마스터 db.xlsx", "/app/취업규칙 마스터 db.xlsx"]
 
 WORKDIR /app/backend
 
+# 비-root 실행(OWASP A05 보안설정오류/컨테이너 하드닝). 운영 데이터는 Fly 볼륨(/data).
+RUN useradd --create-home --uid 10001 appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
 # Fly.io 는 내부 포트를 PORT 환경변수로 주입 (없으면 8080)
 ENV PORT=8080
 EXPOSE 8080

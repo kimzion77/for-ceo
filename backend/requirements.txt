@@ -27,3 +27,6 @@ networkx>=3.2
 
 # (선택) 임베딩 로컬 폴백 ─────────────────
 # sentence-transformers>=2.7
+
+# XML 파싱 보안(XXE/엔티티폭탄 방지) — KISA 시큐어코딩/OWASP
+defusedxml>=0.7
