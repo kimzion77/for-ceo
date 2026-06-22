@@ -227,6 +227,19 @@ export async function postEcAnalyze(
   }
 }
 
+/** 단일 항목 즉시 재검토 — 표준 계약서 작성 화면에서 칸을 고친 뒤 점(✓/!) 갱신용. */
+export async function postEcValidateField(
+  body: {
+    field: string;
+    value: string;
+    business_size?: string;
+    worker_types?: string[];
+  },
+  opts: { signal?: AbortSignal } = {},
+): Promise<{ 적절성: '적절' | '보완필요' | '부적정' | string; 이유: string }> {
+  return apiPostJson('/ec/validate-field', body, { signal: opts.signal });
+}
+
 /** 4단계: 분석 결과 → 표준 근로계약서 텍스트.
  *
  * `userOverrides` 는 사용자가 SuggestBlock 으로 직접 작성한 보완 표현

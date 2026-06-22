@@ -31,6 +31,7 @@ from cgr.ec.services import chat as chat_service
 from cgr.ec.services import classify as classify_service
 from cgr.ec.services import generate as generate_service
 from cgr.ec.services import structure as structure_service
+from cgr.ec.services import validate_field as validate_field_service
 from cgr.parsers.dispatcher import parse_to_text
 
 
@@ -396,6 +397,43 @@ def post_analyze(body: AnalyzeIn):
         elapsed_sec=round(time.time() - t0, 2),
         model=get_llm_model(),
     )
+
+
+# ─────────────────────────────────────────────
+# 3-c) POST /api/v1/ec/validate-field — 단일 항목 즉시 재검토 (칸 편집 후)
+# ─────────────────────────────────────────────
+class ValidateFieldIn(BaseModel):
+    field: str = Field(..., description="재검토할 항목명 (analysis 의 '항목')")
+    value: str = Field(default="", description="사용자가 입력·수정한 칸 값")
+    business_size: str = Field(default="")
+    worker_types: list[str] = Field(default_factory=list)
+
+
+class ValidateFieldOut(BaseModel):
+    적절성: str = Field(..., description="적절 | 보완필요 | 부적정")
+    이유: str = ""
+
+
+@router.post(
+    "/validate-field",
+    response_model=ValidateFieldOut,
+    summary="근로계약서 단일 항목 즉시 재검토 (칸 편집 후 점 갱신용)",
+    dependencies=[Depends(require_api_key)],
+)
+def post_validate_field(body: ValidateFieldIn) -> ValidateFieldOut:
+    try:
+        out = validate_field_service.validate_field(
+            body.field,
+            body.value,
+            business_size=body.business_size,
+            worker_types=body.worker_types,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"항목 재검토 실패: {type(e).__name__}: {e}",
+        )
+    return ValidateFieldOut(적절성=out.get("적절성", "보완필요"), 이유=out.get("이유", ""))
 
 
 # ─────────────────────────────────────────────

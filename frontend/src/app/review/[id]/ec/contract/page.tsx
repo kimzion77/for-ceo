@@ -8,8 +8,9 @@ import ContractFormView, {
   buildEcFormModel,
   type ContractFormState,
 } from '@/components/review/ContractFormView';
+import ChatPanel from '@/components/review/ChatPanel';
 import { getCase } from '@/lib/reviewStore';
-import { downloadEcDocx } from '@/lib/api/ec';
+import { downloadEcDocx, postEcValidateField } from '@/lib/api/ec';
 import { ApiCallError } from '@/lib/api/client';
 
 import styles from './page.module.css';
@@ -43,6 +44,12 @@ export default function EcContractPage({
   const [downloadingDocx, setDownloadingDocx] = useState(false);
   /** 양식 편집 상태 — null 이면 자동 채움(초기값) 그대로. */
   const [formState, setFormState] = useState<ContractFormState | null>(null);
+  /** 칸별 재검토 결과 — 사용자가 고친 뒤 AI 재판정(✓ 적정 / ! 부적정). */
+  const [revalidated, setRevalidated] = useState<
+    Record<string, { flag: 'ok' | 'invalid'; reason?: string }>
+  >({});
+  const [validating, setValidating] = useState<Record<string, boolean>>({});
+  const lastCheckedRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
     setMounted(true);
@@ -131,12 +138,43 @@ export default function EcContractPage({
   const handleReset = () => {
     if (activeView === 'form') {
       setFormState(null);
+      setRevalidated({});
+      lastCheckedRef.current = {};
       pushToast('자동 입력값으로 되돌렸어요');
     } else {
       setDraft(originalRef.current);
       pushToast('LLM 원본으로 되돌렸어요');
     }
   };
+
+  // 칸 편집 후 포커스 아웃 → 그 칸만 AI 재검토 → 점 ✓(적정)/!(부적정). (값 변화 없으면 skip)
+  const handleFieldBlur = useCallback(
+    async (id: string, value: string, label: string) => {
+      const v = (value || '').trim();
+      if (lastCheckedRef.current[id] === v) return;
+      lastCheckedRef.current[id] = v;
+      const ec = getCase(caseId)?.ec;
+      const items = formModel?.items as Record<string, string> | undefined;
+      const fieldName = items?.[id] || label;
+      if (!fieldName) return;
+      setValidating((s) => ({ ...s, [id]: true }));
+      try {
+        const out = await postEcValidateField({
+          field: fieldName,
+          value: v,
+          business_size: ec?.businessSize ?? '',
+          worker_types: ec?.classify?.workerTypes ?? ec?.workerTypes ?? [],
+        });
+        const flag: 'ok' | 'invalid' = out.적절성 === '적절' ? 'ok' : 'invalid';
+        setRevalidated((s) => ({ ...s, [id]: { flag, reason: out.이유 } }));
+      } catch {
+        /* 실패 시 원래 점 유지 */
+      } finally {
+        setValidating((s) => ({ ...s, [id]: false }));
+      }
+    },
+    [formModel, caseId],
+  );
 
   // ─── 조기 return — 훅은 모두 위에서 끝남 ───
 
@@ -208,6 +246,9 @@ export default function EcContractPage({
             flags={formModel.flags}
             onChange={setFormState}
             suggestions={formModel.suggestions}
+            revalidated={revalidated}
+            validating={validating}
+            onFieldBlur={handleFieldBlur}
           />
         ) : (
           <textarea
@@ -267,6 +308,22 @@ export default function EcContractPage({
             </>
           )}
         </div>
+      </div>
+
+      {/* 우하단 노무 가이드 챗봇 — 작성하며 질문 (인쇄 제외) */}
+      <div className="noPrint">
+        <ChatPanel
+          analysis={
+            (entry?.ec?.analysisResult as unknown as Record<string, unknown>) ?? null
+          }
+          docLabel="근로계약서"
+          quickPrompts={[
+            '이 칸은 어떻게 써야 하나요?',
+            '소정근로시간·휴게시간 기준이 뭔가요?',
+            '수습기간·기간제 계약 주의점은?',
+            '4대보험 가입은 어떻게 표기하나요?',
+          ]}
+        />
       </div>
     </main>
   );

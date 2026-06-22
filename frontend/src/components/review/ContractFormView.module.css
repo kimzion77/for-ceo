@@ -218,6 +218,54 @@
   background: #d97706; /* 주황 — 직접 확인 필요 */
 }
 
+/* 재검토 결과 — 칸을 고친 뒤 AI 판정: 적정 ✓ / 부적정 ! (점 대신 글리프) */
+.mark {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  margin-left: 4px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+}
+.markOk {
+  background: #059669; /* 초록 — 적정 */
+}
+.markInvalid {
+  background: #dc2626; /* 빨강 — 부적정 */
+  cursor: help;
+}
+.flagOk .field,
+.flagOk .area {
+  border-left: 3px solid #059669;
+  background: rgba(5, 150, 105, 0.06);
+  padding-left: 8px;
+}
+.flagInvalid .field,
+.flagInvalid .area {
+  border-left: 3px solid #dc2626;
+  background: rgba(220, 38, 38, 0.06);
+  padding-left: 8px;
+}
+.revalidating {
+  flex: 0 0 auto;
+  margin-left: 4px;
+  font-size: 12px;
+  color: #2563eb;
+  display: inline-block;
+  animation: revspin 0.8s linear infinite;
+}
+@keyframes revspin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* 클릭 가능한 점(검토 결과에서 재사용 시) — 누르면 우측 상세로 이동 */
 .dotBtn {
   cursor: pointer;
@@ -491,14 +539,20 @@
 
   .dot,
   .dotPop,
-  .signNotice {
+  .signNotice,
+  .mark,
+  .revalidating {
     display: none !important;
   }
 
   .flagFix .field,
   .flagFix .area,
   .flagWarn .field,
-  .flagWarn .area {
+  .flagWarn .area,
+  .flagOk .field,
+  .flagOk .area,
+  .flagInvalid .field,
+  .flagInvalid .area {
     border-left: none;
     background: transparent;
     padding-left: 6px;

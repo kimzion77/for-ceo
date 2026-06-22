@@ -85,11 +85,13 @@ export interface ContractFormState {
 
 /**
  * 칸 표시 플래그.
- * - standard  : 표준 양식 문구로 보완됨 (초록)
- * - override  : 사용자가 담은 표현으로 보완됨 (초록)
- * - attention : 부적절/보완필요 판정인데 자동 보완 불가 — 직접 확인 (노랑)
+ * - standard  : 표준 양식 문구로 보완됨 (초록 점)
+ * - override  : 사용자가 담은 표현으로 보완됨 (초록 점)
+ * - attention : 부적절/보완필요 판정인데 자동 보완 불가 — 직접 확인 (노랑 점)
+ * - ok        : 사용자가 고친 뒤 재검토 결과 **적정** (초록 ✓, 팝오버 없음)
+ * - invalid   : 사용자가 고친 뒤 재검토 결과 **부적정** (빨강 !)
  */
-export type FieldFlag = 'standard' | 'override' | 'attention';
+export type FieldFlag = 'standard' | 'override' | 'attention' | 'ok' | 'invalid';
 
 export type EcFormFlags = Partial<
   Record<EcFormFieldId | 'insurance' | 'signature', FieldFlag>
@@ -607,6 +609,8 @@ const FLAG_WRAP_CLASS: Record<FieldFlag, string> = {
   standard: styles.flagFix,
   override: styles.flagFix,
   attention: styles.flagWarn,
+  ok: styles.flagOk,
+  invalid: styles.flagInvalid,
 };
 
 /**
@@ -628,6 +632,44 @@ function DotMarker({
 }) {
   const [copied, setCopied] = useState(false);
   if (!flag) return null;
+
+  // 재검토 결과 — 적정(✓)·부적정(!) 은 점 대신 글리프로(요청: 고치면 점→✓/!).
+  if (flag === 'ok') {
+    return (
+      <span
+        className={`${styles.mark} ${styles.markOk}`}
+        title="재검토 결과: 적정"
+        aria-label="적정"
+      >
+        ✓
+      </span>
+    );
+  }
+  if (flag === 'invalid') {
+    const m = (
+      <span
+        className={`${styles.mark} ${styles.markInvalid}`}
+        title={suggestion ? `부적정 — ${suggestion}` : '재검토 결과: 부적정'}
+        aria-label="부적정"
+        tabIndex={suggestion ? 0 : undefined}
+      >
+        !
+      </span>
+    );
+    if (!suggestion) return m;
+    return (
+      <span className={styles.dotWrap}>
+        {m}
+        <span className={styles.dotPop} role="tooltip">
+          <span className={`${styles.dotPopTag} ${styles.dotPopTagWarn}`}>
+            부적정 — 사유
+          </span>
+          <span className={styles.dotPopText}>{suggestion}</span>
+        </span>
+      </span>
+    );
+  }
+
   const isWarn = flag === 'attention';
   const label = isWarn ? '확인 필요' : '보완됨';
   const dotCls = `${styles.dot} ${isWarn ? styles.dotWarn : styles.dotFix}`;
@@ -702,6 +744,14 @@ interface ContractFormViewProps {
   onFlagClick?: (item: string) => void;
   /** 칸 → 수정 권고안. 점 호버 시 팝오버로 보여주고 복사 가능. */
   suggestions?: EcFormItems;
+  /** 칸별 재검토 결과 — 사용자가 고친 뒤 AI 재판정(✓ 적정 / ! 부적정). flags 를 덮어쓴다. */
+  revalidated?: Partial<
+    Record<EcFormFieldId, { flag: 'ok' | 'invalid'; reason?: string }>
+  >;
+  /** 칸별 재검토 진행 중 표시. */
+  validating?: Partial<Record<EcFormFieldId, boolean>>;
+  /** 칸 편집 후 포커스 아웃 시 호출 — 부모가 그 칸만 재검토. (label = 칸 표시명) */
+  onFieldBlur?: (id: EcFormFieldId, value: string, label: string) => void;
 }
 
 export default function ContractFormView({
@@ -711,6 +761,9 @@ export default function ContractFormView({
   flagItems,
   onFlagClick,
   suggestions,
+  revalidated,
+  validating,
+  onFieldBlur,
 }: ContractFormViewProps) {
   // 칩 클릭 핸들러 — 해당 칸에 연관 항목명이 있고 onFlagClick 이 있을 때만.
   const chipClick = (
@@ -756,12 +809,18 @@ export default function ContractFormView({
 
   // 주의: 컴포넌트가 아닌 일반 함수 — 매 렌더 새 컴포넌트 타입이 되면
   // input 이 remount 되어 포커스를 잃는다.
+  // 재검토 결과(revalidated)가 있으면 원래 flag 를 덮어쓴다. 점 호버 텍스트도 재검토 사유 우선.
+  const effFlag = (id: EcFormFieldId): FieldFlag | undefined =>
+    revalidated?.[id]?.flag ?? flags[id];
+  const effSuggestion = (id: EcFormFieldId): string | undefined =>
+    revalidated?.[id] ? revalidated[id]?.reason : suggestions?.[id];
+
   const renderField = (
     id: EcFormFieldId,
     label: string,
     w: 'sm' | 'md' | 'lg' | 'xl' | 'full' = 'md',
   ) => {
-    const flag = flags[id];
+    const flag = effFlag(id);
     return (
       <span
         className={`${styles.fieldWrap} ${flag ? FLAG_WRAP_CLASS[flag] : ''}`}
@@ -771,16 +830,23 @@ export default function ContractFormView({
           className={`${styles.field} ${styles[`w_${w}`]}`}
           value={value.fields[id]}
           onChange={(e) => setField(id, e.target.value)}
+          onBlur={(e) => onFieldBlur?.(id, e.target.value, label)}
           aria-label={label}
           spellCheck={false}
         />
-        <DotMarker flag={flag} suggestion={suggestions?.[id]} onClick={chipClick(id)} />
+        {validating?.[id] ? (
+          <span className={styles.revalidating} title="재검토 중" aria-label="재검토 중">
+            ⟳
+          </span>
+        ) : (
+          <DotMarker flag={flag} suggestion={effSuggestion(id)} onClick={chipClick(id)} />
+        )}
       </span>
     );
   };
 
   const renderArea = (id: EcFormFieldId, label: string) => {
-    const flag = flags[id];
+    const flag = effFlag(id);
     return (
       <span
         className={`${styles.areaWrap} ${flag ? FLAG_WRAP_CLASS[flag] : ''}`}
@@ -792,10 +858,17 @@ export default function ContractFormView({
           value={value.fields[id]}
           onChange={(e) => setField(id, e.target.value)}
           onInput={(e) => autoGrow(e.currentTarget)}
+          onBlur={(e) => onFieldBlur?.(id, e.target.value, label)}
           aria-label={label}
           spellCheck={false}
         />
-        <DotMarker flag={flag} suggestion={suggestions?.[id]} onClick={chipClick(id)} />
+        {validating?.[id] ? (
+          <span className={styles.revalidating} title="재검토 중" aria-label="재검토 중">
+            ⟳
+          </span>
+        ) : (
+          <DotMarker flag={flag} suggestion={effSuggestion(id)} onClick={chipClick(id)} />
+        )}
       </span>
     );
   };
