@@ -18,6 +18,8 @@
  */
 import { useEffect } from 'react';
 
+import { BASE_PATH } from '@/lib/basePath';
+
 export default function WarmupPing() {
   useEffect(() => {
     // 마운트 후 100ms 지연 — 페이지 렌더에 영향 안 주게 idle 시점에 발사
@@ -25,7 +27,7 @@ export default function WarmupPing() {
       // /health 는 인증 불필요. AbortController 로 5초 후 자동 취소 (오래 잡고 있지 않게)
       const ctrl = new AbortController();
       const killer = window.setTimeout(() => ctrl.abort(), 5000);
-      fetch('/api/cgr/warmup', { method: 'GET', signal: ctrl.signal })
+      fetch(`${BASE_PATH}/api/cgr/warmup`, { method: 'GET', signal: ctrl.signal })
         .catch(() => {
           /* 무시 — warm-up 은 best-effort */
         })

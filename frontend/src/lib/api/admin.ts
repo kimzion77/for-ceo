@@ -4,7 +4,13 @@
  * - 세션(로그인/확인/로그아웃): Next 라우트 `/api/admin/login`
  * - 데이터(통계·업로드·프롬프트): BFF `/api/cgr/admin/*` (서버가 ADMIN_API_KEY 주입)
  *   — 단, 유효한 admin_session 쿠키가 없으면 BFF 가 401.
+ *
+ * 하위경로 배포(/for-ceo) 시 모든 경로 앞에 BASE_PATH 가 붙는다(`a()` 헬퍼).
  */
+import { BASE_PATH } from '@/lib/basePath';
+
+/** 배포 경로 prefix 적용 — 루트 배포면 그대로, /for-ceo 면 앞에 붙음. */
+const a = (p: string) => `${BASE_PATH}${p}`;
 
 export interface AdminAnalytics {
   total_visits: number;
@@ -53,7 +59,7 @@ async function jsonOrThrow(res: Response): Promise<any> {
 // ─── 세션 ───
 export async function checkAdminSession(): Promise<boolean> {
   try {
-    const res = await fetch('/api/admin/login', { method: 'GET', cache: 'no-store' });
+    const res = await fetch(a('/api/admin/login'), { method: 'GET', cache: 'no-store' });
     const data = await res.json().catch(() => ({ authed: false }));
     return Boolean(data?.authed);
   } catch {
@@ -62,7 +68,7 @@ export async function checkAdminSession(): Promise<boolean> {
 }
 
 export async function adminLogin(password: string): Promise<void> {
-  const res = await fetch('/api/admin/login', {
+  const res = await fetch(a('/api/admin/login'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password }),
@@ -71,12 +77,12 @@ export async function adminLogin(password: string): Promise<void> {
 }
 
 export async function adminLogout(): Promise<void> {
-  await fetch('/api/admin/login', { method: 'DELETE' });
+  await fetch(a('/api/admin/login'), { method: 'DELETE' });
 }
 
 // ─── 데이터 ───
 export async function getAnalytics(): Promise<AdminAnalytics> {
-  return jsonOrThrow(await fetch('/api/cgr/admin/analytics', { cache: 'no-store' }));
+  return jsonOrThrow(await fetch(a('/api/cgr/admin/analytics'), { cache: 'no-store' }));
 }
 
 export async function getUploads(
@@ -87,28 +93,28 @@ export async function getUploads(
   q.set('offset', String(opts.offset ?? 0));
   if (opts.service) q.set('service', opts.service);
   return jsonOrThrow(
-    await fetch(`/api/cgr/admin/uploads?${q.toString()}`, { cache: 'no-store' }),
+    await fetch(a(`/api/cgr/admin/uploads?${q.toString()}`), { cache: 'no-store' }),
   );
 }
 
 export function uploadFileUrl(id: number): string {
-  return `/api/cgr/admin/uploads/${id}/file`;
+  return a(`/api/cgr/admin/uploads/${id}/file`);
 }
 
 /** 원본 파일명으로 강제 다운로드(첨부) — 인라인 보기와 구분. */
 export function uploadFileDownloadUrl(id: number): string {
-  return `/api/cgr/admin/uploads/${id}/file?download=1`;
+  return a(`/api/cgr/admin/uploads/${id}/file?download=1`);
 }
 
 export async function getPrompts(): Promise<PromptItem[]> {
   const data = await jsonOrThrow(
-    await fetch('/api/cgr/admin/prompts', { cache: 'no-store' }),
+    await fetch(a('/api/cgr/admin/prompts'), { cache: 'no-store' }),
   );
   return data?.prompts ?? [];
 }
 
 export async function savePrompt(key: string, content: string): Promise<void> {
-  const res = await fetch('/api/cgr/admin/prompts', {
+  const res = await fetch(a('/api/cgr/admin/prompts'), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key, content }),
@@ -157,9 +163,9 @@ export async function getLogs(
   q.set('limit', String(opts.limit ?? 100));
   q.set('offset', String(opts.offset ?? 0));
   if (opts.kind) q.set('kind', opts.kind);
-  return jsonOrThrow(await fetch(`/api/cgr/admin/logs?${q.toString()}`, { cache: 'no-store' }));
+  return jsonOrThrow(await fetch(a(`/api/cgr/admin/logs?${q.toString()}`), { cache: 'no-store' }));
 }
 
 export async function getLog(id: number): Promise<LogDetail> {
-  return jsonOrThrow(await fetch(`/api/cgr/admin/logs/${id}`, { cache: 'no-store' }));
+  return jsonOrThrow(await fetch(a(`/api/cgr/admin/logs/${id}`), { cache: 'no-store' }));
 }

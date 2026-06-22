@@ -9,6 +9,8 @@
  */
 import { useEffect } from 'react';
 
+import { BASE_PATH } from '@/lib/basePath';
+
 function getVisitorId(): string {
   try {
     let v = localStorage.getItem('cgr_vid');
@@ -32,7 +34,7 @@ export default function VisitPing() {
       const page = (typeof window !== 'undefined' && window.location.pathname) || '';
       const ctrl = new AbortController();
       const killer = window.setTimeout(() => ctrl.abort(), 5000);
-      fetch('/api/cgr/track', {
+      fetch(`${BASE_PATH}/api/cgr/track`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ visitor, page }),

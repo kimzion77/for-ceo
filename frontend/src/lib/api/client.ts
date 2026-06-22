@@ -4,6 +4,8 @@
  * BFF 가 서버 측에서 `X-API-Key` 를 붙여 백엔드 FastAPI 로 forward 한다.
  * 따라서 브라우저 코드에는 절대 API_KEY 가 노출되지 않는다.
  */
+import { BASE_PATH } from '@/lib/basePath';
+
 import type { ApiError } from './types';
 
 export class ApiCallError extends Error {
@@ -16,8 +18,8 @@ export class ApiCallError extends Error {
   }
 }
 
-/** BFF 가 동일 origin 의 /api/cgr 로 마운트된다고 가정. */
-const BFF_BASE = '/api/cgr';
+/** BFF 가 동일 origin 의 /api/cgr 로 마운트. 하위경로 배포(/for-ceo) 시 BASE_PATH 가 앞에 붙는다. */
+const BFF_BASE = `${BASE_PATH}/api/cgr`;
 
 interface FetchOptions extends RequestInit {
   /** AbortSignal — 폴링·취소용. */

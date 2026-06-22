@@ -9,6 +9,10 @@ COPY . .
 # (compose 네트워크에서 backend 서비스명:포트). 서버사이드 BFF 만 사용.
 ARG NEXT_PUBLIC_API_BASE=http://backend:8080
 ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE
+# 하위경로 배포(moellab.info/for-ceo)면 --build-arg NEXT_PUBLIC_BASE_PATH=/for-ceo.
+# 루트 배포면 빈 값(기본) → basePath 없음. NEXT_PUBLIC_* 라 빌드 시 인라인.
+ARG NEXT_PUBLIC_BASE_PATH=
+ENV NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH
 RUN npm run build
 
 FROM node:20-alpine AS runner

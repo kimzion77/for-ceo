@@ -4,6 +4,8 @@
  * 백엔드: `backend/cgr/api/routes/guide.py`
  * 자율점검 본질 — 사업주가 자기 점검에 활용할 가이드만 반환 (분쟁·진정 제외).
  */
+import { BASE_PATH } from '@/lib/basePath';
+
 import { apiGet, apiPostJson } from './client';
 
 export interface GuideItem {
@@ -77,7 +79,7 @@ export interface FormTemplate {
  * - 없으면 외부 `download_url` 로 302 redirect (사용자가 외부 사이트에서라도 찾을 수 있게)
  */
 export const formDownloadUrl = (code: string): string =>
-  `/api/cgr/guide/forms/${encodeURIComponent(code)}/download`;
+  `${BASE_PATH}/api/cgr/guide/forms/${encodeURIComponent(code)}/download`;
 
 export interface WageCalcFormula {
   code: string;
