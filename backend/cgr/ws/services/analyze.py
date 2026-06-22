@@ -86,6 +86,31 @@ def _format_slots_for_prompt(slots: list[WsSlot]) -> str:
 
 
 _SLOT_CODE_RE = re.compile(r"\s*\(SLOT_WS_[\w]+\)\s*")
+_META_RE = re.compile(r"<meta\b[^>]*?>", re.IGNORECASE)
+
+
+def _attach_real_topic_refs(
+    result: dict[str, Any], slots: list["WsSlot"]
+) -> dict[str, Any]:
+    """LLM 이 판단이유에 넣은 <meta>(부정확·환각)를 제거하고, 각 슬롯의 **실제 연관주제**
+    (topic_meta = '{토픽} {섹션}')로 교체 → '참고 자료' 칩이 항상 정확. idempotent."""
+    try:
+        by_field = {s.field: (s.topic_meta or []) for s in slots}
+        for item in result.get("results", []) or []:
+            if not isinstance(item, dict):
+                continue
+            field = (item.get("항목") or "").strip()
+            reason = _META_RE.sub("", item.get("판단이유") or "")
+            reason = re.sub(r"\s{2,}", " ", reason).strip()
+            metas = ""
+            for tm in by_field.get(field, [])[:4]:  # 칩 과다 방지
+                topic, _, sec = (tm or "").rpartition(" ")
+                if topic and sec:
+                    metas += f"<meta db='DB_{topic}' n='{sec}' />"
+            item["판단이유"] = (reason + (" " + metas if metas else "")).strip()
+    except Exception:
+        pass
+    return result
 
 
 def _strip_slot_codes(result: dict[str, Any]) -> dict[str, Any]:
@@ -246,8 +271,8 @@ def run(
     )
     cached = llm_cache.get(cache_key)
     if cached is not None and isinstance(cached.get("analysis"), dict):
-        # 기존 캐시도 슬롯 코드 새어나갔을 수 있어 항상 strip
-        return _strip_slot_codes(cached["analysis"])
+        # 기존 캐시도 슬롯 코드·부정확 meta 새어나갔을 수 있어 항상 정리·교정
+        return _attach_real_topic_refs(_strip_slot_codes(cached["analysis"]), applicable)
 
     client = OpenAI(api_key=get_api_key(), timeout=_CALL_TIMEOUT)
     last_err: Exception | None = None
@@ -271,6 +296,8 @@ def run(
                     f"ws analyze 응답 형식이 올바르지 않습니다: {raw[:200]}"
                 )
             data = _strip_slot_codes(data)
+            # 참고 자료 = LLM <meta> 대신 슬롯의 실제 연관주제로 교체 (정확성·결정성)
+            data = _attach_real_topic_refs(data, applicable)
             llm_cache.put(cache_key, {"analysis": data})
             return data
         except (APITimeoutError, APIConnectionError, RateLimitError) as e:

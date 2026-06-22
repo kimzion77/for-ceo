@@ -29,18 +29,46 @@
 """
 from __future__ import annotations
 
+import re
 import time
 from typing import Any
 
 from openai import APIConnectionError, APITimeoutError, OpenAI, RateLimitError
 
 from .. import prompts
+from ..topic_lookup import topics_for_item
 from ... import llm_cache
 from ...config import get_api_key, get_llm_model
 from ...pii_mask import mask_pii_in_payload
 
 
 _CALL_TIMEOUT = 120.0  # 분석은 출력 길어서 여유 있게
+
+_META_RE = re.compile(r"<meta\b[^>]*?>", re.IGNORECASE)
+
+
+def _attach_real_topic_refs(data: dict[str, Any]) -> dict[str, Any]:
+    """LLM 이 판단이유에 넣은 <meta> 태그(부정확·환각: 'DB_xxx 1.1' 같은 placeholder)를
+    제거하고, 각 항목의 **DB 실제 연관주제**(check_item_topic 조인)로 교체한다.
+    → '참고 자료' 칩이 항상 정확한 주제·섹션을 가리킨다(결정적). idempotent."""
+    try:
+        results = data.get("results")
+        if not isinstance(results, list):
+            return data
+        for item in results:
+            if not isinstance(item, dict):
+                continue
+            field = (item.get("항목") or "").strip()
+            reason = _META_RE.sub("", item.get("판단이유") or "")
+            reason = re.sub(r"\s{2,}", " ", reason).strip()
+            refs = (topics_for_item(field) if field else [])[:4]  # 칩 과다 방지
+            metas = "".join(
+                f"<meta db='DB_{topic}' n='{sec}' />" for topic, sec in refs
+            )
+            item["판단이유"] = (reason + (" " + metas if metas else "")).strip()
+    except Exception:
+        pass
+    return data
 _MAX_RETRIES = 3
 _RETRY_BACKOFF = (2.0, 5.0, 10.0)
 
@@ -90,7 +118,8 @@ def run(
     )
     cached = llm_cache.get(cache_key)
     if cached is not None and isinstance(cached.get("analysis"), dict):
-        return cached["analysis"]
+        # 구 캐시(부정확 meta)도 실제 참고자료로 교정해 반환 (idempotent)
+        return _attach_real_topic_refs(cached["analysis"])
 
     client = OpenAI(api_key=get_api_key(), timeout=_CALL_TIMEOUT)
     last_err: Exception | None = None
@@ -116,6 +145,8 @@ def run(
                 raise RuntimeError(
                     f"analyze 응답 형식이 올바르지 않습니다: {raw[:200]}"
                 )
+            # 참고 자료 = LLM <meta> 대신 DB 실제 연관주제로 교체 (정확성·결정성)
+            data = _attach_real_topic_refs(data)
             # 캐시 저장 — 같은 입력 → 같은 결과 (결정성)
             llm_cache.put(cache_key, {"analysis": data})
             return data
