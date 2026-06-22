@@ -8,6 +8,7 @@ GET    /api/v1/admin/stats           : 종합 통계 (슬롯·캐시·이력)
 """
 from __future__ import annotations
 
+import mimetypes
 from collections import Counter
 from pathlib import Path
 
@@ -178,13 +179,19 @@ async def get_upload_file(uid: int, download: bool = False):
         raise HTTPException(status_code=403, detail="허용되지 않은 경로.")
     if not p.exists():
         raise HTTPException(status_code=404, detail="파일이 삭제되었습니다(보관기간 만료).")
-    media = rec.get("mime") or "application/octet-stream"
-    # download=1 → 첨부(원본 파일명으로 저장), 아니면 inline(브라우저에서 바로 보기)
+    # ★보안: content-type 은 **서버측 확장자**로 결정한다(클라이언트가 업로드 때 보낸 mime
+    #  은 신뢰하지 않음). 안 그러면 .png 확장자에 text/html mime+HTML 본문을 올려 inline 으로
+    #  열면 프론트 오리진에서 스크립트가 실행되는 저장형 XSS 가 가능. (+ 전역 nosniff)
+    media = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
+    # inline 은 브라우저가 스크립트를 실행하지 않는 형식(이미지·PDF)만 허용. 그 외(.txt/.docx/
+    #  .hwp 등)는 download 여부와 무관하게 첨부로 내려보내 인라인 렌더링 자체를 차단.
+    safe_inline = media.startswith("image/") or media == "application/pdf"
+    as_attachment = download or not safe_inline
     return FileResponse(
         str(p),
         media_type=media,
-        filename=(rec.get("filename") or p.name) if download else None,
-        content_disposition_type="attachment" if download else "inline",
+        filename=(rec.get("filename") or p.name) if as_attachment else None,
+        content_disposition_type="attachment" if as_attachment else "inline",
     )
 
 
