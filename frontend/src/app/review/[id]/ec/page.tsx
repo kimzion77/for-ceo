@@ -2241,9 +2241,24 @@ interface MetaTagInfo {
 }
 
 function MetaHoverChipsRow({ metas }: { metas: MetaTagInfo[] }) {
+  const { loaded } = useTopicCorpus();
+  // 같은 내용(여러 주제가 동일 정의를 엮은 경우)이 여러 칩으로 중복되면 하나만 — 중복 표시 방지.
+  const unique = useMemo(() => {
+    const seen = new Set<string>();
+    const out: MetaTagInfo[] = [];
+    for (const m of metas) {
+      const body = (lookupLawExcerpt(m.db, m.n).body || '').trim();
+      const key = body || `${m.db}|${m.n}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(m);
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metas, loaded]);
   return (
     <span className={styles.metaHoverRow}>
-      {metas.map((m, i) => (
+      {unique.map((m, i) => (
         <MetaHoverChip key={`${m.db}-${m.n}-${i}`} meta={m} />
       ))}
     </span>
