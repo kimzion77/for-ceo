@@ -157,7 +157,7 @@ function pageSeparator(idx: number, total: number): string {
 
 type ExtractFn = (
   file: File,
-  opts?: { signal?: AbortSignal },
+  opts?: { signal?: AbortSignal; caseId?: string; service?: string },
 ) => Promise<{ extracted_text: string }>;
 
 /**
@@ -170,13 +170,24 @@ type ExtractFn = (
 export async function extractAllText(
   files: File[],
   extractFn: ExtractFn,
-  opts: { signal?: AbortSignal; onProgress?: (done: number, total: number) => void } = {},
+  opts: {
+    signal?: AbortSignal;
+    onProgress?: (done: number, total: number) => void;
+    /** 리뷰 세션 id — 올린 원본 파일을 서버에 보관해 관리자 로그와 연결(여러 장이면 모두 같은 id). */
+    caseId?: string;
+    /** 보관 서비스 라벨 — 근로계약서 / 임금명세서 / 취업규칙 / 노무계약서. */
+    service?: string;
+  } = {},
 ): Promise<string> {
   const list = files.length > 0 ? files : [];
   const parts: string[] = [];
   for (let i = 0; i < list.length; i += 1) {
     const prepared = await compressImageFile(list[i]);
-    const { extracted_text } = await extractFn(prepared, { signal: opts.signal });
+    const { extracted_text } = await extractFn(prepared, {
+      signal: opts.signal,
+      caseId: opts.caseId,
+      service: opts.service,
+    });
     parts.push(pageSeparator(i, list.length) + (extracted_text ?? ''));
     opts.onProgress?.(i + 1, list.length);
   }

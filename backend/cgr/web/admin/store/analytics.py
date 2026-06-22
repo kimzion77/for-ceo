@@ -227,33 +227,41 @@ def get_interaction(iid: int) -> dict[str, Any] | None:
         if not r:
             return None
         rec = dict(r)
-        up = None
         uid = rec.get("upload_id")
         cid = (rec.get("case_id") or "").strip()
-        if uid:
-            up = c.execute(
+        rows: list[sqlite3.Row] = []
+        # 같은 case_id 로 올린 원본 파일 전부(여러 장 사진 등) — 오래된→최근 순
+        if cid:
+            rows = list(
+                c.execute(
+                    "SELECT id,filename,mime,ext,size,stored_path FROM upload_record "
+                    "WHERE case_id=? ORDER BY id ASC",
+                    (cid,),
+                ).fetchall()
+            )
+        # case_id 매칭이 없으면 upload_id 단건 폴백
+        if not rows and uid:
+            one = c.execute(
                 "SELECT id,filename,mime,ext,size,stored_path FROM upload_record WHERE id=?",
                 (uid,),
             ).fetchone()
-        if up is None and cid:
-            up = c.execute(
-                "SELECT id,filename,mime,ext,size,stored_path FROM upload_record "
-                "WHERE case_id=? ORDER BY id DESC LIMIT 1",
-                (cid,),
-            ).fetchone()
-    if up is not None:
+            if one is not None:
+                rows = [one]
+    uploads = []
+    for up in rows:
         u = dict(up)
         sp = u.pop("stored_path", "") or ""
-        rec["upload"] = {
-            "id": u["id"],
-            "filename": u.get("filename") or "",
-            "mime": u.get("mime") or "",
-            "ext": u.get("ext") or "",
-            "size": u.get("size") or 0,
-            "has_file": bool(sp and Path(sp).exists()),
-        }
-    else:
-        rec["upload"] = None
+        uploads.append(
+            {
+                "id": u["id"],
+                "filename": u.get("filename") or "",
+                "mime": u.get("mime") or "",
+                "ext": u.get("ext") or "",
+                "size": u.get("size") or 0,
+                "has_file": bool(sp and Path(sp).exists()),
+            }
+        )
+    rec["uploads"] = uploads
     return rec
 
 

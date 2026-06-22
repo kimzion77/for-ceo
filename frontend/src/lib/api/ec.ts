@@ -62,10 +62,13 @@ async function pollJob<T>(
 /** 1단계: 파일 → 텍스트 (이미지면 OCR) — 비동기 잡(이미지 OCR 이 느릴 수 있어 타임아웃 우회). */
 export async function postEcExtract(
   file: File,
-  opts: { signal?: AbortSignal } = {},
+  opts: { signal?: AbortSignal; caseId?: string; service?: string } = {},
 ): Promise<EcExtractOut> {
   const form = new FormData();
   form.append('file', file);
+  // 원본 파일을 서버에 보관해 관리자 로그와 연결 (case_id) — service 로 라벨 분기(EC/취업규칙 공용 추출).
+  if (opts.caseId) form.append('case_id', opts.caseId);
+  if (opts.service) form.append('service', opts.service);
   const { job_id } = await apiPostForm<{ job_id: string }>('/ec/extract/start', form, {
     signal: opts.signal,
   });
@@ -177,7 +180,7 @@ export async function postEcAnalyze(
   structuredData: EcStructuredData,
   businessSize: string,
   workerTypes: string[],
-  opts: { legalGuidelines?: string; signal?: AbortSignal } = {},
+  opts: { legalGuidelines?: string; signal?: AbortSignal; caseId?: string } = {},
 ): Promise<EcAnalyzeOut> {
   const { job_id } = await apiPostJson<{ job_id: string }>(
     '/ec/analyze/start',
@@ -186,6 +189,7 @@ export async function postEcAnalyze(
       business_size: businessSize,
       worker_types: workerTypes,
       legal_guidelines: opts.legalGuidelines ?? '',
+      case_id: opts.caseId ?? '',
     },
     { signal: opts.signal },
   );

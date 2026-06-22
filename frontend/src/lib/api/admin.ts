@@ -95,6 +95,11 @@ export function uploadFileUrl(id: number): string {
   return `/api/cgr/admin/uploads/${id}/file`;
 }
 
+/** 원본 파일명으로 강제 다운로드(첨부) — 인라인 보기와 구분. */
+export function uploadFileDownloadUrl(id: number): string {
+  return `/api/cgr/admin/uploads/${id}/file?download=1`;
+}
+
 export async function getPrompts(): Promise<PromptItem[]> {
   const data = await jsonOrThrow(
     await fetch('/api/cgr/admin/prompts', { cache: 'no-store' }),
@@ -141,7 +146,8 @@ export interface LogDetail {
   output_text: string;
   case_id?: string | null;
   upload_id?: number | null;
-  upload?: LogUpload | null;
+  /** 같은 case_id 로 올린 원본 파일 전부(여러 장 사진 등). */
+  uploads?: LogUpload[];
 }
 
 export async function getLogs(

@@ -120,12 +120,29 @@ class ExtractResultOut(BaseModel):
     summary="비동기 추출 시작 — job_id 반환",
     dependencies=[Depends(require_api_key)],
 )
-async def post_extract_start(file: UploadFile = File(...)):
+async def post_extract_start(
+    request: Request,
+    file: UploadFile = File(...),
+    case_id: str = Form(default=""),
+    service: str = Form(default="근로계약서"),
+):
+    content = await file.read()
+    upload_tracker.validate_upload(file.filename or "", content)
     suffix = Path(file.filename or "upload.bin").suffix or ".bin"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tf:
-        tf.write(await file.read())
+        tf.write(content)
         tmp_path = Path(tf.name)
     filename = file.filename or ""
+    # 원본 파일 보관 — 관리자가 검토 로그에서 직접 열람·다운로드 (case_id 로 연결)
+    if case_id:
+        upload_tracker.record_upload(
+            content=content,
+            filename=filename,
+            mime=file.content_type or "",
+            service=service or "근로계약서",
+            request=request,
+            case_id=case_id,
+        )
 
     def _do() -> dict[str, str]:
         try:
@@ -322,6 +339,10 @@ class AnalyzeIn(BaseModel):
         default="",
         description="(선택) RAG 검색으로 채울 상세 가이드라인. 추후 단계에서 자동 주입.",
     )
+    case_id: str = Field(
+        default="",
+        description="프론트 리뷰 세션 id — 업로드 원본 파일과 로그를 연결(관리자 열람용).",
+    )
 
 
 class AnalyzeOut(BaseModel):
@@ -366,6 +387,7 @@ def post_analyze(body: AnalyzeIn):
             input_text=_json.dumps(body.structured_data, ensure_ascii=False)[:4000],
             output_text=_json.dumps(result, ensure_ascii=False)[:8000],
             visitor="",
+            case_id=body.case_id or None,
         )
     except Exception:
         pass
@@ -402,12 +424,29 @@ class AnalyzeResultOut(BaseModel):
 def post_analyze_start(body: AnalyzeIn):
     # 클로저로 입력 캡처 — 스레드에서 실행
     def _do() -> dict[str, Any]:
-        return analyze_service.run(
+        result = analyze_service.run(
             body.structured_data,
             business_size=body.business_size,
             worker_types=body.worker_types,
             legal_guidelines=body.legal_guidelines,
         )
+        # 상호작용 로그 — 입력(구조화 데이터)·출력(분석결과) 전체 + 원본 연결(case_id)
+        try:
+            import json as _json
+
+            from cgr.web.admin.store import analytics as _an
+
+            _an.log_interaction(
+                kind="근로계약서",
+                model=get_llm_model(),
+                input_text=_json.dumps(body.structured_data, ensure_ascii=False)[:6000],
+                output_text=_json.dumps(result, ensure_ascii=False)[:12000],
+                visitor="",
+                case_id=body.case_id or None,
+            )
+        except Exception:
+            pass
+        return result
 
     job_id = jobs.start_job(_do)
     return JobStartOut(job_id=job_id)

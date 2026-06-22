@@ -477,6 +477,45 @@
   text-decoration: none;
   margin: 0 0 10px;
 }
+.uploadList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 10px;
+}
+.uploadItem {
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 8px;
+  padding: 8px;
+  background: var(--color-surface, #f8fafc);
+}
+.uploadMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+}
+.uploadName {
+  font-size: 12.5px;
+  font-weight: 700;
+  word-break: break-all;
+}
+.uploadActions {
+  display: inline-flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.uploadActions a {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--color-accent, #2563eb);
+  text-decoration: none;
+  padding: 3px 10px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 6px;
+}
 
 /* ─── 로그 상세: 위반/누락 카드 ─── */
 .logSummary {

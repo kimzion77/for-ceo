@@ -116,12 +116,28 @@ class ExtractResultOut(BaseModel):
     summary="비동기 추출 시작 — job_id 반환",
     dependencies=[Depends(require_api_key)],
 )
-async def post_extract_start(file: UploadFile = File(...)):
+async def post_extract_start(
+    request: Request,
+    file: UploadFile = File(...),
+    case_id: str = Form(default=""),
+):
+    content = await file.read()
+    upload_tracker.validate_upload(file.filename or "", content)
     suffix = Path(file.filename or "upload.bin").suffix or ".bin"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tf:
-        tf.write(await file.read())
+        tf.write(content)
         tmp_path = Path(tf.name)
     filename = file.filename or ""
+    # 원본 파일 보관 — 관리자가 검토 로그에서 직접 열람·다운로드 (case_id 로 연결)
+    if case_id:
+        upload_tracker.record_upload(
+            content=content,
+            filename=filename,
+            mime=file.content_type or "",
+            service="임금명세서",
+            request=request,
+            case_id=case_id,
+        )
 
     def _do() -> dict[str, str]:
         try:
@@ -258,6 +274,10 @@ class AnalyzeIn(BaseModel):
         default=None,
         description="주 소정근로시간 (단시간 계약 시 의미)",
     )
+    case_id: str = Field(
+        default="",
+        description="프론트 리뷰 세션 id — 업로드 원본 파일과 로그를 연결(관리자 열람용).",
+    )
 
 
 class AnalyzeOut(BaseModel):
@@ -311,6 +331,7 @@ def post_analyze(body: AnalyzeIn):
             input_text=(body.wage_text or "")[:4000],
             output_text=_json.dumps(result, ensure_ascii=False)[:8000],
             visitor="",
+            case_id=body.case_id or None,
         )
     except Exception:
         pass
@@ -345,7 +366,7 @@ class AnalyzeResultOut(BaseModel):
 def post_analyze_start(body: AnalyzeIn):
     # 클로저로 JSON 입력 캡처 — 스레드에서 실행 (ec analyze 와 동일 패턴)
     def _do() -> dict[str, Any]:
-        return analyze_service.run(
+        result = analyze_service.run(
             body.wage_text,
             business_size=body.business_size,
             worker_types=body.worker_types,
@@ -355,6 +376,23 @@ def post_analyze_start(body: AnalyzeIn):
             pay_cycle=body.pay_cycle,
             weekly_hours=body.weekly_hours,
         )
+        # 상호작용 로그 — 입력(원문)·출력(분석결과) 전체 + 원본 연결(case_id)
+        try:
+            import json as _json
+
+            from cgr.web.admin.store import analytics as _an
+
+            _an.log_interaction(
+                kind="임금명세서",
+                model=get_llm_model(),
+                input_text=(body.wage_text or "")[:6000],
+                output_text=_json.dumps(result, ensure_ascii=False)[:12000],
+                visitor="",
+                case_id=body.case_id or None,
+            )
+        except Exception:
+            pass
+        return result
 
     return JobStartOut(job_id=jobs.start_job(_do))
 

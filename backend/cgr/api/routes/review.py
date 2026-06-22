@@ -188,13 +188,14 @@ def _dispatch_review(
     document_type: str,
     context: WorkplaceContext,
     summary_only: bool,
+    case_id: str = "",
 ) -> dict:
     """검토 실행 후 JSON 직렬화 dict 반환 — 백그라운드 잡에서 호출."""
     try:
         if document_type == "employment_contract":
             out = _run_employment_contract(tmp_path, filename, context)
         else:
-            out = _run_work_rules(tmp_path, filename, context, summary_only)
+            out = _run_work_rules(tmp_path, filename, context, summary_only, case_id)
         return out.model_dump(mode="json")
     finally:
         try:
@@ -219,6 +220,7 @@ async def post_review_start(
     business_size: str | None = Form(default=None),
     worker_types: str | None = Form(default=None),
     summary_only: bool = Form(default=False),
+    case_id: str = Form(default=""),
 ):
     suffix = Path(file.filename or "upload.bin").suffix or ".bin"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tf:
@@ -237,7 +239,9 @@ async def post_review_start(
     )
 
     def _do() -> dict:
-        return _dispatch_review(tmp_path, filename, document_type, context, summary_only)
+        return _dispatch_review(
+            tmp_path, filename, document_type, context, summary_only, case_id
+        )
 
     job_id = jobs.start_job(_do)
     return ReviewJobStartOut(job_id=job_id)
@@ -269,8 +273,13 @@ def _run_work_rules(
     filename: str,
     context: WorkplaceContext,
     summary_only: bool,
+    case_id: str = "",
 ) -> ReviewFullOut:
-    """취업규칙 검토 흐름 (기존 로직)."""
+    """취업규칙 검토 흐름 (기존 로직).
+
+    case_id 는 프론트 리뷰 세션 id — 홈 추출 단계에서 보관한 원본 파일(이미지/문서)과
+    이 검토 로그를 연결하는 키. 비면 백엔드가 만든 report.case_id 로 폴백한다.
+    """
     t0 = time.time()
     try:
         report = review_file(tmp_path, _CATALOG_PATH, context=context)
@@ -311,27 +320,16 @@ def _run_work_rules(
 
     try:
         import json as _json
-        import mimetypes as _mt
 
-        from cgr import upload_tracker as _ut
         from cgr.web.admin.store import analytics as _an
 
-        # (1) 원본 업로드 파일 보관 — 상세 화면에서 이미지/문서 열람 (case_id 로 연결)
-        _upload_id: int | None = None
-        try:
-            _content = tmp_path.read_bytes()
-            _mime = _mt.guess_type(filename)[0] or ""
-            _upload_id = _ut.record_upload(
-                content=_content,
-                filename=filename,
-                mime=_mime,
-                service="취업규칙",
-                case_id=report.case_id,
-            )
-        except Exception:
-            _upload_id = None
+        # 원본 파일(이미지/문서)은 홈 추출 단계(/ec/extract/start, service=취업규칙)에서
+        # 같은 case_id 로 이미 보관됨 → 여기선 로그를 case_id 로 연결만 한다.
+        # (취업규칙 검토는 사용자가 확인·수정한 텍스트를 .txt 로 감싸 보내므로
+        #  tmp_path 는 원본이 아니라 가공 텍스트라 따로 저장하지 않는다.)
+        _case = (case_id or report.case_id or "").strip() or None
 
-        # (2) 무엇을 위반/누락으로 잡았는지 — 조항·판정·근거·원문 인용·권고까지 전체 기록
+        # 무엇을 위반/누락으로 잡았는지 — 조항·판정·근거·원문 인용·권고까지 전체 기록
         _flagged: list[dict] = []
         _ok = 0
         for _ar in report.article_results:
@@ -365,8 +363,7 @@ def _run_work_rules(
             input_text=f"[취업규칙 검토] {filename}",
             output_text=_json.dumps(_payload, ensure_ascii=False)[:12000],
             visitor="",
-            case_id=report.case_id,
-            upload_id=_upload_id,
+            case_id=_case,
         )
     except Exception:
         pass

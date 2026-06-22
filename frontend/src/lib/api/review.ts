@@ -49,6 +49,8 @@ export interface PostReviewOptions {
   context: WorkplaceContext;
   documentType?: DocumentType;
   signal?: AbortSignal;
+  /** 리뷰 세션 id — 홈에서 보관한 원본 파일과 이 검토 로그를 연결(관리자 열람용). */
+  caseId?: string;
 }
 
 /** 취업규칙 검토 — 결과를 프론트 `ReviewResult` 형식으로 변환. */
@@ -156,7 +158,7 @@ function reviewSleep(ms: number, signal?: AbortSignal): Promise<void> {
  * 각 요청 1초 미만이라 아무리 느려도(검토가 길어도) 끊기지 않는다.
  */
 export async function postReviewRaw(opts: PostReviewOptions): Promise<AnyReviewOut> {
-  const { files, context, documentType = 'work-rules', signal } = opts;
+  const { files, context, documentType = 'work-rules', signal, caseId } = opts;
   if (files.length === 0) {
     throw new Error('파일이 비어있습니다.');
   }
@@ -164,6 +166,8 @@ export async function postReviewRaw(opts: PostReviewOptions): Promise<AnyReviewO
   const form = new FormData();
   form.append('file', files[0]);
   form.append('document_type', mapDocumentType(documentType));
+  // 원본 파일(홈 추출 단계에서 보관)과 이 검토 로그를 연결하는 키.
+  if (caseId) form.append('case_id', caseId);
 
   // 취업규칙용
   form.append('shift_work_used', boolToFormValue(context.shiftWorkUsed));

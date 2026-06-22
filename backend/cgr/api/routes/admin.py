@@ -163,10 +163,10 @@ async def get_uploads(
 
 @router.get(
     "/uploads/{uid}/file",
-    summary="업로드 파일 열람 (이미지 인라인)",
+    summary="업로드 파일 열람(인라인) / 다운로드(?download=1)",
     dependencies=[Depends(require_admin_key)],
 )
-async def get_upload_file(uid: int):
+async def get_upload_file(uid: int, download: bool = False):
     rec = analytics.get_upload(uid)
     if not rec or not rec.get("stored_path"):
         raise HTTPException(status_code=404, detail="파일 기록이 없습니다.")
@@ -179,7 +179,13 @@ async def get_upload_file(uid: int):
     if not p.exists():
         raise HTTPException(status_code=404, detail="파일이 삭제되었습니다(보관기간 만료).")
     media = rec.get("mime") or "application/octet-stream"
-    return FileResponse(str(p), media_type=media, filename=rec.get("filename") or p.name)
+    # download=1 → 첨부(원본 파일명으로 저장), 아니면 inline(브라우저에서 바로 보기)
+    return FileResponse(
+        str(p),
+        media_type=media,
+        filename=(rec.get("filename") or p.name) if download else None,
+        content_disposition_type="attachment" if download else "inline",
+    )
 
 
 # ─── 프롬프트 편집 (즉시 적용) ────────────────

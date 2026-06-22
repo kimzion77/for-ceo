@@ -150,10 +150,13 @@ export interface ScAnalyzeOut {
 /** 1단계: 파일 → 텍스트 (이미지면 OCR) — 비동기 잡(start + poll). */
 export async function postScExtract(
   file: File,
-  opts: { signal?: AbortSignal } = {},
+  opts: { signal?: AbortSignal; caseId?: string; service?: string } = {},
 ): Promise<ScExtractOut> {
   const form = new FormData();
   form.append('file', file);
+  // 원본 파일을 서버에 보관해 관리자 업로드 기록과 연결 (case_id).
+  if (opts.caseId) form.append('case_id', opts.caseId);
+  if (opts.service) form.append('service', opts.service);
   const { job_id } = await apiPostForm<{ job_id: string }>('/sc/extract/start', form, {
     signal: opts.signal,
   });

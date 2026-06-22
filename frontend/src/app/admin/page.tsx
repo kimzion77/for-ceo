@@ -20,6 +20,7 @@ import {
   getPrompts,
   getUploads,
   savePrompt,
+  uploadFileDownloadUrl,
   uploadFileUrl,
   type AdminAnalytics,
   type LogDetail,
@@ -381,27 +382,39 @@ function LogsTab() {
               </button>
             </div>
             <div className={styles.logDetailBody}>
-              {detail.upload?.has_file && (
+              {detail.uploads && detail.uploads.length > 0 && (
                 <>
-                  <div className={styles.logDetailLabel}>원본 업로드</div>
-                  {detail.upload.mime.startsWith('image/') ? (
-                    <a href={uploadFileUrl(detail.upload.id)} target="_blank" rel="noreferrer">
-                      <img
-                        className={styles.logImg}
-                        src={uploadFileUrl(detail.upload.id)}
-                        alt={detail.upload.filename}
-                      />
-                    </a>
-                  ) : (
-                    <a
-                      className={styles.fileLink}
-                      href={uploadFileUrl(detail.upload.id)}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      📎 {detail.upload.filename || '파일 열기'}
-                    </a>
-                  )}
+                  <div className={styles.logDetailLabel}>
+                    원본 업로드{detail.uploads.length > 1 ? ` (${detail.uploads.length}장)` : ''}
+                  </div>
+                  <div className={styles.uploadList}>
+                    {detail.uploads.map((u) =>
+                      u.has_file ? (
+                        <div key={u.id} className={styles.uploadItem}>
+                          {u.mime.startsWith('image/') && (
+                            <a href={uploadFileUrl(u.id)} target="_blank" rel="noreferrer">
+                              <img className={styles.logImg} src={uploadFileUrl(u.id)} alt={u.filename} />
+                            </a>
+                          )}
+                          <div className={styles.uploadMeta}>
+                            <span className={styles.uploadName}>{u.filename || `파일 #${u.id}`}</span>
+                            <span className={styles.uploadActions}>
+                              <a href={uploadFileUrl(u.id)} target="_blank" rel="noreferrer">
+                                보기
+                              </a>
+                              <a href={uploadFileDownloadUrl(u.id)}>다운로드</a>
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div key={u.id} className={styles.uploadItem}>
+                          <span className={styles.muted}>
+                            {u.filename || `파일 #${u.id}`} — 보관기간 만료(삭제됨)
+                          </span>
+                        </div>
+                      ),
+                    )}
+                  </div>
                 </>
               )}
               <div className={styles.logDetailLabel}>입력 (Input)</div>
@@ -502,6 +515,9 @@ function UploadsTab() {
                 className={styles.linkBtn}
               >
                 새 탭에서 열기
+              </a>
+              <a href={uploadFileDownloadUrl(preview.id)} className={styles.linkBtn}>
+                다운로드
               </a>
               <button className={styles.linkBtn} onClick={() => setPreview(null)}>
                 닫기

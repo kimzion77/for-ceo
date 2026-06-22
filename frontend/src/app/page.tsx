@@ -175,7 +175,10 @@ export default function HomePage() {
         // 사용자가 검토 페이지(Step2)에서 표를 수정한 뒤 analyze → result → contract 로 진행.
         updateEc(caseId, { phase: 'extracting' });
         // 여러 장(여러 페이지) 지원 + 이미지는 업로드 전 자동 압축(413 방지).
-        const extractedText = await extractAllText(files, postEcExtract);
+        const extractedText = await extractAllText(files, postEcExtract, {
+          caseId,
+          service: '근로계약서',
+        });
 
         updateEc(caseId, {
           phase: 'structuring',
@@ -222,7 +225,10 @@ export default function HomePage() {
         //   2) /sc/structure 텍스트 → 4섹션·16슬롯 JSON
         //   3) (사용자 검토) → /sc/analyze (LoadingScreen 후 sc/review 페이지)
         updateSc(caseId, { phase: 'extracting' });
-        const scText = await extractAllText(files, postScExtract);
+        const scText = await extractAllText(files, postScExtract, {
+          caseId,
+          service: '노무계약서',
+        });
 
         updateSc(caseId, {
           phase: 'structuring',
@@ -243,7 +249,10 @@ export default function HomePage() {
         //   2) /ws/classify 계약 유형 AI 추정 (실패해도 흐름 계속)
         //   3) /review/[id]/ws/review — 계약 유형 확인 → '분석 시작' 시 /ws/analyze.
         updateWs(caseId, { phase: 'extracting' });
-        const wsText = await extractAllText(files, postWsExtract);
+        const wsText = await extractAllText(files, postWsExtract, {
+          caseId,
+          service: '임금명세서',
+        });
         const wsCls = await postWsClassify(wsText).catch(() => null);
 
         updateWs(caseId, {
@@ -280,7 +289,10 @@ export default function HomePage() {
         //   2) AI 근로환경 1차 분류 (교대제·산안법·화학물질·작업환경측정 추정)
         //      — 실패해도 흐름 계속 (확인 배너만 생략, 보수적 기본값 검사)
         //   3) (사용자 확인·수정) /review/[id]/wr/review — '분석 시작' 시 postReviewWorkRules 호출.
-        const wrText = await extractAllText(files, postEcExtract);
+        const wrText = await extractAllText(files, postEcExtract, {
+          caseId,
+          service: '취업규칙',
+        });
         const wrCls = await postWrClassify(wrText).catch(() => null);
 
         updateWr(caseId, {

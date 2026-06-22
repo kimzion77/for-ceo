@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 
 from cgr import upload_tracker
 from fastapi.responses import Response
@@ -105,12 +105,29 @@ class ExtractResultOut(BaseModel):
     summary="비동기 추출 시작 — job_id 반환",
     dependencies=[Depends(require_api_key)],
 )
-async def post_extract_start(file: UploadFile = File(...)):
+async def post_extract_start(
+    request: Request,
+    file: UploadFile = File(...),
+    case_id: str = Form(default=""),
+    service: str = Form(default="노무계약서"),
+):
+    content = await file.read()
+    upload_tracker.validate_upload(file.filename or "", content)
     suffix = Path(file.filename or "upload.bin").suffix or ".bin"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tf:
-        tf.write(await file.read())
+        tf.write(content)
         tmp_path = Path(tf.name)
     filename = file.filename or ""
+    # 원본 파일 보관 — 관리자 업로드 기록에서 직접 열람·다운로드 (case_id 로 연결)
+    if case_id:
+        upload_tracker.record_upload(
+            content=content,
+            filename=filename,
+            mime=file.content_type or "",
+            service=service or "노무계약서",
+            request=request,
+            case_id=case_id,
+        )
 
     def _do() -> dict[str, str]:
         try:

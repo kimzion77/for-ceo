@@ -127,7 +127,7 @@ export default function EcReviewPage({ params }: { params: { id: string } }) {
           sd = next;
         }
         updateEc(caseId, { phase: 'analyzing', structuredData: sd });
-        const out = await postEcAnalyze(sd, businessSize, finalTypes);
+        const out = await postEcAnalyze(sd, businessSize, finalTypes, { caseId });
         updateEc(caseId, { phase: 'result', analysisResult: out.analysis_result });
       })().catch((err) => {
         const msg =
@@ -294,7 +294,7 @@ export default function EcReviewPage({ params }: { params: { id: string } }) {
     });
     router.push(`/review/${caseId}/loading`);
     // 백그라운드 fetch — 페이지 이탈 후에도 promise 는 살아있다.
-    postEcAnalyze(structured, businessSize, finalTypes)
+    postEcAnalyze(structured, businessSize, finalTypes, { caseId })
       .then((out) => {
         updateEc(caseId, {
           phase: 'result',

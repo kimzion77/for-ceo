@@ -153,10 +153,12 @@ export interface WsInspectOut {
 /** 1단계: 파일 → 텍스트 (이미지면 OCR) — 비동기 잡(start + poll). */
 export async function postWsExtract(
   file: File,
-  opts: { signal?: AbortSignal } = {},
+  opts: { signal?: AbortSignal; caseId?: string; service?: string } = {},
 ): Promise<WsExtractOut> {
   const form = new FormData();
   form.append('file', file);
+  // 원본 파일을 서버에 보관해 관리자 로그와 연결 (case_id). service 인자는 시그니처 통일용(무시됨).
+  if (opts.caseId) form.append('case_id', opts.caseId);
   const { job_id } = await apiPostForm<{ job_id: string }>('/ws/extract/start', form, {
     signal: opts.signal,
   });
@@ -235,6 +237,8 @@ export async function postWsAnalyze(
     pay_cycle?: string;
     /** 주 소정근로시간 (단시간일 때 의미 있음). */
     weekly_hours?: number;
+    /** 리뷰 세션 id — 올린 원본 명세서 파일을 관리자 로그와 연결. */
+    case_id?: string;
   },
   opts: { signal?: AbortSignal } = {},
 ): Promise<WsAnalyzeOut> {

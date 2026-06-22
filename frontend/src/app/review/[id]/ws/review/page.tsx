@@ -105,6 +105,7 @@ export default function WsReviewPage({ params }: { params: { id: string } }) {
       contract_type: finalType,
       pay_cycle: ws.payCycle ?? undefined,
       weekly_hours: ws.weeklyHours ?? undefined,
+      case_id: caseId,
     })
       .then((out) => {
         updateWs(caseId, {

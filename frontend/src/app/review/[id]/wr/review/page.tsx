@@ -137,6 +137,7 @@ export default function WrReviewPage({ params }: { params: { id: string } }) {
       files: [txtFile],
       context,
       documentType: 'work-rules',
+      caseId,
     })
       .then((result) => {
         setCaseResult(caseId, result);
