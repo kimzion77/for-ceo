@@ -17,6 +17,33 @@ from cgr import datadir
 from cgr.web.admin.store import analytics
 
 
+# 허용 업로드 확장자 — 지원 문서·이미지만 (시큐어코딩: 입력 데이터 검증)
+ALLOWED_UPLOAD_EXTS = {
+    "png", "jpg", "jpeg", "gif", "bmp", "tif", "tiff", "webp", "heic", "heif",
+    "pdf", "docx", "doc", "hwp", "hwpx", "txt",
+}
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20MB (운영 리버스프록시의 client_max_body_size 와 함께)
+
+
+def validate_upload(filename: str, content: bytes) -> None:
+    """업로드 파일 검증 — 빈/과대/허용외 형식 거부. 위반 시 HTTPException 발생."""
+    from fastapi import HTTPException
+
+    size = len(content or b"")
+    if size == 0:
+        raise HTTPException(status_code=400, detail="빈 파일은 업로드할 수 없어요.")
+    if size > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"파일이 너무 큽니다 (최대 {MAX_UPLOAD_BYTES // (1024 * 1024)}MB).",
+        )
+    ext = Path(filename or "").suffix.lower().lstrip(".")
+    if ext and ext not in ALLOWED_UPLOAD_EXTS:
+        raise HTTPException(
+            status_code=400, detail=f"허용되지 않은 파일 형식이에요 (.{ext})."
+        )
+
+
 def anon_visitor(request: Any | None) -> str:
     """익명 방문자 해시 — 원시 IP 저장 안 함(IP+UA+날짜 salt 단방향 해시 16자)."""
     ip = ua = ""

@@ -10,6 +10,7 @@ OpenAPI 문서: http://127.0.0.1:8503/docs (Swagger UI)
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -49,19 +50,36 @@ app = FastAPI(
 )
 
 
-# ─── CORS — 개발용 개방 (운영 시 origins 제한 권장) ─
+# ─── CORS — 허용 출처 화이트리스트 (OWASP A05: 와일드카드+credentials 금지) ───
+# 실제 호출은 프론트 BFF(서버사이드)라 CORS 가 필수는 아니지만, 보안 점검 기준상
+# 출처를 env(CGR_ALLOWED_ORIGINS, 콤마구분)로 제한한다. 미설정 시 로컬·운영 도메인 기본.
+_origins_env = os.environ.get("CGR_ALLOWED_ORIGINS", "").strip()
+_allowed_origins = [o.strip() for o in _origins_env.split(",") if o.strip()] or [
+    "http://localhost:3000",
+    "https://moellab.info",
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 운영 시 ["https://your-frontend.com"] 로 제한
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_allowed_origins,
+    allow_credentials=False,  # 인증은 X-API-Key 헤더 — 쿠키 미사용이라 credentials 불요
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "X-API-Key", "Authorization"],
     expose_headers=["X-Process-Time"],
 )
 
 # ─── gzip 응답 압축 — 분석 결과 등 큰 JSON 응답을 60-70% 줄여 전송 시간 단축 ───
 # minimum_size: 이보다 작은 응답은 압축 오버헤드만 들어서 패스. 1KB 가 합리적 임계.
 app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
+
+
+# ─── 보안 응답 헤더 (OWASP A05 / 국정원 점검: MIME 스니핑·클릭재킹 방지) ───
+@app.middleware("http")
+async def _security_headers(request, call_next):
+    resp = await call_next(request)
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    return resp
 
 
 # ─── 라우터 등록 (prefix /api/v1) ──────────

@@ -65,9 +65,10 @@ async def post_extract(
     file: UploadFile = File(..., description="검토 대상 근로계약서 파일"),
 ):
     t0 = time.time()
+    content = await file.read()
+    upload_tracker.validate_upload(file.filename or "", content)
     suffix = Path(file.filename or "upload.bin").suffix or ".bin"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tf:
-        content = await file.read()
         tf.write(content)
         tmp_path = Path(tf.name)
     upload_tracker.record_upload(
