@@ -370,3 +370,37 @@
 .copyBtn:hover {
   background: #ecfdf5;
 }
+
+.fixActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* 신구대조표 담기 토글 */
+.addBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-accent, #2563eb);
+  padding: 5px 11px;
+  border: 1px solid var(--color-accent, #2563eb);
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  font-family: inherit;
+}
+.addBtn:hover {
+  background: var(--color-accent-soft, #eef4ff);
+}
+.addBtnOn {
+  color: #fff;
+  background: var(--color-accent, #2563eb);
+  border-color: var(--color-accent, #2563eb);
+}
+.addBtnOn:hover {
+  background: var(--color-accent, #1d4ed8);
+}

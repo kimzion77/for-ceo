@@ -12,6 +12,9 @@ interface FindingCarouselProps {
   findings: Finding[];
   /** 클릭 시 상세 라우팅. */
   onOpen?: (id: string) => void;
+  /** 신구대조표 담기 상태 맵(finding id → 담음 여부) + 토글 — 제공 시 카드에 담기 버튼 노출. */
+  addedMap?: Record<string, boolean>;
+  onToggleAdd?: (id: string) => void;
 }
 
 /**
@@ -21,7 +24,12 @@ interface FindingCarouselProps {
  * - 키보드 ← / → 화살표로 이동
  * - findings 가 갱신되면(필터 변경 등) 첫 카드로 리셋
  */
-export function FindingCarousel({ findings, onOpen }: FindingCarouselProps) {
+export function FindingCarousel({
+  findings,
+  onOpen,
+  addedMap,
+  onToggleAdd,
+}: FindingCarouselProps) {
   const [idx, setIdx] = useState(0);
   const total = findings.length;
 
@@ -84,7 +92,12 @@ export function FindingCarousel({ findings, onOpen }: FindingCarouselProps) {
         </button>
 
         <div key={current.id} className={styles.cardEnter}>
-          <FindingCard finding={current} onOpen={onOpen} />
+          <FindingCard
+            finding={current}
+            onOpen={onOpen}
+            added={!!addedMap?.[current.id]}
+            onToggleAdd={onToggleAdd}
+          />
         </div>
 
         <button

@@ -26,10 +26,21 @@ function currentLabelFor(status: FindingStatus): string {
   }
 }
 
+/** 신구대조표에 담을 수 있는(변경 필요) 상태. */
+const ADDABLE_STATUSES = new Set<FindingStatus>([
+  'VIOLATION',
+  'MISSING',
+  'WARN',
+  'AMBIGUOUS',
+]);
+
 interface FindingCardProps {
   finding: Finding;
   /** 클릭 시 상세 페이지로 이동. */
   onOpen?: (id: string) => void;
+  /** 신구대조표 담기 상태 — 제공 시 카드에 '담기' 버튼 노출(변경 필요 항목만). */
+  added?: boolean;
+  onToggleAdd?: (id: string) => void;
 }
 
 /**
@@ -37,9 +48,10 @@ interface FindingCardProps {
  *
  * 헤더 → 제목 → 사유/인용 가로 분할 → 시정 가이드 강조 박스.
  */
-export function FindingCard({ finding, onOpen }: FindingCardProps) {
+export function FindingCard({ finding, onOpen, added, onToggleAdd }: FindingCardProps) {
   const r = RISK[finding.risk];
   const [copied, setCopied] = useState(false);
+  const canAdd = ADDABLE_STATUSES.has(finding.status);
 
   const copy = async () => {
     try {
@@ -131,10 +143,23 @@ export function FindingCard({ finding, onOpen }: FindingCardProps) {
               <LawChip key={law.name} law={law} />
             ))}
           </div>
-          <button type="button" className={styles.copyBtn} onClick={copy}>
-            <Icon name={copied ? 'check' : 'edit'} size={12} />
-            {copied ? '복사됨' : '복사하기'}
-          </button>
+          <div className={styles.fixActions}>
+            {onToggleAdd && canAdd && (
+              <button
+                type="button"
+                className={`${styles.addBtn} ${added ? styles.addBtnOn : ''}`}
+                onClick={() => onToggleAdd(finding.id)}
+                aria-pressed={added}
+              >
+                <Icon name="check" size={12} strokeWidth={2.5} />
+                {added ? '담음' : '신구대조표에 담기'}
+              </button>
+            )}
+            <button type="button" className={styles.copyBtn} onClick={copy}>
+              <Icon name={copied ? 'check' : 'edit'} size={12} />
+              {copied ? '복사됨' : '복사하기'}
+            </button>
+          </div>
         </div>
       </div>
 

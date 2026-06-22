@@ -65,6 +65,16 @@
   font-size: 13px;
   color: var(--color-text-muted, #475569);
 }
+.cmpCount {
+  color: var(--color-accent, #2563eb);
+  font-weight: 800;
+}
+.cmpCtaBtns {
+  display: inline-flex;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
 
 .sidebar {
   display: flex;

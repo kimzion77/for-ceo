@@ -34,8 +34,19 @@ export default function WrContractPage({ params }: { params: { id: string } }) {
   }
 
   const result = entry?.result;
-  const findings =
+
+  // 결과 화면에서 '담은' 수정안(wr.userOverrides)이 있으면 그 항목만, 개정 후 칸을 담은
+  // 수정안으로 채워 신구대조표를 구성. 담은 게 없으면(레거시/바로 진입) 전 지적 항목으로 폴백.
+  const overrides = entry?.wr?.userOverrides ?? {};
+  const collectedIds = Object.keys(overrides);
+  const allFindings =
     result && result.doc === 'work-rules' ? result.data.findings : [];
+  const findings =
+    collectedIds.length > 0
+      ? allFindings
+          .filter((f) => overrides[f.id] !== undefined)
+          .map((f) => ({ ...f, suggested: overrides[f.id] || f.suggested }))
+      : allFindings;
 
   if (!result || result.doc !== 'work-rules') {
     return (

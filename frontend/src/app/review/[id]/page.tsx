@@ -212,6 +212,65 @@ export default function ReviewResultPage({
     [mobileFindings, params.id],
   );
 
+  // ─── 데스크톱 신구대조표 담기 — 항목별 담기 + 제안 일괄 담기 → wr.userOverrides 영속 ───
+  // (모바일과 동일 저장소를 쓰며, 담은 항목만 신구대조표 행으로 나온다.)
+  const [added, setAdded] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    const ov = entry?.wr?.userOverrides;
+    if (ov && Object.keys(ov).length) {
+      const m: Record<string, boolean> = {};
+      for (const k of Object.keys(ov)) m[k] = true;
+      setAdded(m);
+    }
+  }, [entry]);
+
+  const suggestedById = useMemo(
+    () =>
+      Object.fromEntries(
+        findings.map((f) => [f.id, (f.suggested || f.standard || '').trim()]),
+      ),
+    [findings],
+  );
+
+  const persistAdded = useCallback(
+    (next: Record<string, boolean>) => {
+      const existing = getCase(params.id)?.wr?.userOverrides ?? {};
+      const ov: Record<string, string> = {};
+      for (const id of Object.keys(next)) {
+        if (next[id]) ov[id] = existing[id] ?? suggestedById[id] ?? '';
+      }
+      updateWr(params.id, { userOverrides: ov });
+    },
+    [params.id, suggestedById],
+  );
+
+  const toggleAdd = useCallback(
+    (id: string) => {
+      setAdded((prev) => {
+        const next = { ...prev };
+        if (next[id]) delete next[id];
+        else next[id] = true;
+        persistAdded(next);
+        return next;
+      });
+    },
+    [persistAdded],
+  );
+
+  const addAllFlagged = useCallback(() => {
+    setAdded(() => {
+      const next: Record<string, boolean> = {};
+      for (const f of mobileFindings) next[f.key] = true;
+      persistAdded(next);
+      return next;
+    });
+  }, [mobileFindings, persistAdded]);
+
+  const addedCount = useMemo(
+    () => Object.values(added).filter(Boolean).length,
+    [added],
+  );
+
   // 수정본 생성 — 원문은 그대로, 사용자가 담은 수정 항목만 반영해 전문 출력.
   // 원문 텍스트(wr.extractedText)가 있는 케이스에서만 노출 (레거시 케이스 보호).
   // 데모(/review/demo)는 원문이 없어 '원문 보기·표준양식 만들기'가 숨겨지므로,
@@ -280,18 +339,30 @@ export default function ReviewResultPage({
         {mobileFindings.length > 0 && (
           <div className={`${styles.cmpCta} noPrint`}>
             <div className={styles.cmpCtaText}>
-              <strong>수정이 필요한 조항을 신구대조표로 정리하세요</strong>
+              <strong>수정안을 담아 신구대조표를 만드세요</strong>
               <span>
-                개정 전·후를 표로 모아 직접 고치고 Word 로 내려받을 수 있어요 (의견청취서 양식 포함).
+                항목마다 <b>담기</b>를 누르거나 <b>제안 일괄 담기</b>로 한 번에 담은 뒤,
+                담은 항목으로 신구대조표(개정 전·후)를 만들고 Word 로 내려받을 수 있어요.
+                {addedCount > 0 && (
+                  <>
+                    {' · '}
+                    <strong className={styles.cmpCount}>현재 {addedCount}건 담음</strong>
+                  </>
+                )}
               </span>
             </div>
-            <Button
-              variant="primary"
-              size="md"
-              onClick={() => router.push(`/review/${params.id}/wr/contract`)}
-            >
-              신구대조표 만들기
-            </Button>
+            <div className={styles.cmpCtaBtns}>
+              <Button variant="secondary" size="md" onClick={addAllFlagged}>
+                ✨ 제안 일괄 담기
+              </Button>
+              <Button
+                variant="primary"
+                size="md"
+                onClick={() => router.push(`/review/${params.id}/wr/contract`)}
+              >
+                신구대조표 만들기{addedCount > 0 ? ` (${addedCount})` : ''}
+              </Button>
+            </div>
           </div>
         )}
 
@@ -310,7 +381,12 @@ export default function ReviewResultPage({
               sort={sort}
               onSortChange={setSort}
             />
-            <FindingCarousel findings={filtered} onOpen={openFinding} />
+            <FindingCarousel
+              findings={filtered}
+              onOpen={openFinding}
+              addedMap={added}
+              onToggleAdd={toggleAdd}
+            />
             <OptionalSection count={skippedCount} />
           </main>
         </div>
