@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+import Button from '@/components/ui/Button';
 import ChatPanel from '@/components/review/ChatPanel';
 import DistributionCard from '@/components/review/DistributionCard';
 import FilterBar, {
@@ -275,6 +276,24 @@ export default function ReviewResultPage({
       <div className={`${styles.page} ${styles.screenOnly}`}>
         <SiteHeader />
         <ResultHeader summary={summary} onPrint={handlePrint} />
+
+        {mobileFindings.length > 0 && (
+          <div className={`${styles.cmpCta} noPrint`}>
+            <div className={styles.cmpCtaText}>
+              <strong>수정이 필요한 조항을 신구대조표로 정리하세요</strong>
+              <span>
+                개정 전·후를 표로 모아 직접 고치고 Word 로 내려받을 수 있어요 (의견청취서 양식 포함).
+              </span>
+            </div>
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => router.push(`/review/${params.id}/wr/contract`)}
+            >
+              신구대조표 만들기
+            </Button>
+          </div>
+        )}
 
         <div className={styles.layout}>
           <aside className={styles.sidebar}>
