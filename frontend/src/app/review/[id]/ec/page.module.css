@@ -389,6 +389,76 @@
   word-break: break-word;
 }
 
+/* ─── 근로계약서 HTML 표 (현재 계약서) ─── */
+.ecTblWrap {
+  flex: 1;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  overflow: auto;
+  padding: 16px;
+  width: 100%;
+}
+.ecTbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.ecTbl th,
+.ecTbl td {
+  border: 1px solid #e5e7eb;
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+  word-break: break-all;
+}
+.ecTbl th {
+  background: #f8fafc;
+  color: #334155;
+  font-weight: 600;
+}
+.ecTblSection td {
+  background: #eef2f7;
+  color: #1e293b;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 5px 10px;
+}
+.ecTblNote {
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: #64748b;
+  line-height: 1.5;
+}
+.ecTblEtc {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.6;
+}
+.ftRowFlag {
+  cursor: pointer;
+}
+.ftRowFlag:hover {
+  background: #fff7ed;
+}
+.ftRowFlag:hover th {
+  background: #ffedd5;
+}
+.ftRowFocus {
+  background: #fef3c7 !important;
+  outline: 2px solid #f59e0b;
+  outline-offset: -2px;
+}
+.ftRowFocus th {
+  background: #fde68a !important;
+}
+.ftWarn {
+  color: #d97706;
+  font-weight: 700;
+}
+
 /* ── 검토 보기(wide) — 본문 전체 흐름 + 우측 거터 ── */
 .docBodyWide {
   position: relative;

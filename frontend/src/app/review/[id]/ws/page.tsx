@@ -985,8 +985,9 @@ function buildRealPages(
   isStandard?: boolean,
 ): ContractPage[] {
   const pages: ContractPage[] = [];
+  // 표가 준비되면 **표만** 보여준다(원본 텍스트·이미지 페이지 제거). 파싱 전/실패 시에만 폴백.
   if (form && ((form.payments || []).length || (form.deductions || []).length)) {
-    pages.push(buildFormTablePage(form, findings, !!isStandard));
+    return [buildFormTablePage(form, findings, !!isStandard)];
   }
   if (imageUrl) {
     pages.push({

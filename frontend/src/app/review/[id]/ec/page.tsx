@@ -20,6 +20,7 @@ import type {
   EcAnalysisItem,
   EcAnalysisResult,
   EcChatTurn,
+  EcStructuredData,
 } from '@/lib/api/types';
 import SiteHeader from '@/components/layout/SiteHeader';
 import MobileReviewApp, {
@@ -339,6 +340,7 @@ export default function EcResultPage({ params }: { params: { id: string } }) {
             onFocus={handleFocus}
             mode={reviewMode}
             onChangeMode={setReviewMode}
+            structured={entry?.ec?.structuredData ?? null}
           />
 
           {/* ─── 우: 결과 패널 (검토 보기 모드에선 숨김 — 좌측이 전체폭) ─── */}
@@ -635,6 +637,8 @@ interface DocPanelProps {
   /** 보기 모드 — 'split'(나란히) / 'wide'(검토 보기, 전체폭+거터). */
   mode: 'split' | 'wide';
   onChangeMode: (m: 'split' | 'wide') => void;
+  /** 현재 근로계약서 구조화 데이터 — 있으면 HTML 표(첫·유일 페이지)로 노출. */
+  structured?: EcStructuredData | null;
 }
 
 /**
@@ -789,6 +793,120 @@ function renderTextWithMarkers(
  * 실 데이터 기반 페이지 빌더 — 추출 텍스트/이미지가 있으면 그것으로,
  * 둘 다 없을 때만 mock 페이지로 fallback.
  */
+const EC_SECTION_ORDER = [
+  '기본정보',
+  '계약사항',
+  '근로시간',
+  '휴일휴가',
+  '임금',
+  '퇴직급여',
+  '사회보험',
+  '계약체결',
+];
+
+/**
+ * 현재 근로계약서를 HTML 표로 — 8섹션 구조화 데이터(이미 보유)를 표로 렌더.
+ * 항목명이 지적과 매칭되는 행에 ⚠ + data-vno → 기존 focus-sync 로 우측 상세 연동.
+ */
+function buildEcContractTablePage(
+  sd: EcStructuredData,
+  findings: EcAnalysisItem[],
+): ContractPage {
+  const norm = (s: string) => (s || '').replace(/\s/g, '');
+  const findNo = (fieldKey: string): number | null => {
+    const fk = norm(fieldKey);
+    if (fk.length < 2) return null;
+    const i = findings.findIndex((f) => {
+      const a = norm(f.항목 || '');
+      return !!a && (a.includes(fk) || fk.includes(a));
+    });
+    return i >= 0 ? i + 1 : null;
+  };
+
+  const sections = [
+    ...EC_SECTION_ORDER.filter(
+      (s) => sd[s] && typeof sd[s] === 'object' && !Array.isArray(sd[s]),
+    ),
+    ...Object.keys(sd).filter(
+      (k) =>
+        !EC_SECTION_ORDER.includes(k) &&
+        k !== '기타사항' &&
+        sd[k] &&
+        typeof sd[k] === 'object' &&
+        !Array.isArray(sd[k]),
+    ),
+  ];
+
+  return {
+    title: '서식(표)',
+    body: (
+      <div className={styles.ecTblWrap}>
+        <table className={styles.ecTbl}>
+          <colgroup>
+            <col style={{ width: '32%' }} />
+            <col />
+          </colgroup>
+          <tbody>
+            {sections.map((sec) => {
+              const obj = sd[sec] as Record<
+                string,
+                { value: string; note: string }
+              >;
+              const keys = Object.keys(obj || {});
+              if (!keys.length) return null;
+              return (
+                <Fragment key={sec}>
+                  <tr className={styles.ecTblSection}>
+                    <td colSpan={2}>{sec}</td>
+                  </tr>
+                  {keys.map((fk) => {
+                    const f = obj[fk] || { value: '', note: '' };
+                    const no = findNo(fk);
+                    return (
+                      <tr
+                        key={sec + fk}
+                        className={`${styles.ecTblRow} ${no ? styles.ftRowFlag : ''}`}
+                        data-vno={no || undefined}
+                      >
+                        <th>
+                          {fk}
+                          {no ? (
+                            <span className={styles.ftWarn} title="지적 항목 — 클릭하면 상세"> ⚠</span>
+                          ) : null}
+                        </th>
+                        <td>
+                          {f.value || '(미기재)'}
+                          {f.note ? <div className={styles.ecTblNote}>{f.note}</div> : null}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </Fragment>
+              );
+            })}
+            {Array.isArray(sd.기타사항) && sd.기타사항.length ? (
+              <Fragment>
+                <tr className={styles.ecTblSection}>
+                  <td colSpan={2}>기타사항</td>
+                </tr>
+                <tr>
+                  <td colSpan={2}>
+                    <ul className={styles.ecTblEtc}>
+                      {sd.기타사항.map((t, i) => (
+                        <li key={i}>{t}</li>
+                      ))}
+                    </ul>
+                  </td>
+                </tr>
+              </Fragment>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+    ),
+  };
+}
+
 function buildRealPages(
   imageUrl: string | undefined,
   extractedText: string,
@@ -796,7 +914,12 @@ function buildRealPages(
   findings: EcAnalysisItem[],
   onImageError?: () => void,
   formNode?: ReactNode,
+  structured?: EcStructuredData | null,
 ): ContractPage[] {
+  // 구조화 표가 준비되면 **표만** 보여준다(원본 텍스트·이미지 페이지 제거). 없으면 폴백.
+  if (structured && typeof structured === 'object') {
+    return [buildEcContractTablePage(structured, findings)];
+  }
   const pages: ContractPage[] = [];
   // 원본 이미지를 첫 페이지(기본)로 — 검토 중 원본과 비교하는 게 핵심.
   if (imageUrl) {
@@ -851,6 +974,7 @@ function DocPanel({
   onFocus,
   mode,
   onChangeMode,
+  structured,
 }: DocPanelProps) {
   // blob: URL 이 만료(새로고침 등) 되면 img 가 onError 발생 → 그때부터 이미지 페이지 제거.
   const [imageBroken, setImageBroken] = useState(false);
@@ -865,8 +989,9 @@ function DocPanel({
         findings,
         () => setImageBroken(true),
         formNode,
+        structured,
       ),
-    [effectiveImageUrl, extractedText, filename, findings, formNode],
+    [effectiveImageUrl, extractedText, filename, findings, formNode, structured],
   );
   const [pageIdx, setPageIdx] = useState(0);
   const safeIdx = Math.min(pageIdx, pages.length - 1);
@@ -886,6 +1011,11 @@ function DocPanel({
       const n = Number(el.dataset.vno);
       el.classList.toggle(styles.vnumFocus, el.tagName === 'SPAN' && n === focusNo);
       el.classList.toggle(styles.vioMarkFocus, el.tagName === 'MARK' && n === focusNo);
+      // 표(서식) 행 — 지적 항목 클릭 시 우측 상세 연동 + 현재 focus 행 하이라이트.
+      el.classList.toggle(
+        styles.ftRowFocus,
+        (el.tagName === 'TR' || el.tagName === 'TD') && n === focusNo,
+      );
       // 클릭 → 부모에 focus 통보 (idempotent — 매번 재할당해도 OK)
       el.onclick = () => onFocus(n - 1);
     });
@@ -1039,7 +1169,8 @@ function DocPanel({
         onPointerUp={onDocPointerUp}
       >
         {pages[safeIdx].title === '원본 이미지' ||
-        pages[safeIdx].title === '추출 텍스트' ? (
+        pages[safeIdx].title === '추출 텍스트' ||
+        pages[safeIdx].title === '서식(표)' ? (
           /* 실데이터: 페이지 자체가 스크롤 컨테이너를 갖고 있음 */
           pages[safeIdx].body
         ) : (
