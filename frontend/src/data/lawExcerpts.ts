@@ -174,6 +174,20 @@ function normalizeDbKey(db: string): string {
 }
 
 /**
+ * 본문에서 법조문·질의회시·판례 등 참고 citation 꼬리를 잘라낸다.
+ * 노무사회 원문은 정의 뒤에 "질의회시 - 근기 68207-…" 같은 인용 블록이 붙는데,
+ * 호버에는 정의 본문만 보여달라는 요청(citation 은 노이즈).
+ */
+function stripRefTail(raw: string): string {
+  return (raw || '')
+    .replace(
+      /\s*\*\*\s*(법\s*조\s*문|질\s*의\s*회\s*시|판\s*례|행\s*정\s*해\s*석|관련\s*법령|관련\s*판례|관련\s*행정해석|관련\s*예규)\s*\*\*[\s\S]*$/,
+      '',
+    )
+    .trim();
+}
+
+/**
  * (db, normalized article) → 발췌. 없으면 fallback 설명.
  *
  * normalizedArticle: 본 문서 상단의 `normalizeArticleLabel` 결과(예: "제17조").
@@ -200,7 +214,7 @@ export function lookupLawExcerpt(db: string, normalizedArticle: string): LawExce
     const section = dbCorpus[normalizedArticle];
     // ★원문(body=body_original) 우선 — LLM 풀이(body_friendly)가 아니라 실제 참고 본문을 노출.
     //   원문이 비면 풀이로 폴백, 둘 다 비면 아래 일반 안내로(빈 팝오버 방지).
-    const body = (section?.body || section?.body_friendly || '').trim();
+    const body = stripRefTail(section?.body || section?.body_friendly || '');
     if (body) {
       return {
         title: `${cleanDb} ${normalizedArticle}`,

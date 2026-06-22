@@ -14,7 +14,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 import {
-  downloadWsFormDocx,
   postWsGenerateForm,
   postWsParseForm,
   type WsPayslipForm,
@@ -79,8 +78,6 @@ export default function WsResultPage({ params }: { params: { id: string } }) {
   }, []);
   /** 보기 모드 — 'split'(나란히: 좌 명세서+우 상세) / 'wide'(검토 보기: 전체폭+거터). */
   const [reviewMode, setReviewMode] = useState<'split' | 'wide'>('split');
-  /** 좌측 표를 현재 명세서 → 표준양식으로 전환했는지 (in-place 변환). */
-  const [showStandard, setShowStandard] = useState(false);
   /** 제안 일괄 담기 시 우측 캐러셀(SuggestBlock)을 새 overrides 로 remount 하기 위한 버전. */
   const [overridesVersion, setOverridesVersion] = useState(0);
   /** 현재 명세서 파싱 중복 호출 방지. */
@@ -270,10 +267,9 @@ export default function WsResultPage({ params }: { params: { id: string } }) {
       user_overrides: overrides,
     })
       .then((form) => {
-        // in-place 전환 — 같은 결과창에서 좌측 표가 현재 → 표준양식으로 바뀐다.
+        // 깨끗한 단일 표준폼 화면(ws/contract)으로 이동 — 검토 패널 없이 표준명세서만.
         updateWs(caseId, { phase: 'result', generatedWageForm: form });
-        setEntry(getCase(caseId));
-        setShowStandard(true);
+        router.push(`/review/${caseId}/ws/contract`);
       })
       .catch((err) => {
         const msg =
@@ -303,23 +299,8 @@ export default function WsResultPage({ params }: { params: { id: string } }) {
     setOverridesVersion((x) => x + 1);
   };
 
-  // 표준양식 Word 다운로드 (in-place 전환 후).
-  const handleDownloadStandard = () => {
-    const f = getCase(caseId)?.ws?.generatedWageForm;
-    if (!f) return;
-    const base = (entry?.originalFilename || '임금명세서').replace(
-      /\.(png|jpe?g|pdf|docx?|hwpx?|txt)$/i,
-      '',
-    );
-    void downloadWsFormDocx(f as WsPayslipForm, `${base}_표준임금명세서.docx`).catch(
-      () => undefined,
-    );
-  };
-
-  const currentForm = entry?.ws?.currentForm ?? null;
-  const standardForm = entry?.ws?.generatedWageForm ?? null;
   const displayForm: WsPayslipForm | null =
-    (showStandard ? standardForm : currentForm) as WsPayslipForm | null;
+    (entry?.ws?.currentForm ?? null) as WsPayslipForm | null;
   const addedCount = Object.keys(entry?.ws?.userOverrides ?? {}).length;
 
   // ─── 모바일 — 결과 단계 전용 풀스크린 앱 (데스크톱 레이아웃 미렌더) ───
@@ -374,7 +355,6 @@ export default function WsResultPage({ params }: { params: { id: string } }) {
             mode={reviewMode}
             onChangeMode={setReviewMode}
             form={displayForm}
-            isStandardForm={showStandard}
             formLoading={parsingForm}
           />
 
@@ -425,45 +405,24 @@ export default function WsResultPage({ params }: { params: { id: string } }) {
             />
 
             <div className={`${styles.ctaBar} noPrint`}>
-              <Link href={`/review/${caseId}/`} className={styles.btnSecondary}>
+              <Link href={`/review/${caseId}/ws/review`} className={styles.btnSecondary}>
                 ← 검토 페이지로
               </Link>
-              {!showStandard ? (
-                <>
-                  <button
-                    type="button"
-                    className={styles.btnSecondary}
-                    onClick={addAllSuggestions}
-                  >
-                    ✨ 제안 일괄 담기{addedCount > 0 ? ` (${addedCount})` : ''}
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.btnPrimary}
-                    onClick={handleGenerate}
-                    disabled={generating}
-                  >
-                    {generating ? '명세서 생성 중…' : '표준 임금명세서 만들기'}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    className={styles.btnSecondary}
-                    onClick={() => setShowStandard(false)}
-                  >
-                    ← 현재 명세서로
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.btnPrimary}
-                    onClick={handleDownloadStandard}
-                  >
-                    ⬇ Word 다운로드
-                  </button>
-                </>
-              )}
+              <button
+                type="button"
+                className={styles.btnSecondary}
+                onClick={addAllSuggestions}
+              >
+                ✨ 제안 일괄 담기{addedCount > 0 ? ` (${addedCount})` : ''}
+              </button>
+              <button
+                type="button"
+                className={styles.btnPrimary}
+                onClick={handleGenerate}
+                disabled={generating}
+              >
+                {generating ? '명세서 생성 중…' : '표준 임금명세서 만들기'}
+              </button>
             </div>
 
             {genError && (
