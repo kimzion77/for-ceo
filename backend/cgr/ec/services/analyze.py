@@ -69,6 +69,120 @@ def _attach_real_topic_refs(data: dict[str, Any]) -> dict[str, Any]:
     except Exception:
         pass
     return data
+
+
+# ── 임금 합계 결정적 검산 — LLM 산술 환각으로 인한 오탐 제거 ──
+# LLM 은 산수를 신뢰성 있게 못 해서, 구성항목 합계가 지급총액과 맞는데도
+# "합계 불일치"라며 부적절로 잡는 false positive 가 발생한다(자기모순 문구 포함).
+# 여기서 코드로 직접 더해 일치하면 그 '산술 트집'을 무력화한다.
+_NUM_RE = re.compile(r"-?\d[\d,]*")
+# 합계 정합성과 관련된 표현(이게 있으면 '산술 트집' finding 으로 간주)
+_SUM_KW = ("합계", "합산", "산식", "정합", "일치하지", "구성항목", "총액")
+# 진짜 위반 신호(이게 있으면 등급은 유지하고 산술 문구만 정정)
+_VIOL_KW = ("최저임금", "미달", "미만", "누락", "위반", "서면", "명시")
+
+
+def _won(s: Any) -> int | None:
+    """'4,259,070원' 같은 문자열에서 정수 금액 추출. 숫자 없으면 None."""
+    m = _NUM_RE.search(str(s or ""))
+    if not m:
+        return None
+    try:
+        return int(m.group().replace(",", ""))
+    except ValueError:
+        return None
+
+
+def _wage_total_consistent(structured_data: dict[str, Any]) -> tuple[bool, int, int] | None:
+    """임금 섹션의 (기본급+제수당+상여금) 합계가 임금총액과 일치하는지 결정적으로 판단.
+    반환: (consistent, comp_sum, total) 또는 검산 불가 시 None."""
+    try:
+        wage = structured_data.get("임금")
+        if not isinstance(wage, dict):
+            return None
+
+        def _val(key: str) -> int | None:
+            cell = wage.get(key)
+            if isinstance(cell, dict):
+                return _won(cell.get("value"))
+            return _won(cell)
+
+        total = _val("임금총액")
+        if total is None or total <= 0:
+            return None  # 총액 자체가 미기재/비정상 → 검산 불가(보수적으로 손대지 않음)
+        comps = [_val("기본급"), _val("제수당"), _val("상여금")]
+        nums = [c for c in comps if c is not None]
+        if not nums:
+            return None
+        comp_sum = sum(nums)
+        # 1원 이내(반올림 허용) 일치 → 정합
+        return (abs(comp_sum - total) <= 1, comp_sum, total)
+    except Exception:
+        return None
+
+
+def _reconcile_wage_total(data: dict[str, Any], structured_data: dict[str, Any]) -> dict[str, Any]:
+    """구성항목 합계가 지급총액과 일치하면, '합계 불일치'성 오탐을 정정한다. idempotent."""
+    try:
+        check = _wage_total_consistent(structured_data)
+        if check is None:
+            return data
+        consistent, comp_sum, total = check
+        if not consistent:
+            return data  # 실제로 안 맞으면 LLM 판정을 존중
+
+        results = data.get("results")
+        if not isinstance(results, list):
+            return data
+
+        changed = False
+        for item in results:
+            if not isinstance(item, dict):
+                continue
+            field = (item.get("항목") or "")
+            text = (item.get("판단이유") or "") + " " + (item.get("발견내용") or "")
+            is_total_item = ("총액" in field) or ("합계" in field)
+            mentions_sum = any(k in text for k in _SUM_KW)
+            # 임금총액 항목이거나, 임금류 항목이 합계 트집을 잡은 경우만 대상
+            if not (is_total_item or ("임금" in field and mentions_sum)):
+                continue
+            if (item.get("적절성") or "") == "적절":
+                continue
+            has_violation = any(k in text for k in _VIOL_KW)
+            fact = f"구성항목 합계({comp_sum:,}원)가 지급합계액({total:,}원)과 정확히 일치합니다."
+            if mentions_sum and not has_violation:
+                # 오탐 — 산술 트집뿐 → 적절로 정정
+                item["적절성"] = "적절"
+                item["판단이유"] = fact
+                item["발견내용"] = fact
+                item["개선권고"] = ""
+                changed = True
+            else:
+                # 다른 실제 위반과 섞임 → 등급 유지, 산술 정합 사실만 덧붙임
+                reason = (item.get("판단이유") or "").strip()
+                if "일치합니다" not in reason:
+                    item["판단이유"] = (reason + " " + fact).strip()
+                    changed = True
+
+        # 등급을 바꿨다면 총평/위험도도 항목 등급에서 결정적으로 재계산
+        if changed:
+            grades = [(it.get("적절성") or "") for it in results if isinstance(it, dict)]
+            n_bad = sum(1 for g in grades if g == "부적절")
+            n_warn = sum(1 for g in grades if g == "보완필요")
+            data["overallStatus"] = "위험" if n_bad else ("보완필요" if n_warn else "적정")
+            data["riskLevel"] = "상" if n_bad else ("중" if n_warn else "하")
+    except Exception:
+        pass
+    return data
+
+
+def _postprocess(data: dict[str, Any], structured_data: dict[str, Any]) -> dict[str, Any]:
+    """분석 결과 결정적 후처리 — 참고자료 칩 교정 + 임금합계 오탐 정정. idempotent."""
+    data = _attach_real_topic_refs(data)
+    data = _reconcile_wage_total(data, structured_data)
+    return data
+
+
 _MAX_RETRIES = 3
 _RETRY_BACKOFF = (2.0, 5.0, 10.0)
 
@@ -118,8 +232,8 @@ def run(
     )
     cached = llm_cache.get(cache_key)
     if cached is not None and isinstance(cached.get("analysis"), dict):
-        # 구 캐시(부정확 meta)도 실제 참고자료로 교정해 반환 (idempotent)
-        return _attach_real_topic_refs(cached["analysis"])
+        # 구 캐시(부정확 meta·합계 오탐)도 결정적으로 교정해 반환 (idempotent)
+        return _postprocess(cached["analysis"], structured_data)
 
     client = OpenAI(api_key=get_api_key(), timeout=_CALL_TIMEOUT)
     last_err: Exception | None = None
@@ -148,8 +262,8 @@ def run(
                 raise RuntimeError(
                     f"analyze 응답 형식이 올바르지 않습니다: {raw[:200]}"
                 )
-            # 참고 자료 = LLM <meta> 대신 DB 실제 연관주제로 교체 (정확성·결정성)
-            data = _attach_real_topic_refs(data)
+            # 결정적 후처리 — 참고자료 칩 교정 + 임금합계 오탐 정정
+            data = _postprocess(data, structured_data)
             # 캐시 저장 — 같은 입력 → 같은 결과 (결정성)
             llm_cache.put(cache_key, {"analysis": data})
             return data
