@@ -278,6 +278,23 @@ export async function downloadWrDocx(
   triggerDownload(blob, filename ?? fname);
 }
 
+/** 신구대조표(표) + 의견청취서 양식 .docx 다운로드 — 표가 깨지지 않게 진짜 Word 표로. */
+export async function downloadWrComparisonDocx(body: {
+  rows: {
+    article: string;
+    title: string;
+    before: string;
+    after: string;
+    remark: string;
+  }[];
+  effective_date?: string;
+  filename?: string;
+}): Promise<void> {
+  const fname = body.filename ?? '취업규칙_신구대조표.docx';
+  const { blob, filename } = await apiPostJsonBlob('/review/comparison-docx', body);
+  triggerDownload(blob, filename ?? fname);
+}
+
 /** legacy alias — 기존 호출처 호환. */
 export const postReview = postReviewWorkRules;
 

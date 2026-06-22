@@ -15,7 +15,7 @@
 import { useCallback, useState } from 'react';
 
 import type { Finding } from '@/types/review';
-import { downloadWrDocx } from '@/lib/api/review';
+import { downloadWrComparisonDocx } from '@/lib/api/review';
 import { ApiCallError } from '@/lib/api/client';
 
 import styles from './WrComparisonView.module.css';
@@ -60,22 +60,6 @@ export function buildWrComparisonRows(findings: Finding[]): WrCompareRow[] {
     });
 }
 
-function serialize(rows: WrCompareRow[], effectiveDate: string): string {
-  const L: string[] = [];
-  L.push('취업규칙 신구대조표');
-  if (effectiveDate.trim()) L.push(`개정 취업규칙 시행일: ${effectiveDate.trim()}`);
-  L.push('');
-  rows.forEach((r, i) => {
-    const head = [r.article, r.title].filter(Boolean).join(' ');
-    L.push(`${i + 1}. ${head || '(조항)'}`);
-    L.push(`[개정 전]\n${r.before}`);
-    L.push(`[개정 후]\n${r.after}`);
-    if (r.remark.trim()) L.push(`[비고]\n${r.remark}`);
-    L.push('');
-  });
-  return L.join('\n');
-}
-
 const NOTICES: { k: string; v: string }[] = [
   { k: '삭제 조항 표기', v: "삭제되는 조항은 개정 후 칸에 '삭제'라고 적습니다." },
   { k: '요약 금지', v: '개정 전 칸은 원문 그대로 두어야 비교가 정확합니다.' },
@@ -97,8 +81,12 @@ export default function WrComparisonView({
 
   const autoGrow = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${el.scrollHeight}px`;
+    // 측정은 레이아웃 확정 후(rAF)에 — 표 셀 폭이 잡히기 전에 재면 줄바꿈이
+    // 폭주해 scrollHeight 가 비정상적으로 커지는 버그를 막는다.
+    requestAnimationFrame(() => {
+      el.style.height = 'auto';
+      el.style.height = `${Math.min(el.scrollHeight, 1200)}px`;
+    });
   }, []);
 
   const setCell = (id: string, key: 'before' | 'after' | 'remark', v: string) => {
@@ -129,8 +117,15 @@ export default function WrComparisonView({
     setDownloadError(null);
     try {
       const base = filename.replace(/\.(txt|docx?|pdf|png|jpe?g|hwpx?)$/i, '');
-      await downloadWrDocx({
-        contract_text: serialize(rows, effectiveDate),
+      await downloadWrComparisonDocx({
+        rows: rows.map((r) => ({
+          article: r.article,
+          title: r.title,
+          before: r.before,
+          after: r.after,
+          remark: r.remark,
+        })),
+        effective_date: effectiveDate,
         filename: `${base}_신구대조표.docx`,
       });
     } catch (err) {

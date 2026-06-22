@@ -52,10 +52,10 @@ const DOC_MACROS: Record<DocumentType, Partial<Record<Macro, { heading: string; 
       ],
     },
     generate: {
-      heading: '표준 취업규칙 초안을 작성하고 있어요',
+      heading: '수정된 취업규칙 신구대조표를 만들고 있어요',
       steps: [
-        { n: 1, title: '양식 정리', desc: '고용노동부 표준 양식 적용' },
-        { n: 2, title: '본문 작성', desc: '분석 결과·보완사항 반영' },
+        { n: 1, title: '개정 항목 정리', desc: '위반·누락 조항을 개정 전/후로 대조' },
+        { n: 2, title: '신구대조표 작성', desc: '변경사유·관련 법령(최신) 반영' },
       ],
     },
   },

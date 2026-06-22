@@ -147,6 +147,166 @@ def text_to_docx(
 
 
 # ════════════════════════════════════════════════════════════════
+# 취업규칙 신구대조표(3열 표) + 의견청취서 양식 DOCX
+#   화면(WrComparisonView)과 동일한 표를 Word 표로 재현 → 표가 깨지지 않음.
+#   다운로드 시 신구대조표 뒤에 '취업규칙 (개정) 의견청취서' 양식을 함께 첨부.
+# ════════════════════════════════════════════════════════════════
+def _fill_multiline(cell, text, *, size: float = 9.5, bold: bool = False, fill=None):
+    """셀에 여러 줄(\n) 텍스트 채움 — 줄마다 단락 추가."""
+    cell.text = ""
+    lines = str(text or "").split("\n")
+    for i, ln in enumerate(lines):
+        p = cell.paragraphs[0] if i == 0 else cell.add_paragraph()
+        run = p.add_run(ln)
+        run.bold = bold
+        run.font.size = Pt(size)
+        _apply_korean_font(run)
+    if fill:
+        _shade(cell, fill)
+
+
+def _append_opinion_form(doc) -> None:
+    """취업규칙 (개정) 의견청취서 양식 (근로기준법 제94조)."""
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    SUB_FILL = "F3F4F6"
+
+    pt = doc.add_paragraph()
+    pt.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    rt = pt.add_run("취업규칙 (개정) 의견청취서")
+    rt.bold = True
+    rt.font.size = Pt(16)
+    _apply_korean_font(rt)
+    doc.add_paragraph()
+
+    intro = doc.add_paragraph()
+    ri = intro.add_run(
+        "「근로기준법」 제94조에 따라 취업규칙의 작성·변경에 관하여 근로자 과반수"
+        "(근로자 과반수로 조직된 노동조합이 있는 경우 그 노동조합)의 의견을 청취합니다."
+    )
+    ri.font.size = Pt(10)
+    _apply_korean_font(ri)
+    doc.add_paragraph()
+
+    t = doc.add_table(rows=4, cols=2)
+    t.style = "Table Grid"
+    _fill(t.cell(0, 0), "사업장명", bold=True, center=True, fill=SUB_FILL)
+    _fill(t.cell(0, 1), "")
+    _fill(t.cell(1, 0), "대표자", bold=True, center=True, fill=SUB_FILL)
+    _fill(t.cell(1, 1), "")
+    _fill(t.cell(2, 0), "근로자 과반수(또는 노동조합) 대표", bold=True, center=True, fill=SUB_FILL)
+    _fill(t.cell(2, 1), "")
+    _fill(t.cell(3, 0), "의견청취일", bold=True, center=True, fill=SUB_FILL)
+    _fill(t.cell(3, 1), "          년        월        일")
+
+    doc.add_paragraph()
+    pl = doc.add_paragraph()
+    rl = pl.add_run("개정 취업규칙에 대한 의견")
+    rl.bold = True
+    rl.font.size = Pt(11)
+    _apply_korean_font(rl)
+
+    op = doc.add_table(rows=1, cols=1)
+    op.style = "Table Grid"
+    op.rows[0].cells[0].text = ""
+    for _ in range(6):  # 의견 기재란 높이 확보
+        op.rows[0].cells[0].add_paragraph()
+
+    doc.add_paragraph()
+    sign = doc.add_paragraph()
+    sign.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    rs = sign.add_run("근로자 과반수(또는 노동조합) 대표              (서명 또는 인)")
+    rs.font.size = Pt(10.5)
+    _apply_korean_font(rs)
+
+    note = doc.add_paragraph()
+    rn = note.add_run(
+        "※ 취업규칙을 근로자에게 불리하게 변경하는 경우에는 의견청취가 아니라 "
+        "근로자 과반수의 '동의'를 받아야 합니다(근로기준법 제94조 제1항 단서)."
+    )
+    rn.font.size = Pt(8.5)
+    _apply_korean_font(rn)
+
+
+def wr_comparison_to_docx(
+    rows: "list[dict[str, Any]]",
+    *,
+    effective_date: str = "",
+    footer_note: str | None = None,
+) -> bytes:
+    """취업규칙 신구대조표(3열 표) + 의견청취서 양식 → .docx 바이트."""
+    from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
+
+    HEAD_FILL = "E5E7EB"
+    rows = rows or []
+
+    doc = Document()
+    for section in doc.sections:
+        section.top_margin = Cm(1.8)
+        section.bottom_margin = Cm(1.8)
+        section.left_margin = Cm(1.6)
+        section.right_margin = Cm(1.6)
+
+    pt = doc.add_paragraph()
+    pt.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    rt = pt.add_run("취업규칙 신구대조표")
+    rt.bold = True
+    rt.font.size = Pt(17)
+    _apply_korean_font(rt)
+
+    if (effective_date or "").strip():
+        pdt = doc.add_paragraph()
+        rdt = pdt.add_run(f"개정 취업규칙 시행일: {effective_date.strip()}")
+        rdt.font.size = Pt(10)
+        _apply_korean_font(rdt)
+    doc.add_paragraph()
+
+    n = len(rows)
+    tbl = doc.add_table(rows=1 + max(n, 1), cols=3)
+    tbl.style = "Table Grid"
+    _fill(tbl.cell(0, 0), "개정 전 (현행)", bold=True, center=True, fill=HEAD_FILL)
+    _fill(tbl.cell(0, 1), "개정 후 (개정안)", bold=True, center=True, fill=HEAD_FILL)
+    _fill(tbl.cell(0, 2), "비고 (변경사유·관련 법령)", bold=True, center=True, fill=HEAD_FILL)
+
+    if n == 0:
+        c = tbl.cell(1, 0).merge(tbl.cell(1, 1)).merge(tbl.cell(1, 2))
+        _fill(c, "변경이 필요한 조항이 없습니다.", center=True)
+    else:
+        for i, r in enumerate(rows):
+            row = 1 + i
+            head = " ".join(
+                x for x in [str(r.get("article") or ""), str(r.get("title") or "")] if x
+            ).strip()
+            before = (head + "\n" if head else "") + str(r.get("before") or "")
+            _fill_multiline(tbl.cell(row, 0), before)
+            _fill_multiline(tbl.cell(row, 1), str(r.get("after") or ""))
+            _fill_multiline(tbl.cell(row, 2), str(r.get("remark") or ""), size=9)
+
+    widths = [Cm(7.0), Cm(7.0), Cm(4.6)]
+    for row in tbl.rows:
+        for idx, w in enumerate(widths):
+            row.cells[idx].width = w
+
+    # 페이지 나눔 → 의견청취서 양식
+    pb = doc.add_paragraph()
+    pb.add_run().add_break(WD_BREAK.PAGE)
+    _append_opinion_form(doc)
+
+    if footer_note:
+        pf = doc.add_paragraph()
+        pf.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        rf = pf.add_run(footer_note)
+        rf.italic = True
+        rf.font.size = Pt(8.5)
+        _apply_korean_font(rf)
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+    return buf.read()
+
+
+# ════════════════════════════════════════════════════════════════
 # 공식 임금명세서 서식(표 레이아웃) DOCX — 구조화 form dict 를 칸별로 채움.
 # 화면(WsPayslipFormView)과 동일한 레이아웃을 Word 표로 재현.
 # ════════════════════════════════════════════════════════════════

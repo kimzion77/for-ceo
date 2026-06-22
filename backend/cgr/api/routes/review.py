@@ -27,7 +27,7 @@ from cgr.api.schemas import (
     WorkplaceContextIn,
 )
 from cgr.config import get_llm_model
-from cgr.docx_export import DOCX_MIMETYPE, text_to_docx
+from cgr.docx_export import DOCX_MIMETYPE, text_to_docx, wr_comparison_to_docx
 from cgr.ec import review_ec_file
 from cgr.models import WorkplaceContext
 from cgr.penalty_parser import format_for_user
@@ -528,6 +528,49 @@ def post_generate_docx(body: GenerateDocxIn):
         media_type=DOCX_MIMETYPE,
         headers=headers,
     )
+
+
+class ComparisonDocxIn(BaseModel):
+    rows: list[dict] = Field(
+        default_factory=list,
+        description="신구대조표 행 목록 [{article,title,before,after,remark}]",
+    )
+    effective_date: str = Field(default="", description="개정 취업규칙 시행일")
+    filename: str = Field(default="취업규칙_신구대조표.docx", description="다운로드 파일명")
+
+
+@router.post(
+    "/comparison-docx",
+    summary="취업규칙 신구대조표(표) + 의견청취서 → .docx 다운로드",
+    description="신구대조표를 깨지지 않는 3열 표로 출력하고, 뒤에 의견청취서 양식을 함께 첨부.",
+    dependencies=[Depends(require_api_key)],
+    response_class=Response,
+)
+def post_comparison_docx(body: ComparisonDocxIn):
+    try:
+        docx_bytes = wr_comparison_to_docx(
+            body.rows,
+            effective_date=body.effective_date,
+            footer_note=(
+                "※ 본 신구대조표는 AI 자율점검 결과를 반영한 개정안입니다. "
+                "시행은 의견청취·동의 등 법정 절차를 거쳐 확정하세요."
+            ),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"docx 변환 실패: {type(e).__name__}: {e}",
+        )
+    from urllib.parse import quote
+
+    fname_quoted = quote(body.filename, safe="")
+    headers = {
+        "Content-Disposition": (
+            f"attachment; filename=\"comparison.docx\"; "
+            f"filename*=UTF-8''{fname_quoted}"
+        ),
+    }
+    return Response(content=docx_bytes, media_type=DOCX_MIMETYPE, headers=headers)
 
 
 @router.get(
