@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 
 from cgr import db as _db
@@ -917,7 +917,7 @@ def _sanitize_sanctions(text: str) -> str:
     summary="노무 가이드 챗봇 — 가이드 DB 컨텍스트 + LLM",
     dependencies=[Depends(require_api_key)],
 )
-def post_guide_chat(body: GuideChatIn) -> GuideChatOut:
+def post_guide_chat(body: GuideChatIn, request: Request) -> GuideChatOut:
     msg = body.message.strip()
     if not msg:
         raise HTTPException(status_code=422, detail="질문이 비어있어요.")
@@ -955,9 +955,12 @@ def post_guide_chat(body: GuideChatIn) -> GuideChatOut:
 
     model_name = get_llm_model()
     from cgr import prompt_store
+    from cgr.upload_tracker import anon_visitor
+    from cgr.web.admin.store import analytics as _an
 
     # 관리자 override 가 있으면 그 프롬프트, 없으면 코드 기본값 (즉시 적용)
     system_prompt = prompt_store.get_or_default("guide_chat", _GUIDE_CHAT_SYSTEM)
+    _visitor = anon_visitor(request)
     cache_key = llm_cache.make_key(
         system=system_prompt,
         user=user_prompt,
@@ -968,6 +971,7 @@ def post_guide_chat(body: GuideChatIn) -> GuideChatOut:
     if cached and isinstance(cached.get("text"), str):
         body, fups = _extract_followups(cached["text"])
         body = _sanitize_sanctions(body)
+        _an.log_interaction(kind="챗봇", model=model_name, input_text=msg, output_text=body, visitor=_visitor)
         rel_forms, clarify = _detect_related_forms(msg, body)
         return GuideChatOut(
             answer=body,
@@ -997,6 +1001,7 @@ def post_guide_chat(body: GuideChatIn) -> GuideChatOut:
             llm_cache.put(cache_key, {"text": text})
             body, fups = _extract_followups(text)
             body = _sanitize_sanctions(body)
+            _an.log_interaction(kind="챗봇", model=model_name, input_text=msg, output_text=body, visitor=_visitor)
             rel_forms, clarify = _detect_related_forms(msg, body)
             return GuideChatOut(
                 answer=body,

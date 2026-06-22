@@ -29,7 +29,13 @@ _PROMPT_OVERRIDE_PATH = Path(__file__).resolve().parent.parent / "data" / "promp
 
 
 def _system_prompt() -> str:
-    """외부 파일이 있으면 그것을 우선 사용, 없으면 모듈 내장 기본값."""
+    """관리자 override(prompt_store, 볼륨 영구화) 우선, 없으면 모듈 내장 기본값.
+    레거시 extractor.md 파일도 계속 지원(override 없을 때)."""
+    from cgr import prompt_store
+
+    ov = prompt_store.get_or_default("wr_extractor", "")
+    if ov.strip():
+        return ov
     if _PROMPT_OVERRIDE_PATH.exists():
         try:
             text = _PROMPT_OVERRIDE_PATH.read_text(encoding="utf-8").strip()

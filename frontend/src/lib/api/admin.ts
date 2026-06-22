@@ -110,3 +110,38 @@ export async function savePrompt(key: string, content: string): Promise<void> {
   });
   await jsonOrThrow(res);
 }
+
+// ─── 상호작용 로그 ───
+export interface LogRow {
+  id: number;
+  ts: string;
+  kind: string;
+  model: string;
+  visitor: string;
+  input_preview: string;
+  output_preview: string;
+}
+
+export interface LogDetail {
+  id: number;
+  ts: string;
+  kind: string;
+  model: string;
+  visitor: string;
+  input_text: string;
+  output_text: string;
+}
+
+export async function getLogs(
+  opts: { limit?: number; offset?: number; kind?: string } = {},
+): Promise<{ items: LogRow[]; total: number }> {
+  const q = new URLSearchParams();
+  q.set('limit', String(opts.limit ?? 100));
+  q.set('offset', String(opts.offset ?? 0));
+  if (opts.kind) q.set('kind', opts.kind);
+  return jsonOrThrow(await fetch(`/api/cgr/admin/logs?${q.toString()}`, { cache: 'no-store' }));
+}
+
+export async function getLog(id: number): Promise<LogDetail> {
+  return jsonOrThrow(await fetch(`/api/cgr/admin/logs/${id}`, { cache: 'no-store' }));
+}

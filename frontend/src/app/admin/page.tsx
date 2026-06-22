@@ -15,18 +15,22 @@ import {
   adminLogout,
   checkAdminSession,
   getAnalytics,
+  getLog,
+  getLogs,
   getPrompts,
   getUploads,
   savePrompt,
   uploadFileUrl,
   type AdminAnalytics,
+  type LogDetail,
+  type LogRow,
   type PromptItem,
   type UploadRow,
 } from '@/lib/api/admin';
 
 import styles from './page.module.css';
 
-type Tab = 'dash' | 'uploads' | 'prompts';
+type Tab = 'dash' | 'logs' | 'uploads' | 'prompts';
 
 export default function AdminPage() {
   const [authed, setAuthed] = useState<boolean | null>(null);
@@ -106,6 +110,12 @@ export default function AdminPage() {
           대시보드
         </button>
         <button
+          className={tab === 'logs' ? styles.tabOn : styles.tab}
+          onClick={() => setTab('logs')}
+        >
+          로그
+        </button>
+        <button
           className={tab === 'uploads' ? styles.tabOn : styles.tab}
           onClick={() => setTab('uploads')}
         >
@@ -119,6 +129,7 @@ export default function AdminPage() {
         </button>
       </nav>
       {tab === 'dash' && <DashTab />}
+      {tab === 'logs' && <LogsTab />}
       {tab === 'uploads' && <UploadsTab />}
       {tab === 'prompts' && <PromptsTab />}
     </main>
@@ -189,6 +200,123 @@ function DashTab() {
           ))
         )}
       </div>
+    </section>
+  );
+}
+
+/* ─── 로그 (챗봇·검토 Input/Output) ─── */
+const LOG_KINDS = ['', '챗봇', '근로계약서', '임금명세서', '취업규칙'];
+
+function LogsTab() {
+  const [rows, setRows] = useState<LogRow[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [kind, setKind] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+  const [detail, setDetail] = useState<LogDetail | null>(null);
+
+  useEffect(() => {
+    setRows(null);
+    setErr(null);
+    getLogs({ limit: 200, kind: kind || undefined })
+      .then((r) => {
+        setRows(r.items);
+        setTotal(r.total);
+      })
+      .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
+  }, [kind]);
+
+  const openDetail = async (id: number) => {
+    try {
+      setDetail(await getLog(id));
+    } catch {
+      /* noop */
+    }
+  };
+
+  if (err) return <div className={styles.err}>{err}</div>;
+  return (
+    <section className={styles.section}>
+      <div className={styles.kindFilter}>
+        {LOG_KINDS.map((k) => (
+          <button
+            key={k || 'all'}
+            className={kind === k ? styles.kindOn : styles.kindBtn}
+            onClick={() => setKind(k)}
+          >
+            {k || '전체'}
+          </button>
+        ))}
+      </div>
+      {!rows ? (
+        <div className={styles.center}>불러오는 중…</div>
+      ) : (
+        <>
+          <div className={styles.muted}>
+            총 {total.toLocaleString()}건 · 행을 클릭하면 전체 입력·출력을 볼 수 있어요 · 사용자는 익명 처리됩니다
+          </div>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>시각</th>
+                  <th>종류</th>
+                  <th>입력</th>
+                  <th>출력</th>
+                  <th>모델</th>
+                  <th>사용자</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className={styles.muted}>
+                      로그가 없어요.
+                    </td>
+                  </tr>
+                ) : (
+                  rows.map((r) => (
+                    <tr key={r.id} className={styles.logRow} onClick={() => openDetail(r.id)}>
+                      <td>{r.ts.replace('T', ' ')}</td>
+                      <td>
+                        <span className={styles.kindChip}>{r.kind}</span>
+                      </td>
+                      <td className={styles.logCell} title={r.input_preview}>
+                        {r.input_preview}
+                      </td>
+                      <td className={styles.logCell} title={r.output_preview}>
+                        {r.output_preview}
+                      </td>
+                      <td>{r.model}</td>
+                      <td className={styles.muted}>{r.visitor || '익명'}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+      {detail && (
+        <div className={styles.modal} onClick={() => setDetail(null)}>
+          <div className={styles.modalBody} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHead}>
+              <span>
+                <span className={styles.kindChip}>{detail.kind}</span> {detail.ts.replace('T', ' ')}{' '}
+                · {detail.model} · 사용자 {detail.visitor || '익명'}
+              </span>
+              <button className={styles.linkBtn} onClick={() => setDetail(null)}>
+                닫기
+              </button>
+            </div>
+            <div className={styles.logDetailBody}>
+              <div className={styles.logDetailLabel}>입력 (Input)</div>
+              <pre className={styles.logPre}>{detail.input_text}</pre>
+              <div className={styles.logDetailLabel}>출력 (Output)</div>
+              <pre className={styles.logPre}>{detail.output_text}</pre>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

@@ -155,6 +155,21 @@ def _build_registry() -> list[dict[str, Any]]:
 
     entries.append(_text_entry("optional_display", "선택 노출 판정", "기타", _optional_default))
 
+    # 7b) 취업규칙 — 추출/설명 (인라인 + .md override)
+    def _wr_extractor_default() -> str:
+        from cgr import extractor
+
+        return extractor._SYSTEM_PROMPT
+
+    entries.append(_text_entry("wr_extractor", "취업규칙 조항 추출", "취업규칙", _wr_extractor_default))
+
+    def _wr_explainer_default() -> str:
+        from cgr import explainer
+
+        return explainer._SYSTEM_PROMPT
+
+    entries.append(_text_entry("wr_explainer", "취업규칙 시정문구 설명", "취업규칙", _wr_explainer_default))
+
     # 8~10) EC 4단계 (ec_prompts.json — 외부 파일, 모듈이 직접 관리)
     try:
         from cgr.ec import prompts as ecp

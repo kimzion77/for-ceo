@@ -207,3 +207,28 @@ async def put_prompt(body: PromptSaveIn) -> dict:
     if not ok:
         raise HTTPException(status_code=404, detail=f"알 수 없는 프롬프트 키: {body.key}")
     return {"ok": True, "key": body.key}
+
+
+# ─── 상호작용 로그 (챗봇·검토 Input/Output) ───
+@router.get(
+    "/logs",
+    summary="상호작용 로그 목록 (챗봇·근로계약서·임금명세서·취업규칙)",
+    dependencies=[Depends(require_admin_key)],
+)
+async def get_logs(limit: int = 100, offset: int = 0, kind: str | None = None) -> dict:
+    rows, total = analytics.list_interactions(
+        limit=min(max(limit, 1), 500), offset=max(offset, 0), kind=kind
+    )
+    return {"items": rows, "total": total}
+
+
+@router.get(
+    "/logs/{lid}",
+    summary="상호작용 로그 상세 (전체 Input/Output)",
+    dependencies=[Depends(require_admin_key)],
+)
+async def get_log(lid: int) -> dict:
+    rec = analytics.get_interaction(lid)
+    if not rec:
+        raise HTTPException(status_code=404, detail="로그가 없습니다.")
+    return rec

@@ -41,6 +41,18 @@ CREATE TABLE IF NOT EXISTS upload_record (
   stored_path TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_upload_ts ON upload_record(ts);
+
+CREATE TABLE IF NOT EXISTS interaction_log (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts          TEXT NOT NULL,
+  kind        TEXT,    -- 챗봇 / 근로계약서 / 임금명세서 / 취업규칙 / 노무계약서
+  model       TEXT,
+  input_text  TEXT,
+  output_text TEXT,
+  visitor     TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_interaction_ts ON interaction_log(ts);
+CREATE INDEX IF NOT EXISTS idx_interaction_kind ON interaction_log(kind);
 """
 
 _ensured = False
@@ -138,6 +150,63 @@ def get_upload(uid: int) -> dict[str, Any] | None:
     return dict(r) if r else None
 
 
+# ─── 상호작용 로그 (챗봇·검토 Input/Output) ─────
+def log_interaction(
+    *,
+    kind: str,
+    model: str,
+    input_text: str,
+    output_text: str,
+    visitor: str | None,
+) -> None:
+    """LLM 상호작용 1건 기록. PII 는 호출 측에서 마스킹된 본문이 들어온다. 실패해도 silent."""
+    try:
+        with _connect() as c:
+            c.execute(
+                "INSERT INTO interaction_log(ts,kind,model,input_text,output_text,visitor) "
+                "VALUES(?,?,?,?,?,?)",
+                (
+                    _now(), (kind or "")[:40], (model or "")[:80],
+                    (input_text or "")[:8000], (output_text or "")[:12000],
+                    (visitor or "")[:64],
+                ),
+            )
+    except Exception:
+        pass
+
+
+def list_interactions(
+    limit: int = 100, offset: int = 0, kind: str | None = None
+) -> tuple[list[dict[str, Any]], int]:
+    """목록 — 본문은 미리보기로 잘라서 반환(상세는 get_interaction)."""
+    sel = (
+        "SELECT id, ts, kind, model, visitor, "
+        "substr(input_text,1,200) AS input_preview, "
+        "substr(output_text,1,240) AS output_preview FROM interaction_log"
+    )
+    with _connect() as c:
+        if kind:
+            rows = c.execute(
+                f"{sel} WHERE kind=? ORDER BY id DESC LIMIT ? OFFSET ?",
+                (kind, limit, offset),
+            ).fetchall()
+            total = c.execute(
+                "SELECT COUNT(*) n FROM interaction_log WHERE kind=?", (kind,)
+            ).fetchone()["n"]
+        else:
+            rows = c.execute(
+                f"{sel} ORDER BY id DESC LIMIT ? OFFSET ?", (limit, offset)
+            ).fetchall()
+            total = c.execute("SELECT COUNT(*) n FROM interaction_log").fetchone()["n"]
+    return [dict(r) for r in rows], total
+
+
+def get_interaction(iid: int) -> dict[str, Any] | None:
+    with _connect() as c:
+        r = c.execute("SELECT * FROM interaction_log WHERE id=?", (iid,)).fetchone()
+    return dict(r) if r else None
+
+
 def cleanup_old_uploads(retention_days: int = 30) -> int:
     """보관기간 초과 업로드 파일·레코드 삭제. 삭제 건수 반환."""
     cutoff = (datetime.now() - timedelta(days=retention_days)).isoformat(timespec="seconds")
@@ -156,6 +225,8 @@ def cleanup_old_uploads(retention_days: int = 30) -> int:
                         pass
                 c.execute("DELETE FROM upload_record WHERE id=?", (r["id"],))
                 removed += 1
+            # 상호작용 로그도 보관기간 초과분 정리
+            c.execute("DELETE FROM interaction_log WHERE ts < ?", (cutoff,))
     except Exception:
         pass
     return removed

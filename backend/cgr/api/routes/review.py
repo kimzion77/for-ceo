@@ -309,6 +309,24 @@ def _run_work_rules(
                 )
             )
 
+    try:
+        from cgr.web.admin.store import analytics as _an
+
+        _summary = ", ".join(f"{k} {v}" for k, v in (report.summary or {}).items())
+        _an.log_interaction(
+            kind="취업규칙",
+            model=get_llm_model(),
+            input_text=f"[취업규칙 검토] {filename}",
+            output_text=(
+                f"종합 판정: {report.overall_label or ''}\n"
+                f"집계: {_summary}\n"
+                f"(조항 {len(report.article_results)}건 검토)"
+            )[:8000],
+            visitor="",
+        )
+    except Exception:
+        pass
+
     return ReviewFullOut(
         case_id=report.case_id,
         filename=filename,

@@ -300,6 +300,19 @@ def post_analyze(body: AnalyzeIn):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"분석 실패: {type(e).__name__}: {e}",
         )
+    try:
+        from cgr.web.admin.store import analytics as _an
+        import json as _json
+
+        _an.log_interaction(
+            kind="임금명세서",
+            model=get_llm_model(),
+            input_text=(body.wage_text or "")[:4000],
+            output_text=_json.dumps(result, ensure_ascii=False)[:8000],
+            visitor="",
+        )
+    except Exception:
+        pass
     return AnalyzeOut(
         analysis_result=result,
         elapsed_sec=round(time.time() - t0, 2),
