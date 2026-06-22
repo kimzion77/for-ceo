@@ -161,6 +161,8 @@ def _fetch_topic_meta(conn, check_item_id: int) -> list[str]:
         JOIN topic_section ts ON ts.id = cit.topic_section_id
         JOIN topic t          ON t.id = ts.topic_id
         WHERE cit.check_item_id = ?
+          -- 본문(원문/풀이)이 비어있는 섹션은 참고자료로 노출하지 않음(빈 팝오버 방지)
+          AND (COALESCE(ts.body_original, '') <> '' OR COALESCE(ts.body_friendly, '') <> '')
         ORDER BY t.name, ts.section_no
         """,
         (check_item_id,),

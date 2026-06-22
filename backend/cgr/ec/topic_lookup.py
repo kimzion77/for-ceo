@@ -78,11 +78,36 @@ def _build_item_to_topics() -> dict[str, list[tuple[str, str]]]:
     return out
 
 
+@lru_cache(maxsize=1)
+def _content_sections() -> frozenset[str]:
+    """본문(원문/풀이)이 있는 (주제명|섹션번호) 집합 — master.db 기준.
+
+    빈 섹션(예: '임금 3.3' — body 둘 다 공란)을 참고자료에서 거르는 데 쓴다.
+    DB 접근 실패 시 빈 집합 → 필터하지 않음(보수적)."""
+    try:
+        from cgr import db as _db
+
+        with _db.connect() as c:
+            rows = c.execute(
+                "SELECT t.name, ts.section_no FROM topic_section ts "
+                "JOIN topic t ON t.id = ts.topic_id "
+                "WHERE COALESCE(ts.body_original,'') <> '' "
+                "   OR COALESCE(ts.body_friendly,'') <> ''"
+            ).fetchall()
+        return frozenset(f"{r[0]}|{r[1]}" for r in rows)
+    except Exception:
+        return frozenset()
+
+
 def topics_for_item(item_name: str) -> list[tuple[str, str]]:
-    """항목명에 매핑된 (주제명, 섹션번호) 리스트. 없으면 빈 리스트."""
+    """항목명에 매핑된 (주제명, 섹션번호) 리스트. 본문 없는 섹션은 제외. 없으면 빈 리스트."""
     if not item_name:
         return []
-    return _build_item_to_topics().get(item_name.strip(), [])
+    refs = _build_item_to_topics().get(item_name.strip(), [])
+    have = _content_sections()
+    if not have:
+        return refs  # DB 접근 불가 시 거르지 않음
+    return [(t, s) for (t, s) in refs if f"{t}|{s}" in have]
 
 
 # ─── 코퍼스 lookup ────────────────────────────────────────────────

@@ -496,6 +496,45 @@
   line-height: 1.6;
 }
 
+/* 현재 명세서 → 표 파싱 중 로딩 */
+.ftLoading {
+  flex: 1;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  width: 100%;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px 16px;
+}
+.ftSpinner {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 3px solid #dbeafe;
+  border-top-color: #2563eb;
+  animation: ftspin 0.8s linear infinite;
+}
+@keyframes ftspin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.ftLoadingTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+}
+.ftLoadingSub {
+  font-size: 12.5px;
+  color: #64748b;
+  text-align: center;
+}
+
 .docRawText {
   font-size: 11px;
   color: #475569;

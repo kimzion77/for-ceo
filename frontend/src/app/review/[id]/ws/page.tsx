@@ -85,6 +85,8 @@ export default function WsResultPage({ params }: { params: { id: string } }) {
   const [overridesVersion, setOverridesVersion] = useState(0);
   /** 현재 명세서 파싱 중복 호출 방지. */
   const parseStartedRef = useRef(false);
+  /** 현재 명세서 → 표 파싱 진행 중 (좌측에 '정리 중' 표시 — OCR 원문 폴백 대신). */
+  const [parsingForm, setParsingForm] = useState(false);
   // 노무사회 주제 코퍼스 lazy fetch — 호버 chip 의 본문 발췌용.
   // 페이지 mount 즉시 백엔드 1회 호출. 적재 완료 시 자동 re-render.
   useTopicCorpus();
@@ -101,6 +103,7 @@ export default function WsResultPage({ params }: { params: { id: string } }) {
     const txt = ws.extractedText ?? '';
     if (!txt.trim() || !ws.analysisResult) return;
     parseStartedRef.current = true;
+    setParsingForm(true);
     postWsParseForm(txt)
       .then((form) => {
         updateWs(caseId, { currentForm: form });
@@ -108,7 +111,8 @@ export default function WsResultPage({ params }: { params: { id: string } }) {
       })
       .catch(() => {
         parseStartedRef.current = false; // 실패 시 텍스트 보기로 폴백(다음 기회 재시도)
-      });
+      })
+      .finally(() => setParsingForm(false));
   }, [entry, caseId]);
 
   const analysis: EcAnalysisResult | null =
@@ -371,6 +375,7 @@ export default function WsResultPage({ params }: { params: { id: string } }) {
             onChangeMode={setReviewMode}
             form={displayForm}
             isStandardForm={showStandard}
+            formLoading={parsingForm}
           />
 
           {/* ─── 우: 결과 패널 (검토 보기 모드에선 숨김 — 좌측이 전체폭) ─── */}
@@ -672,6 +677,8 @@ interface DocPanelProps {
   form?: WsPayslipForm | null;
   /** form 이 표준양식(시정 반영)인지 — 보완 칸 하이라이트·계산방법 열 표시. */
   isStandardForm?: boolean;
+  /** 현재 명세서 → 표 파싱 진행 중 — 표 대신 '정리 중' 로딩 표시(OCR 원문 폴백 방지). */
+  formLoading?: boolean;
 }
 
 /**
@@ -983,11 +990,29 @@ function buildRealPages(
   onImageError?: () => void,
   form?: WsPayslipForm | null,
   isStandard?: boolean,
+  formLoading?: boolean,
 ): ContractPage[] {
   const pages: ContractPage[] = [];
   // 표가 준비되면 **표만** 보여준다(원본 텍스트·이미지 페이지 제거). 파싱 전/실패 시에만 폴백.
   if (form && ((form.payments || []).length || (form.deductions || []).length)) {
     return [buildFormTablePage(form, findings, !!isStandard)];
+  }
+  // 표 파싱 중 — OCR 원문 폴백 대신 '정리 중' 로딩(깨진 줄 알고 놀라는 것 방지).
+  if (formLoading) {
+    return [
+      {
+        title: '서식(표)',
+        body: (
+          <div className={styles.ftLoading}>
+            <span className={styles.ftSpinner} aria-hidden />
+            <div className={styles.ftLoadingTitle}>명세서를 표로 정리하는 중…</div>
+            <div className={styles.ftLoadingSub}>
+              지급·공제 항목을 표로 변환하고 있어요. 잠시만요.
+            </div>
+          </div>
+        ),
+      },
+    ];
   }
   if (imageUrl) {
     pages.push({
@@ -1035,6 +1060,7 @@ function DocPanel({
   onChangeMode,
   form,
   isStandardForm,
+  formLoading,
 }: DocPanelProps) {
   // blob: URL 이 만료(새로고침 등) 되면 img 가 onError 발생 → 그때부터 이미지 페이지 제거.
   const [imageBroken, setImageBroken] = useState(false);
@@ -1050,8 +1076,9 @@ function DocPanel({
         () => setImageBroken(true),
         form,
         isStandardForm,
+        formLoading,
       ),
-    [effectiveImageUrl, extractedText, filename, findings, form, isStandardForm],
+    [effectiveImageUrl, extractedText, filename, findings, form, isStandardForm, formLoading],
   );
   const [pageIdx, setPageIdx] = useState(0);
   // 현재 ↔ 표준 전환 시 표 페이지(첫 장)로 되돌린다.

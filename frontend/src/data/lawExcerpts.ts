@@ -198,10 +198,13 @@ export function lookupLawExcerpt(db: string, normalizedArticle: string): LawExce
     TOPIC_CORPUS[db] ?? TOPIC_CORPUS[`DB_${cleanDb}`];
   if (dbCorpus) {
     const section = dbCorpus[normalizedArticle];
-    if (section) {
+    // ★원문(body=body_original) 우선 — LLM 풀이(body_friendly)가 아니라 실제 참고 본문을 노출.
+    //   원문이 비면 풀이로 폴백, 둘 다 비면 아래 일반 안내로(빈 팝오버 방지).
+    const body = (section?.body || section?.body_friendly || '').trim();
+    if (body) {
       return {
         title: `${cleanDb} ${normalizedArticle}`,
-        body: section.body_friendly || section.body,
+        body,
       };
     }
   }
