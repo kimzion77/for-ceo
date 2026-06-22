@@ -13,7 +13,12 @@ import {
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-import { postWsGenerateForm } from '@/lib/api/ws';
+import {
+  downloadWsFormDocx,
+  postWsGenerateForm,
+  postWsParseForm,
+  type WsPayslipForm,
+} from '@/lib/api/ws';
 import { ApiCallError } from '@/lib/api/client';
 import type {
   EcAnalysisItem,
@@ -74,6 +79,12 @@ export default function WsResultPage({ params }: { params: { id: string } }) {
   }, []);
   /** 보기 모드 — 'split'(나란히: 좌 명세서+우 상세) / 'wide'(검토 보기: 전체폭+거터). */
   const [reviewMode, setReviewMode] = useState<'split' | 'wide'>('split');
+  /** 좌측 표를 현재 명세서 → 표준양식으로 전환했는지 (in-place 변환). */
+  const [showStandard, setShowStandard] = useState(false);
+  /** 제안 일괄 담기 시 우측 캐러셀(SuggestBlock)을 새 overrides 로 remount 하기 위한 버전. */
+  const [overridesVersion, setOverridesVersion] = useState(0);
+  /** 현재 명세서 파싱 중복 호출 방지. */
+  const parseStartedRef = useRef(false);
   // 노무사회 주제 코퍼스 lazy fetch — 호버 chip 의 본문 발췌용.
   // 페이지 mount 즉시 백엔드 1회 호출. 적재 완료 시 자동 re-render.
   useTopicCorpus();
@@ -82,6 +93,23 @@ export default function WsResultPage({ params }: { params: { id: string } }) {
     setMounted(true);
     setEntry(getCase(caseId));
   }, [caseId]);
+
+  // 현재(업로드) 명세서를 표로 — 분석 완료 후 1회 파싱(있으면 스킵). 같은 입력=같은 표(서버 캐시).
+  useEffect(() => {
+    const ws = entry?.ws;
+    if (!ws || ws.currentForm || parseStartedRef.current) return;
+    const txt = ws.extractedText ?? '';
+    if (!txt.trim() || !ws.analysisResult) return;
+    parseStartedRef.current = true;
+    postWsParseForm(txt)
+      .then((form) => {
+        updateWs(caseId, { currentForm: form });
+        setEntry(getCase(caseId));
+      })
+      .catch(() => {
+        parseStartedRef.current = false; // 실패 시 텍스트 보기로 폴백(다음 기회 재시도)
+      });
+  }, [entry, caseId]);
 
   const analysis: EcAnalysisResult | null =
     entry?.ws?.analysisResult ?? null;
@@ -238,11 +266,10 @@ export default function WsResultPage({ params }: { params: { id: string } }) {
       user_overrides: overrides,
     })
       .then((form) => {
-        updateWs(caseId, {
-          phase: 'result',
-          generatedWageForm: form,
-        });
-        router.push(`/review/${caseId}/ws/contract`);
+        // in-place 전환 — 같은 결과창에서 좌측 표가 현재 → 표준양식으로 바뀐다.
+        updateWs(caseId, { phase: 'result', generatedWageForm: form });
+        setEntry(getCase(caseId));
+        setShowStandard(true);
       })
       .catch((err) => {
         const msg =
@@ -259,6 +286,37 @@ export default function WsResultPage({ params }: { params: { id: string } }) {
         setGenerating(false);
       });
   };
+
+  // 제안 일괄 담기 — 모든 위반 항목의 개선권고를 한 번에 userOverrides 에 담는다(기존 편집 보존).
+  const addAllSuggestions = () => {
+    const cur = getCase(caseId)?.ws?.userOverrides ?? {};
+    const ov: Record<string, string> = { ...cur };
+    violations.forEach((v) => {
+      if (ov[v.항목] === undefined) ov[v.항목] = v.개선권고 || '';
+    });
+    updateWs(caseId, { userOverrides: ov });
+    setEntry(getCase(caseId));
+    setOverridesVersion((x) => x + 1);
+  };
+
+  // 표준양식 Word 다운로드 (in-place 전환 후).
+  const handleDownloadStandard = () => {
+    const f = getCase(caseId)?.ws?.generatedWageForm;
+    if (!f) return;
+    const base = (entry?.originalFilename || '임금명세서').replace(
+      /\.(png|jpe?g|pdf|docx?|hwpx?|txt)$/i,
+      '',
+    );
+    void downloadWsFormDocx(f as WsPayslipForm, `${base}_표준임금명세서.docx`).catch(
+      () => undefined,
+    );
+  };
+
+  const currentForm = entry?.ws?.currentForm ?? null;
+  const standardForm = entry?.ws?.generatedWageForm ?? null;
+  const displayForm: WsPayslipForm | null =
+    (showStandard ? standardForm : currentForm) as WsPayslipForm | null;
+  const addedCount = Object.keys(entry?.ws?.userOverrides ?? {}).length;
 
   // ─── 모바일 — 결과 단계 전용 풀스크린 앱 (데스크톱 레이아웃 미렌더) ───
   if (isMobile) {
@@ -311,6 +369,8 @@ export default function WsResultPage({ params }: { params: { id: string } }) {
             onFocus={handleFocus}
             mode={reviewMode}
             onChangeMode={setReviewMode}
+            form={displayForm}
+            isStandardForm={showStandard}
           />
 
           {/* ─── 우: 결과 패널 (검토 보기 모드에선 숨김 — 좌측이 전체폭) ─── */}
@@ -351,6 +411,7 @@ export default function WsResultPage({ params }: { params: { id: string } }) {
             />
 
             <FindingCarousel
+              key={overridesVersion}
               findings={violations}
               caseId={caseId}
               initialOverrides={entry?.ws?.userOverrides ?? {}}
@@ -359,20 +420,45 @@ export default function WsResultPage({ params }: { params: { id: string } }) {
             />
 
             <div className={`${styles.ctaBar} noPrint`}>
-              <Link
-                href={`/review/${caseId}/`}
-                className={styles.btnSecondary}
-              >
+              <Link href={`/review/${caseId}/`} className={styles.btnSecondary}>
                 ← 검토 페이지로
               </Link>
-              <button
-                type="button"
-                className={styles.btnPrimary}
-                onClick={handleGenerate}
-                disabled={generating}
-              >
-                {generating ? '명세서 생성 중…' : '표준 임금명세서 생성'}
-              </button>
+              {!showStandard ? (
+                <>
+                  <button
+                    type="button"
+                    className={styles.btnSecondary}
+                    onClick={addAllSuggestions}
+                  >
+                    ✨ 제안 일괄 담기{addedCount > 0 ? ` (${addedCount})` : ''}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.btnPrimary}
+                    onClick={handleGenerate}
+                    disabled={generating}
+                  >
+                    {generating ? '명세서 생성 중…' : '표준 임금명세서 만들기'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className={styles.btnSecondary}
+                    onClick={() => setShowStandard(false)}
+                  >
+                    ← 현재 명세서로
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.btnPrimary}
+                    onClick={handleDownloadStandard}
+                  >
+                    ⬇ Word 다운로드
+                  </button>
+                </>
+              )}
             </div>
 
             {genError && (
@@ -582,6 +668,10 @@ interface DocPanelProps {
   /** 보기 모드 — 'split'(나란히) / 'wide'(검토 보기, 전체폭+거터). */
   mode: 'split' | 'wide';
   onChangeMode: (m: 'split' | 'wide') => void;
+  /** 현재(또는 표준) 임금명세서를 HTML 표로 — 있으면 첫 페이지로 노출. */
+  form?: WsPayslipForm | null;
+  /** form 이 표준양식(시정 반영)인지 — 보완 칸 하이라이트·계산방법 열 표시. */
+  isStandardForm?: boolean;
 }
 
 /**
@@ -732,9 +822,158 @@ function renderTextWithMarkers(
   return out;
 }
 
+type WageLine = { name?: string; amount?: string; basis?: string; supplemented?: boolean };
+
 /**
- * 실 데이터 기반 페이지 빌더 — 추출 텍스트/이미지가 있으면 그것으로,
- * 둘 다 없을 때만 mock 페이지로 fallback.
+ * 현재(또는 표준) 임금명세서를 HTML 표 페이지로 — 지급/공제 + 합계 + 실수령.
+ * 현재 모드: 지적 항목과 이름이 매칭되는 행에 ⚠ + data-vno → 클릭 시 우측 상세 연동.
+ * 표준 모드: 계산방법 열 + 보완 칸 하이라이트.
+ */
+function buildFormTablePage(
+  form: WsPayslipForm,
+  findings: EcAnalysisItem[],
+  isStandard: boolean,
+): ContractPage {
+  const matchNo = (name: string): number | null => {
+    if (!name) return null;
+    const i = findings.findIndex((f) =>
+      `${f.항목 || ''} ${f.발견내용 || ''} ${f.판단이유 || ''}`.includes(name),
+    );
+    return i >= 0 ? i + 1 : null;
+  };
+  const wtNo = (() => {
+    const i = findings.findIndex((f) =>
+      /근로시간|계산기초|출근|소정근로/.test(`${f.항목 || ''} ${f.발견내용 || ''}`),
+    );
+    return i >= 0 ? i + 1 : null;
+  })();
+
+  const row = (p: WageLine, kind: string) => {
+    const sup = isStandard && !!p.supplemented;
+    const no = !isStandard ? matchNo(p.name || '') : null;
+    const cls = [styles.ftRow, sup ? styles.ftRowSup : '', no ? styles.ftRowFlag : '']
+      .filter(Boolean)
+      .join(' ');
+    return (
+      <tr key={kind + (p.name || '')} className={cls} data-vno={no || undefined}>
+        <td>
+          {p.name || ''}
+          {no ? (
+            <span className={styles.ftWarn} title="지적 항목 — 클릭하면 상세">
+              {' '}⚠
+            </span>
+          ) : null}
+          {sup ? <span className={styles.ftSupTag}>보완</span> : null}
+        </td>
+        <td className={styles.ftAmt}>{p.amount || ''}</td>
+        {isStandard ? <td className={styles.ftBasis}>{p.basis || ''}</td> : null}
+      </tr>
+    );
+  };
+
+  const wt = form.workTime || {};
+  const wtText =
+    [
+      wt.hours && `총 ${wt.hours}`,
+      wt.overtime && `연장 ${wt.overtime}`,
+      wt.night && `야간 ${wt.night}`,
+      wt.holiday && `휴일 ${wt.holiday}`,
+    ]
+      .filter(Boolean)
+      .join(' · ') || '미기재';
+  const wtSup = isStandard && (form.supplementedFields || []).includes('workTime');
+
+  return {
+    title: isStandard ? '표준 양식' : '서식(표)',
+    body: (
+      <div className={styles.ftWrap}>
+        <table className={styles.ftMeta}>
+          <tbody>
+            <tr>
+              <th>사업장</th>
+              <td>{form.employer?.company || '-'}</td>
+              <th>성명</th>
+              <td>{form.worker?.name || '-'}</td>
+            </tr>
+            <tr>
+              <th>산정기간</th>
+              <td>{form.settlementPeriod || '-'}</td>
+              <th>지급일</th>
+              <td>{form.paymentDate || '-'}</td>
+            </tr>
+            <tr className={wtSup ? styles.ftRowSup : undefined}>
+              <th>근로시간</th>
+              <td
+                colSpan={3}
+                className={wtNo && !isStandard ? styles.ftRowFlag : undefined}
+                data-vno={wtNo && !isStandard ? wtNo : undefined}
+              >
+                {wtText}
+                {wtNo && !isStandard ? (
+                  <span className={styles.ftWarn} title="지적 항목"> ⚠</span>
+                ) : null}
+                {wtSup ? <span className={styles.ftSupTag}>보완</span> : null}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div className={styles.ftGrid}>
+          <table className={styles.ftbl}>
+            <thead>
+              <tr>
+                <th>지급 항목</th>
+                <th className={styles.ftAmt}>금액</th>
+                {isStandard ? <th>계산방법</th> : null}
+              </tr>
+            </thead>
+            <tbody>
+              {(form.payments || []).map((p) => row(p as WageLine, 'p'))}
+              <tr className={styles.ftTot}>
+                <td>지급 합계</td>
+                <td className={styles.ftAmt}>{form.paymentTotal || ''}</td>
+                {isStandard ? <td /> : null}
+              </tr>
+            </tbody>
+          </table>
+          <table className={styles.ftbl}>
+            <thead>
+              <tr>
+                <th>공제 항목</th>
+                <th className={styles.ftAmt}>금액</th>
+                {isStandard ? <th>계산방법</th> : null}
+              </tr>
+            </thead>
+            <tbody>
+              {(form.deductions || []).map((p) => row(p as WageLine, 'd'))}
+              <tr className={styles.ftTot}>
+                <td>공제 합계</td>
+                <td className={styles.ftAmt}>{form.deductionTotal || ''}</td>
+                {isStandard ? <td /> : null}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className={styles.ftNet}>
+          <span>실수령액 (차인지급액)</span>
+          <b>{form.netPay || ''}{form.netPay ? '원' : ''}</b>
+        </div>
+        {isStandard && (form.notes || []).length ? (
+          <ul className={styles.ftNotes}>
+            {(form.notes || []).map((n, i) => (
+              <li key={i}>{n}</li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    ),
+  };
+}
+
+/**
+ * 실 데이터 기반 페이지 빌더 — 서식 표(있으면 첫 페이지) → 원본 이미지 → 추출 텍스트.
+ * 모두 없을 때만 mock 페이지로 fallback.
  */
 function buildRealPages(
   imageUrl: string | undefined,
@@ -742,8 +981,13 @@ function buildRealPages(
   filename: string,
   findings: EcAnalysisItem[],
   onImageError?: () => void,
+  form?: WsPayslipForm | null,
+  isStandard?: boolean,
 ): ContractPage[] {
   const pages: ContractPage[] = [];
+  if (form && ((form.payments || []).length || (form.deductions || []).length)) {
+    pages.push(buildFormTablePage(form, findings, !!isStandard));
+  }
   if (imageUrl) {
     pages.push({
       title: '원본 이미지',
@@ -788,6 +1032,8 @@ function DocPanel({
   onFocus,
   mode,
   onChangeMode,
+  form,
+  isStandardForm,
 }: DocPanelProps) {
   // blob: URL 이 만료(새로고침 등) 되면 img 가 onError 발생 → 그때부터 이미지 페이지 제거.
   const [imageBroken, setImageBroken] = useState(false);
@@ -801,10 +1047,14 @@ function DocPanel({
         filename,
         findings,
         () => setImageBroken(true),
+        form,
+        isStandardForm,
       ),
-    [effectiveImageUrl, extractedText, filename, findings],
+    [effectiveImageUrl, extractedText, filename, findings, form, isStandardForm],
   );
   const [pageIdx, setPageIdx] = useState(0);
+  // 현재 ↔ 표준 전환 시 표 페이지(첫 장)로 되돌린다.
+  useEffect(() => setPageIdx(0), [isStandardForm]);
   const safeIdx = Math.min(pageIdx, pages.length - 1);
   const prev = () =>
     setPageIdx((i) => (i - 1 + pages.length) % pages.length);
@@ -822,6 +1072,11 @@ function DocPanel({
       const n = Number(el.dataset.vno);
       el.classList.toggle(styles.vnumFocus, el.tagName === 'SPAN' && n === focusNo);
       el.classList.toggle(styles.vioMarkFocus, el.tagName === 'MARK' && n === focusNo);
+      // 표(서식) 행/칸 — 지적 항목 클릭 시 우측 상세와 연동, 현재 focus 행 하이라이트.
+      el.classList.toggle(
+        styles.ftRowFocus,
+        (el.tagName === 'TR' || el.tagName === 'TD') && n === focusNo,
+      );
       // 클릭 → 부모에 focus 통보 (idempotent — 매번 재할당해도 OK)
       el.onclick = () => onFocus(n - 1);
     });
@@ -973,7 +1228,9 @@ function DocPanel({
         onPointerUp={onDocPointerUp}
       >
         {pages[safeIdx].title === '원본 이미지' ||
-        pages[safeIdx].title === '추출 텍스트' ? (
+        pages[safeIdx].title === '추출 텍스트' ||
+        pages[safeIdx].title === '서식(표)' ||
+        pages[safeIdx].title === '표준 양식' ? (
           /* 실데이터: 페이지 자체가 스크롤 컨테이너를 갖고 있음 */
           pages[safeIdx].body
         ) : (

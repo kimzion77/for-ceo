@@ -115,6 +115,8 @@ export interface WsWorkflow {
   };
   /** /ws/analyze 결과 (EC analysis 와 동일 스키마). */
   analysisResult?: EcAnalysisResult;
+  /** /ws/parse-form 결과 — 현재(업로드) 명세서를 '있는 그대로' 구조화한 표(결과 화면 좌측 HTML 표). */
+  currentForm?: import('@/lib/api/ws').WsPayslipForm;
   /** /ws/generate 결과 — 수정 반영된 표준 임금명세서 텍스트. */
   generatedWageText?: string;
   /** /ws/generate-form 결과 — 공식 서식 칸을 채운 구조화 임금명세서(비주얼 양식 뷰용). */

@@ -376,6 +376,24 @@ export async function postWsGenerateForm(
   );
 }
 
+/** 현재(업로드) 임금명세서 원문 → '있는 그대로' 구조화 표 (교정 없음). 결과 화면 좌측 HTML 표용. */
+export async function postWsParseForm(
+  wageText: string,
+  opts: { signal?: AbortSignal } = {},
+): Promise<WsPayslipForm> {
+  const { job_id } = await apiPostJson<{ job_id: string }>(
+    '/ws/parse-form/start',
+    { wage_text: wageText },
+    { signal: opts.signal },
+  );
+  return pollJob<WsPayslipForm>(
+    (id) => `/ws/parse-form/result/${id}`,
+    job_id,
+    (res) => (res.form != null ? (res.form as unknown as WsPayslipForm) : undefined),
+    { signal: opts.signal, label: '명세서 표 정리' },
+  );
+}
+
 /**
  * 2-c 단계: 평문 본문 → .docx 다운로드.
  *

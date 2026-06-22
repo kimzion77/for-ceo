@@ -350,3 +350,98 @@ def run_structured(
             raise
 
     raise RuntimeError(f"ws generate-form 호출 실패: {last_err}")
+
+
+# ════════════════════════════════════════════════════════════════
+# 현재(업로드) 임금명세서를 '있는 그대로' 표로 — 교정 없이 전사만.
+# 결과 화면에서 현재 명세서를 HTML 표로 보여주는 용도. 같은 입력 → 같은 표(temp=0+캐시).
+# ════════════════════════════════════════════════════════════════
+
+_PARSE_SYSTEM_PROMPT = """\
+당신은 한국 임금명세서를 표로 옮기는 도구입니다.
+
+[작업]
+원본 임금명세서 텍스트를 **있는 그대로** 아래 JSON 으로 전사하세요.
+교정·보완·추가·계산을 **하지 않습니다** — 원문에 적힌 값만 그대로 옮깁니다.
+
+[출력 — 반드시 아래 JSON 스키마. 키는 영문 그대로, 값은 한국어]
+{
+  "settlementPeriod": "산정 기간 (원문에 있으면), 없으면 ''",
+  "paymentDate": "지급일 (YYYY-MM-DD), 없으면 ''",
+  "deliveryMethod": "교부 방식 (원문에 있으면), 없으면 ''",
+  "worker":   { "name": "성명", "idOrBirth": "사번/생년월일", "dept": "부서", "position": "직급" },
+  "employer": { "company": "상호", "businessNo": "사업자등록번호", "ceo": "대표자", "address": "주소" },
+  "workTime": { "days": "근로일수", "hours": "총 근로시간", "overtime": "연장", "night": "야간", "holiday": "휴일" },
+  "payments":   [ { "name": "기본급", "amount": "3,433,910", "basis": "", "supplemented": false } ],
+  "paymentTotal": "지급 총액",
+  "deductions": [ { "name": "소득세", "amount": "209,310", "basis": "", "supplemented": false } ],
+  "deductionTotal": "공제 총액",
+  "netPay": "실수령액(차인지급액)",
+  "supplementedFields": [],
+  "notes": []
+}
+
+[규칙]
+- 금액은 숫자 콤마 표기('1,234,560'), 단위 '원' 은 붙이지 않는다.
+- **원문에 없는 값은 '' 로 둔다. 추정·보완·계산 금지.** supplemented 는 항상 false, supplementedFields 는 항상 [].
+- basis(계산방법)는 원문에 적혀 있을 때만 그대로 옮기고, 없으면 ''.
+- notes 는 비워 둔다([]). JSON 외 텍스트 출력 금지.
+"""
+
+
+def parse_current(wage_text: str, *, model: str | None = None) -> dict[str, Any]:
+    """현재 임금명세서 원문 → 공식 서식 칸에 '있는 그대로' 채운 구조화 dict (교정 없음)."""
+    wage_text = mask_pii_text(wage_text or "")
+    model_name = get_llm_model(model)
+    from cgr import prompt_store
+
+    sys_prompt = prompt_store.get_or_default("ws_parse_current", _PARSE_SYSTEM_PROMPT)
+    user_prompt = (
+        "아래 임금명세서 원문을 위 JSON 스키마로 '있는 그대로' 전사하세요.\n\n"
+        f"```\n{(wage_text or '').strip()[:6000]}\n```"
+    )
+
+    cache_key = llm_cache.make_key(
+        system=sys_prompt,
+        user=user_prompt,
+        schema={"kind": "ws_parse_current"},
+        model=model_name,
+    )
+    cached = llm_cache.get(cache_key)
+    if cached and isinstance(cached.get("form"), dict):
+        return cached["form"]
+
+    client = OpenAI(api_key=get_api_key(), timeout=_CALL_TIMEOUT)
+    last_err: Exception | None = None
+    for attempt in range(_MAX_RETRIES):
+        try:
+            resp = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": sys_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                response_format={"type": "json_object"},
+                temperature=0,
+                top_p=1,
+            )
+            raw = resp.choices[0].message.content or ""
+            data = _safe_json(raw)
+            if not isinstance(data, dict):
+                raise RuntimeError(f"ws parse-current 응답 형식 오류: {raw[:200]}")
+            form = {**_FORM_FALLBACK, **data}
+            # 전사 모드 — 보완 표시는 강제로 비운다(교정본과 구분).
+            form["supplementedFields"] = []
+            llm_cache.put(cache_key, {"form": form})
+            return form
+        except (APITimeoutError, APIConnectionError, RateLimitError) as e:
+            last_err = e
+            if attempt < _MAX_RETRIES - 1:
+                time.sleep(_RETRY_BACKOFF[attempt])
+                continue
+            raise
+        except Exception as e:
+            last_err = e
+            raise
+
+    raise RuntimeError(f"ws parse-current 호출 실패: {last_err}")

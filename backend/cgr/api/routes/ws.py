@@ -579,6 +579,49 @@ def get_generate_form_result(job_id: str):
     )
 
 
+# ──
+# 2-b''') 현재(업로드) 명세서를 '있는 그대로' 표로 — 교정 없이 전사.
+#         결과 화면에서 현재 명세서를 HTML 표로 보여주는 용도.
+# ──
+class ParseFormIn(BaseModel):
+    wage_text: str = Field(..., description="추출된 임금명세서 원문")
+
+
+@router.post(
+    "/parse-form/start",
+    response_model=JobStartOut,
+    summary="현재 임금명세서 원문 → 구조화 표 (전사, 교정 없음) 시작",
+    dependencies=[Depends(require_api_key)],
+)
+def post_parse_form_start(body: ParseFormIn):
+    def _do() -> dict[str, Any]:
+        return generate_service.parse_current(body.wage_text)
+
+    return JobStartOut(job_id=jobs.start_job(_do))
+
+
+@router.get(
+    "/parse-form/result/{job_id}",
+    response_model=GenerateFormResultOut,
+    summary="현재 임금명세서 전사 결과 폴링",
+    dependencies=[Depends(require_api_key)],
+)
+def get_parse_form_result(job_id: str):
+    job = jobs.get_job(job_id)
+    if job is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="전사 작업을 찾을 수 없어요. 다시 시도해 주세요.",
+        )
+    return GenerateFormResultOut(
+        status=job["status"],
+        form=job["result"],
+        error=job["error"],
+        elapsed_sec=job["elapsed"],
+        model=get_llm_model(),
+    )
+
+
 # ─────────────────────────────────────────────
 # 2-c) POST /api/v1/ws/generate-docx — 표준 명세서 .docx 다운로드
 # ─────────────────────────────────────────────

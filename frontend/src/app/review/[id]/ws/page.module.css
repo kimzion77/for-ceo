@@ -377,6 +377,125 @@
   word-break: break-word;
 }
 
+/* ─── 임금명세서 HTML 표 (현재 / 표준) ─── */
+.ftWrap {
+  flex: 1;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  overflow: auto;
+  padding: 16px 16px 18px;
+  width: 100%;
+}
+.ftMeta {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+.ftMeta th,
+.ftMeta td {
+  border: 1px solid #eef1f5;
+  padding: 5px 9px;
+  text-align: left;
+  word-break: break-all;
+}
+.ftMeta th {
+  background: #f8fafc;
+  color: #64748b;
+  font-weight: 600;
+  width: 18%;
+  white-space: nowrap;
+}
+.ftGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.ftbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.ftbl th,
+.ftbl td {
+  border: 1px solid #e5e7eb;
+  padding: 6px 9px;
+  text-align: left;
+  vertical-align: top;
+  word-break: break-all;
+}
+.ftbl thead th {
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 600;
+}
+.ftAmt {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ftBasis {
+  color: #475569;
+  font-size: 12px;
+}
+.ftRowFlag {
+  cursor: pointer;
+}
+.ftRowFlag:hover {
+  background: #fff7ed;
+}
+.ftRowFocus {
+  background: #fef3c7 !important;
+  outline: 2px solid #f59e0b;
+  outline-offset: -2px;
+}
+.ftWarn {
+  color: #d97706;
+  font-weight: 700;
+}
+.ftRowSup {
+  background: #ecfdf5;
+}
+.ftSupTag {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #047857;
+  background: #d1fae5;
+  border-radius: 4px;
+  padding: 0 5px;
+}
+.ftTot td {
+  font-weight: 700;
+  background: #f8fafc;
+}
+.ftNet {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #cbd5e1;
+}
+.ftNet span {
+  font-size: 12.5px;
+  color: #64748b;
+}
+.ftNet b {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f1b2d;
+}
+.ftNotes {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: #b45309;
+  line-height: 1.6;
+}
+
 .docRawText {
   font-size: 11px;
   color: #475569;
