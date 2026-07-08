@@ -1,0 +1,59 @@
+%% 영세사업장 자율점검 서비스 — 시스템 아키텍처
+%% 렌더: https://mermaid.live 에 붙여넣거나  mmdc -i 시스템_아키텍처.mmd -o out.png
+flowchart TB
+    U["👤 사용자<br/>영세사업주 · 근로감독관(관리자)"]
+
+    subgraph DEPLOY["배포 — 동일 코드, 2 경로"]
+        direction LR
+        NG["nginx<br/>moellab.info/for-ceo<br/>basePath=/for-ceo"]
+        VC["Vercel<br/>for-ceo (루트)"]
+    end
+    U --> NG
+    U --> VC
+
+    subgraph FE["Next.js 14 프론트엔드 · for-ceo-frontend (:3004→3000)"]
+        direction TB
+        PAGES["화면 (App Router)<br/>홈 · 노무 가이드 챗봇<br/>검토결과 EC·WS·WR·SC<br/>작성화면(표준양식·신구대조표)<br/>/admin 대시보드 · 인쇄/Word"]
+        BFF["BFF · /api/cgr/[...path]<br/>클라이언트는 API 키 모름 → X-API-Key 서버주입<br/>admin 경로 → 세션검증 후 ADMIN_API_KEY"]
+        LOGIN["/api/admin/login<br/>ADMIN_PASSWORD → HMAC httpOnly 쿠키"]
+        PAGES -->|fetch| BFF
+        PAGES -->|로그인| LOGIN
+        LOGIN -. admin_session .-> BFF
+    end
+    NG --> PAGES
+    VC --> PAGES
+
+    subgraph BE["FastAPI 백엔드 · for-ceo-backend (:8503) / cgr-backend.fly.dev"]
+        direction TB
+        ROUTES["라우트<br/>/ec /ws /sc /review(취업규칙)<br/>/guide /track /admin /topics"]
+        PII["🔒 PII 마스킹<br/>외부 호출 전 제거"]
+        SVC["서비스<br/>analyze · structure · generate<br/>validate_field · parse_current · classify"]
+        RULE["판정 = 슬롯 + 코드 룰<br/>LLM은 추출·문안만 (결정적)"]
+        CACHE["llm_cache · temp=0<br/>같은 입력 → 같은 출력"]
+        ROUTES --> PII --> SVC
+        SVC --> RULE
+        SVC --> CACHE
+    end
+    BFF -->|X-API-Key · /api/v1/*| ROUTES
+
+    OAI["🤖 OpenAI API<br/>(마스킹 입력만)"]
+    SVC -->|마스킹된 입력| OAI
+
+    subgraph DATA["데이터 · CGR_DATA_DIR 볼륨 (./data → /app/backend/data)"]
+        direction LR
+        MDB[("master.db<br/>검토 기준 · 이미지 번들")]
+        EDB[("events.db<br/>방문·업로드·상호작용 로그")]
+        UP[("uploads<br/>원본 파일 · 보관기간 자동삭제")]
+        PR[("prompts<br/>편집형 프롬프트 · 즉시 적용")]
+    end
+    SVC --> MDB
+    ROUTES --> EDB
+    ROUTES --> UP
+    ROUTES --> PR
+
+    ADM["Streamlit Admin (구)<br/>for-ceo-admin :8502<br/>동일 backend 이미지"]
+    ADM --> MDB
+    ADM --> EDB
+
+    classDef store fill:#e0f2fe,stroke:#0ea5e9;
+    class MDB,EDB,UP,PR store;

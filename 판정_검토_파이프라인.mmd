@@ -1,0 +1,34 @@
+%% 영세사업장 자율점검 — 판정(검토) 파이프라인 : 실제 검토 과정
+%% 렌더: https://mermaid.live 또는  mmdc -i 판정_검토_파이프라인.mmd -o out.png
+flowchart TB
+    UP["① 업로드<br/>PDF · 한글(HWP/HWPX) · Word · 이미지(PNG/JPG)<br/>원본 저장(record_upload)"]
+    PARSE["② 파싱 · parsers/dispatcher<br/>이미지·스캔본 → Vision OCR → 텍스트<br/>그 외는 형식별 파서"]
+    CLS["③ 문서 종류 확인 · classify<br/>근로계약서 · 임금명세서 · 취업규칙 · 노무제공자계약서"]
+    EXT["④ 추출 · 구조화 (LLM · 구조화 출력)<br/>슬롯/필드 채우기 — PayslipIn · 조문 · 계약필드<br/>temp=0 · PII 마스킹 · 캐시  『LLM은 추출만』"]
+    JUDGE["⑤ 판정 — 코드 룰 엔진 (결정적)<br/>룰 V001~V010 : detected/expected/차액/법적근거<br/>계산 = 통상시급 × 가산율 × 시간 vs 실지급액<br/>『판정은 코드가』"]
+    AGG["⑥ 집계 · 종합 라벨<br/>누락·위반·주의·검토필요·적정<br/>→ 적정 / 부적정 / 검토불가"]
+    REF["⑦ 참고자료 매핑<br/>DB 주제 연결 + 법령 근거 · 원문 인용(body_original)"]
+    RES["⑧ 결과 — 위반사항 카드<br/>원문 인용 · 사유 · 수정안 · 차액 (표 ↔ 상세 연동)"]
+    NEXT["⑨ 후속<br/>표준양식 생성 · 신구대조표 · 칸별 재검토(✓/!) · 제안 일괄담기"]
+
+    UP --> PARSE --> CLS --> EXT --> JUDGE --> AGG --> REF --> RES --> NEXT
+
+    OAI["🤖 OpenAI (Vision · LLM)<br/>OCR · 분류 · 추출 · 판정 보조<br/>temp=0 · llm_cache(같은 입력=같은 출력)"]
+    OAI -. Vision OCR .-> PARSE
+    OAI -. 분류 .-> CLS
+    OAI -. 추출 .-> EXT
+    OAI -. 통상임금·재검토 .-> JUDGE
+
+    MDB[("master.db<br/>판정 기준값(ground-truth)<br/>최저임금 · 항목 카탈로그 · 위반 메타 · 권장 문안")]
+    MDB --> JUDGE
+
+    AUDIT["🔒 결정성 · 감사추적<br/>ruleset_version 고정 · llm_cache · log_interaction(findings JSON 전량)<br/>→ 같은 입력이면 같은 판정 재현"]
+    AGG -. 기록 .-> AUDIT
+    JUDGE -. 기록 .-> AUDIT
+
+    classDef judge fill:#ede9fe,stroke:#7c3aed,stroke-width:2px;
+    classDef store fill:#e0f2fe,stroke:#0ea5e9;
+    classDef ext fill:#eff6ff,stroke:#3b82f6;
+    class JUDGE judge;
+    class MDB store;
+    class EXT ext;

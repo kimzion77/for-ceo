@@ -1,0 +1,177 @@
+<svg viewBox="0 0 1400 1140" xmlns="http://www.w3.org/2000/svg" font-family="'Malgun Gothic','맑은 고딕','Segoe UI',sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#64748b"/>
+    </marker>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <rect x="0" y="0" width="1400" height="1140" fill="#f8fafc"/>
+
+  <!-- 제목 -->
+  <text x="700" y="40" text-anchor="middle" font-size="24" font-weight="700" fill="#0f172a">시스템 아키텍처</text>
+  <text x="700" y="66" text-anchor="middle" font-size="13" fill="#64748b">영세사업장 자율점검 서비스 — 문서 검토(EC · WS · WR · SC) + 노무 가이드 챗봇</text>
+
+  <!-- 사용자 -->
+  <rect x="510" y="92" width="380" height="56" rx="12" fill="#1e293b" filter="url(#soft)"/>
+  <text x="700" y="117" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">👤 사용자</text>
+  <text x="700" y="136" text-anchor="middle" font-size="11" fill="#cbd5e1">영세사업주 · 근로감독관(관리자)</text>
+
+  <!-- 배포 컨테이너 -->
+  <rect x="340" y="184" width="720" height="120" rx="14" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+  <text x="358" y="206" font-size="13" font-weight="700" fill="#047857">배포 — 동일 코드, 2 경로</text>
+  <rect x="366" y="220" width="300" height="70" rx="10" fill="#ffffff" stroke="#10b981" filter="url(#soft)"/>
+  <text x="516" y="245" text-anchor="middle" font-size="13" font-weight="700" fill="#065f46">nginx</text>
+  <text x="516" y="264" text-anchor="middle" font-size="11" fill="#334155">moellab.info/for-ceo</text>
+  <text x="516" y="281" text-anchor="middle" font-size="10" fill="#64748b">basePath = /for-ceo</text>
+  <rect x="734" y="220" width="300" height="70" rx="10" fill="#ffffff" stroke="#10b981" filter="url(#soft)"/>
+  <text x="884" y="245" text-anchor="middle" font-size="13" font-weight="700" fill="#065f46">Vercel</text>
+  <text x="884" y="264" text-anchor="middle" font-size="11" fill="#334155">for-ceo (루트 경로)</text>
+  <text x="884" y="281" text-anchor="middle" font-size="10" fill="#64748b">basePath 없음</text>
+
+  <!-- 프론트엔드 컨테이너 -->
+  <rect x="110" y="336" width="1080" height="200" rx="14" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="128" y="358" font-size="13" font-weight="700" fill="#1d4ed8">Next.js 14 프론트엔드 · 컨테이너 for-ceo-frontend (:3004 → 3000)</text>
+
+  <rect x="136" y="376" width="360" height="146" rx="10" fill="#ffffff" stroke="#93c5fd" filter="url(#soft)"/>
+  <text x="316" y="398" text-anchor="middle" font-size="12" font-weight="700" fill="#1e3a8a">화면 (App Router)</text>
+  <text x="154" y="420" font-size="11" fill="#334155">· 홈 / 노무 가이드 챗봇</text>
+  <text x="154" y="440" font-size="11" fill="#334155">· 검토 결과  EC · WS · WR · SC</text>
+  <text x="154" y="460" font-size="11" fill="#334155">· 작성 화면  표준양식 · 신구대조표</text>
+  <text x="154" y="480" font-size="11" fill="#334155">· /admin 관리자 대시보드</text>
+  <text x="154" y="500" font-size="11" fill="#334155">· 인쇄 / Word 내보내기</text>
+
+  <rect x="520" y="380" width="666" height="80" rx="10" fill="#ffffff" stroke="#93c5fd" filter="url(#soft)"/>
+  <text x="540" y="404" font-size="12" font-weight="700" fill="#1e3a8a">BFF · /api/cgr/[...path]</text>
+  <text x="540" y="424" font-size="11" fill="#334155">클라이언트는 API 키를 모름 → 서버측에서 X-API-Key 주입</text>
+  <text x="540" y="444" font-size="11" fill="#334155">admin 경로 = admin_session 쿠키 검증 후에만 ADMIN_API_KEY 주입</text>
+
+  <rect x="520" y="472" width="666" height="46" rx="10" fill="#ffffff" stroke="#93c5fd" filter="url(#soft)"/>
+  <text x="540" y="500" font-size="11" fill="#334155">/api/admin/login · ADMIN_PASSWORD 검증 → HMAC httpOnly 쿠키(admin_session)</text>
+
+  <!-- 백엔드 컨테이너 -->
+  <rect x="110" y="570" width="1080" height="252" rx="14" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+  <text x="128" y="592" font-size="13" font-weight="700" fill="#6d28d9">FastAPI 백엔드 · for-ceo-backend (:8503) / cgr-backend.fly.dev</text>
+
+  <rect x="136" y="612" width="300" height="98" rx="10" fill="#ffffff" stroke="#c4b5fd" filter="url(#soft)"/>
+  <text x="286" y="634" text-anchor="middle" font-size="12" font-weight="700" fill="#5b21b6">라우트 (routers)</text>
+  <text x="286" y="656" text-anchor="middle" font-size="11" fill="#334155">/ec  /ws  /sc</text>
+  <text x="286" y="674" text-anchor="middle" font-size="11" fill="#334155">/review (취업규칙)</text>
+  <text x="286" y="694" text-anchor="middle" font-size="10" fill="#64748b">/guide  /track  /admin  /topics</text>
+
+  <rect x="470" y="632" width="150" height="58" rx="10" fill="#fdf2f8" stroke="#ec4899" filter="url(#soft)"/>
+  <text x="545" y="656" text-anchor="middle" font-size="12" font-weight="700" fill="#9d174d">🔒 PII 마스킹</text>
+  <text x="545" y="674" text-anchor="middle" font-size="10" fill="#831843">외부 호출 전 제거</text>
+
+  <rect x="660" y="612" width="320" height="98" rx="10" fill="#ffffff" stroke="#c4b5fd" filter="url(#soft)"/>
+  <text x="820" y="634" text-anchor="middle" font-size="12" font-weight="700" fill="#5b21b6">서비스 (services)</text>
+  <text x="820" y="656" text-anchor="middle" font-size="11" fill="#334155">analyze · structure · generate</text>
+  <text x="820" y="674" text-anchor="middle" font-size="11" fill="#334155">validate_field · parse_current</text>
+  <text x="820" y="694" text-anchor="middle" font-size="10" fill="#64748b">classify · 신구대조표</text>
+
+  <rect x="470" y="732" width="250" height="66" rx="10" fill="#ede9fe" stroke="#7c3aed" stroke-width="2" filter="url(#soft)"/>
+  <text x="595" y="758" text-anchor="middle" font-size="12" font-weight="700" fill="#5b21b6">판정 = 슬롯 + 코드 룰</text>
+  <text x="595" y="778" text-anchor="middle" font-size="10" fill="#6d28d9">LLM은 추출·문안만 (결정적)</text>
+
+  <rect x="740" y="732" width="240" height="66" rx="10" fill="#ede9fe" stroke="#7c3aed" stroke-width="2" filter="url(#soft)"/>
+  <text x="860" y="758" text-anchor="middle" font-size="12" font-weight="700" fill="#5b21b6">llm_cache · temp = 0</text>
+  <text x="860" y="778" text-anchor="middle" font-size="10" fill="#6d28d9">같은 입력 → 같은 출력</text>
+
+  <!-- OpenAI (외부) -->
+  <rect x="1210" y="616" width="170" height="88" rx="10" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5" filter="url(#soft)"/>
+  <text x="1295" y="646" text-anchor="middle" font-size="12" font-weight="700" fill="#b45309">🤖 OpenAI API</text>
+  <text x="1295" y="666" text-anchor="middle" font-size="10" fill="#92400e">외부 LLM</text>
+  <text x="1295" y="684" text-anchor="middle" font-size="10" fill="#92400e">(마스킹 입력만)</text>
+
+  <!-- 데이터 컨테이너 -->
+  <rect x="110" y="850" width="800" height="196" rx="14" fill="#f0f9ff" stroke="#0ea5e9" stroke-width="1.5"/>
+  <text x="128" y="872" font-size="13" font-weight="700" fill="#0369a1">데이터 · CGR_DATA_DIR 볼륨 ( ./data → /app/backend/data )</text>
+
+  <!-- 실린더 4개 -->
+  <!-- master.db -->
+  <g filter="url(#soft)">
+    <rect x="134" y="900" width="180" height="118" fill="#e0f2fe" stroke="#7dd3fc"/>
+    <ellipse cx="224" cy="1018" rx="90" ry="12" fill="#e0f2fe" stroke="#7dd3fc"/>
+    <ellipse cx="224" cy="900" rx="90" ry="12" fill="#bae6fd" stroke="#0ea5e9"/>
+  </g>
+  <text x="224" y="934" text-anchor="middle" font-size="12" font-weight="700" fill="#075985">master.db</text>
+  <text x="224" y="954" text-anchor="middle" font-size="10" fill="#0c4a6e">검토 기준(ground-truth)</text>
+  <text x="224" y="972" text-anchor="middle" font-size="10" fill="#0c4a6e">이미지 번들 · 읽기</text>
+
+  <!-- events.db -->
+  <g filter="url(#soft)">
+    <rect x="330" y="900" width="180" height="118" fill="#e0f2fe" stroke="#7dd3fc"/>
+    <ellipse cx="420" cy="1018" rx="90" ry="12" fill="#e0f2fe" stroke="#7dd3fc"/>
+    <ellipse cx="420" cy="900" rx="90" ry="12" fill="#bae6fd" stroke="#0ea5e9"/>
+  </g>
+  <text x="420" y="934" text-anchor="middle" font-size="12" font-weight="700" fill="#075985">events.db</text>
+  <text x="420" y="954" text-anchor="middle" font-size="10" fill="#0c4a6e">방문 · 업로드</text>
+  <text x="420" y="972" text-anchor="middle" font-size="10" fill="#0c4a6e">상호작용 로그</text>
+
+  <!-- uploads -->
+  <g filter="url(#soft)">
+    <rect x="526" y="900" width="180" height="118" fill="#e0f2fe" stroke="#7dd3fc"/>
+    <ellipse cx="616" cy="1018" rx="90" ry="12" fill="#e0f2fe" stroke="#7dd3fc"/>
+    <ellipse cx="616" cy="900" rx="90" ry="12" fill="#bae6fd" stroke="#0ea5e9"/>
+  </g>
+  <text x="616" y="934" text-anchor="middle" font-size="12" font-weight="700" fill="#075985">uploads</text>
+  <text x="616" y="954" text-anchor="middle" font-size="10" fill="#0c4a6e">원본 파일(이미지)</text>
+  <text x="616" y="972" text-anchor="middle" font-size="10" fill="#0c4a6e">보관기간 자동삭제</text>
+
+  <!-- prompts -->
+  <g filter="url(#soft)">
+    <rect x="722" y="900" width="170" height="118" fill="#e0f2fe" stroke="#7dd3fc"/>
+    <ellipse cx="807" cy="1018" rx="85" ry="12" fill="#e0f2fe" stroke="#7dd3fc"/>
+    <ellipse cx="807" cy="900" rx="85" ry="12" fill="#bae6fd" stroke="#0ea5e9"/>
+  </g>
+  <text x="807" y="934" text-anchor="middle" font-size="12" font-weight="700" fill="#075985">prompts</text>
+  <text x="807" y="954" text-anchor="middle" font-size="10" fill="#0c4a6e">편집형 프롬프트</text>
+  <text x="807" y="972" text-anchor="middle" font-size="10" fill="#0c4a6e">저장 → 즉시 적용</text>
+
+  <!-- Streamlit admin (구) -->
+  <rect x="940" y="850" width="250" height="196" rx="14" fill="#fef2f2" stroke="#ef4444" stroke-width="1.5"/>
+  <text x="958" y="872" font-size="12" font-weight="700" fill="#b91c1c">구(舊) 관리자</text>
+  <rect x="962" y="892" width="206" height="130" rx="10" fill="#ffffff" stroke="#fca5a5" filter="url(#soft)"/>
+  <text x="1065" y="930" text-anchor="middle" font-size="13" font-weight="700" fill="#7f1d1d">Streamlit Admin</text>
+  <text x="1065" y="952" text-anchor="middle" font-size="11" fill="#334155">for-ceo-admin (:8502)</text>
+  <text x="1065" y="972" text-anchor="middle" font-size="10" fill="#64748b">동일 backend 이미지</text>
+  <text x="1065" y="1000" text-anchor="middle" font-size="10" fill="#64748b">events.db · master.db 조회</text>
+
+  <!-- ===== 화살표 ===== -->
+  <!-- 사용자 → 배포 -->
+  <line x1="640" y1="148" x2="530" y2="220" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <line x1="760" y1="148" x2="870" y2="220" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <!-- 배포 → 프론트 -->
+  <line x1="516" y1="290" x2="420" y2="336" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <line x1="884" y1="290" x2="860" y2="336" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <!-- 페이지 → BFF / login -->
+  <line x1="496" y1="415" x2="516" y2="415" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <line x1="496" y1="495" x2="516" y2="495" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <!-- login ⇢ BFF (세션 검증) -->
+  <line x1="600" y1="472" x2="600" y2="462" stroke="#f59e0b" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
+  <text x="608" y="470" font-size="9" fill="#b45309">세션</text>
+  <!-- BFF → 라우트 (X-API-Key) -->
+  <line x1="700" y1="460" x2="320" y2="612" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="470" y="540" font-size="10" fill="#475569">X-API-Key 주입 · /api/v1/*</text>
+  <!-- 라우트 → PII → 서비스 -->
+  <line x1="436" y1="661" x2="470" y2="661" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <line x1="620" y1="661" x2="660" y2="661" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <!-- 서비스 → 룰 / 캐시 -->
+  <line x1="760" y1="710" x2="620" y2="732" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <line x1="880" y1="710" x2="870" y2="732" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <!-- 서비스 → OpenAI -->
+  <line x1="980" y1="660" x2="1210" y2="660" stroke="#f59e0b" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <text x="1095" y="652" text-anchor="middle" font-size="10" fill="#b45309">마스킹된 입력만</text>
+  <!-- 백엔드 → 데이터 -->
+  <line x1="470" y1="822" x2="470" y2="850" stroke="#94a3b8" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <text x="480" y="842" font-size="10" fill="#475569">SQLite 읽기/쓰기</text>
+  <!-- Streamlit → 데이터 -->
+  <line x1="940" y1="957" x2="912" y2="957" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+
+  <!-- 하단 노트 -->
+  <rect x="110" y="1066" width="1080" height="54" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="128" y="1088" font-size="11" fill="#334155"><tspan font-weight="700" fill="#0f172a">결정성·보안 원칙  </tspan> ① 사용자는 API 키를 모름 — BFF가 서버측에서 주입, admin은 세션 쿠키 검증 후에만 관리자 키 주입</text>
+  <text x="128" y="1108" font-size="11" fill="#334155">② 판정은 코드 룰 + temp=0 캐시로 결정적(같은 입력 = 같은 출력)   ③ 외부 LLM 호출 전 PII 마스킹   ④ moellab·Vercel 동일 코드, basePath만 차이</text>
+</svg>

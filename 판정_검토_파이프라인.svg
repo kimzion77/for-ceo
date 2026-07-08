@@ -1,0 +1,149 @@
+<svg viewBox="0 0 1120 1140" xmlns="http://www.w3.org/2000/svg" font-family="'Malgun Gothic','맑은 고딕','Segoe UI',sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#64748b"/>
+    </marker>
+    <marker id="arrowA" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#d97706"/>
+    </marker>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <rect x="0" y="0" width="1120" height="1140" fill="#f8fafc"/>
+
+  <!-- 제목 -->
+  <text x="560" y="40" text-anchor="middle" font-size="23" font-weight="700" fill="#0f172a">판정(검토) 파이프라인 — 실제 검토 과정</text>
+  <text x="560" y="64" text-anchor="middle" font-size="12.5" fill="#64748b">업로드 → 파싱·OCR → 추출(LLM) → 코드 룰 판정 → 집계·라벨 → 참고자료 → 결과·후속</text>
+
+  <!-- ===== 좌측 존(zone) 태그 ===== -->
+  <rect x="40" y="110" width="200" height="158" rx="10" fill="#ecfeff" stroke="#06b6d4"/>
+  <text x="140" y="180" text-anchor="middle" font-size="13" font-weight="700" fill="#0e7490">① 입력·정규화</text>
+  <text x="140" y="200" text-anchor="middle" font-size="10.5" fill="#155e75">파서 / Vision OCR</text>
+
+  <rect x="40" y="298" width="200" height="158" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="140" y="360" text-anchor="middle" font-size="13" font-weight="700" fill="#1d4ed8">② 추출 (LLM)</text>
+  <text x="140" y="380" text-anchor="middle" font-size="10.5" fill="#1e40af">temp=0 · PII 마스킹</text>
+  <text x="140" y="398" text-anchor="middle" font-size="10.5" font-weight="700" fill="#1e40af">『 LLM 은 추출만 』</text>
+
+  <rect x="40" y="490" width="200" height="216" rx="10" fill="#f5f3ff" stroke="#8b5cf6"/>
+  <text x="140" y="588" text-anchor="middle" font-size="13" font-weight="700" fill="#6d28d9">③ 판정</text>
+  <text x="140" y="608" text-anchor="middle" font-size="10.5" fill="#5b21b6">코드 룰 · 결정적</text>
+  <text x="140" y="626" text-anchor="middle" font-size="10.5" font-weight="700" fill="#5b21b6">『 판정은 코드가 』</text>
+
+  <rect x="40" y="736" width="200" height="252" rx="10" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="140" y="866" text-anchor="middle" font-size="13" font-weight="700" fill="#15803d">④ 결과·후속</text>
+
+  <!-- ===== 메인 파이프라인 (세로) ===== -->
+  <!-- S1 업로드 -->
+  <rect x="270" y="110" width="540" height="64" rx="10" fill="#ffffff" stroke="#06b6d4" filter="url(#soft)"/>
+  <text x="288" y="136" font-size="13" font-weight="700" fill="#0e7490">① 업로드</text>
+  <text x="288" y="158" font-size="11" fill="#334155">PDF · 한글(HWP/HWPX) · Word · 이미지(PNG/JPG) — 원본 저장(record_upload)</text>
+
+  <!-- S2 파싱 -->
+  <rect x="270" y="204" width="540" height="64" rx="10" fill="#ffffff" stroke="#06b6d4" filter="url(#soft)"/>
+  <text x="288" y="230" font-size="13" font-weight="700" fill="#0e7490">② 파싱 · parsers/dispatcher</text>
+  <text x="288" y="252" font-size="11" fill="#334155">이미지·스캔본 → Vision OCR → 텍스트 · 그 외는 형식별 파서로 텍스트화</text>
+
+  <!-- S3 분류 -->
+  <rect x="270" y="298" width="540" height="64" rx="10" fill="#ffffff" stroke="#3b82f6" filter="url(#soft)"/>
+  <text x="288" y="324" font-size="13" font-weight="700" fill="#1d4ed8">③ 문서 종류 확인 · classify</text>
+  <text x="288" y="346" font-size="11" fill="#334155">선택 서비스 검증 — 근로계약서 · 임금명세서 · 취업규칙 · 노무제공자계약서</text>
+
+  <!-- S4 추출 -->
+  <rect x="270" y="392" width="540" height="64" rx="10" fill="#ffffff" stroke="#3b82f6" filter="url(#soft)"/>
+  <text x="288" y="418" font-size="13" font-weight="700" fill="#1d4ed8">④ 추출 · 구조화 (LLM · 구조화 출력)</text>
+  <text x="288" y="440" font-size="11" fill="#334155">슬롯/필드 채우기 — 예: PayslipIn(지급·공제 라인) · 조문 · 계약 필드</text>
+
+  <!-- S5 판정 (핵심) -->
+  <rect x="270" y="490" width="540" height="132" rx="12" fill="#ede9fe" stroke="#7c3aed" stroke-width="2.5" filter="url(#soft)"/>
+  <text x="288" y="516" font-size="14.5" font-weight="700" fill="#6d28d9">⑤ 판정 — 코드 룰 엔진 (결정적)</text>
+  <text x="288" y="540" font-size="11" fill="#4c1d95">· 룰 V001~V010 … 룰마다 detected / expected / 차액 / 법적근거 산출</text>
+  <text x="288" y="560" font-size="11" fill="#4c1d95">· 판정 기준값은 master.db (최저임금 · 항목 카탈로그 · 위반 메타 · 권장 문안)</text>
+  <text x="288" y="580" font-size="11" fill="#4c1d95">· 계산: 통상시급 × 가산율 × 시간 = 예상액  vs  실지급액</text>
+  <text x="288" y="602" font-size="11" fill="#7c3aed">· LLM 판단은 보조 — 통상임금 쟁점(V009) · 칸별 재검토(validate_field)</text>
+
+  <!-- S6 집계 -->
+  <rect x="270" y="644" width="540" height="64" rx="10" fill="#ffffff" stroke="#8b5cf6" filter="url(#soft)"/>
+  <text x="288" y="670" font-size="13" font-weight="700" fill="#6d28d9">⑥ 집계 · 종합 라벨</text>
+  <text x="288" y="692" font-size="11" fill="#334155">severity 정렬 → 누락·위반·주의·검토필요·적정  →  종합: 적정 / 부적정 / 검토불가</text>
+
+  <!-- S7 참고자료 -->
+  <rect x="270" y="736" width="540" height="64" rx="10" fill="#ffffff" stroke="#22c55e" filter="url(#soft)"/>
+  <text x="288" y="762" font-size="13" font-weight="700" fill="#15803d">⑦ 참고자료 매핑</text>
+  <text x="288" y="784" font-size="11" fill="#334155">DB 주제 연결 + 법령 근거(근기법 §·시행령) · 원문 인용(body_original)</text>
+
+  <!-- S8 결과 -->
+  <rect x="270" y="830" width="540" height="64" rx="10" fill="#ffffff" stroke="#22c55e" filter="url(#soft)"/>
+  <text x="288" y="856" font-size="13" font-weight="700" fill="#15803d">⑧ 결과 — 위반사항 카드</text>
+  <text x="288" y="878" font-size="11" fill="#334155">원문 인용 · 사유 · 수정안 · 차액(원)  —  좌측 표 ↔ 우측 상세 연동</text>
+
+  <!-- S9 후속 -->
+  <rect x="270" y="924" width="540" height="64" rx="10" fill="#ffffff" stroke="#22c55e" filter="url(#soft)"/>
+  <text x="288" y="950" font-size="13" font-weight="700" fill="#15803d">⑨ 후속</text>
+  <text x="288" y="972" font-size="11" fill="#334155">표준양식 생성 · 신구대조표 · 칸별 재검토(✓/!) · 제안 일괄담기</text>
+
+  <!-- 세로 흐름 화살표 -->
+  <line x1="540" y1="174" x2="540" y2="204" stroke="#64748b" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <line x1="540" y1="268" x2="540" y2="298" stroke="#64748b" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <line x1="540" y1="362" x2="540" y2="392" stroke="#64748b" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <line x1="540" y1="456" x2="540" y2="490" stroke="#64748b" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <line x1="540" y1="622" x2="540" y2="644" stroke="#64748b" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <line x1="540" y1="708" x2="540" y2="736" stroke="#64748b" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <line x1="540" y1="800" x2="540" y2="830" stroke="#64748b" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <line x1="540" y1="894" x2="540" y2="924" stroke="#64748b" stroke-width="1.8" marker-end="url(#arrow)"/>
+
+  <!-- ===== 우측: OpenAI (Vision·LLM) ===== -->
+  <rect x="850" y="300" width="230" height="160" rx="12" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5" filter="url(#soft)"/>
+  <text x="965" y="326" text-anchor="middle" font-size="12.5" font-weight="700" fill="#b45309">🤖 OpenAI (Vision · LLM)</text>
+  <text x="866" y="352" font-size="10.5" fill="#92400e">· OCR (이미지 → 텍스트)</text>
+  <text x="866" y="372" font-size="10.5" fill="#92400e">· 문서 분류 · 필드/슬롯 추출</text>
+  <text x="866" y="392" font-size="10.5" fill="#92400e">· 판정 보조(통상임금·재검토)</text>
+  <text x="866" y="418" font-size="10.5" font-weight="700" fill="#b45309">temp = 0</text>
+  <text x="866" y="438" font-size="10.5" fill="#92400e">llm_cache — 같은 입력 = 같은 출력</text>
+  <!-- OpenAI → S2/S3/S4 (점선) -->
+  <line x1="850" y1="345" x2="810" y2="236" stroke="#d97706" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrowA)"/>
+  <line x1="850" y1="365" x2="810" y2="330" stroke="#d97706" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrowA)"/>
+  <line x1="850" y1="395" x2="810" y2="424" stroke="#d97706" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrowA)"/>
+  <!-- OpenAI → S5 판정 보조 (점선) -->
+  <line x1="900" y1="460" x2="810" y2="530" stroke="#d97706" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrowA)"/>
+
+  <!-- ===== 우측: master.db (판정 기준값) ===== -->
+  <g filter="url(#soft)">
+    <rect x="878" y="512" width="180" height="76" fill="#e0f2fe" stroke="#7dd3fc"/>
+    <ellipse cx="968" cy="588" rx="90" ry="13" fill="#e0f2fe" stroke="#7dd3fc"/>
+    <ellipse cx="968" cy="512" rx="90" ry="13" fill="#bae6fd" stroke="#0ea5e9"/>
+  </g>
+  <text x="968" y="544" text-anchor="middle" font-size="12.5" font-weight="700" fill="#075985">master.db</text>
+  <text x="968" y="562" text-anchor="middle" font-size="10" fill="#0c4a6e">판정 기준값(ground-truth)</text>
+  <text x="968" y="616" text-anchor="middle" font-size="10" fill="#0369a1">최저임금 · 임금항목 카탈로그</text>
+  <text x="968" y="632" text-anchor="middle" font-size="10" fill="#0369a1">위반 메타 · 권장 문안</text>
+  <!-- master.db → S5 -->
+  <line x1="878" y1="548" x2="810" y2="556" stroke="#0ea5e9" stroke-width="1.8" marker-end="url(#arrow)"/>
+
+  <!-- ===== 우측: 판정 버킷 범례 ===== -->
+  <rect x="850" y="644" width="230" height="250" rx="12" fill="#ffffff" stroke="#e2e8f0" filter="url(#soft)"/>
+  <text x="866" y="670" font-size="12.5" font-weight="700" fill="#0f172a">판정 버킷 (verdict.py)</text>
+  <circle cx="874" cy="694" r="6" fill="#ef4444"/>
+  <text x="890" y="698" font-size="10.5" fill="#334155">누락 — 필수기재 없음</text>
+  <circle cx="874" cy="718" r="6" fill="#f59e0b"/>
+  <text x="890" y="722" font-size="10.5" fill="#334155">위반 — 법정기준 미달</text>
+  <circle cx="874" cy="742" r="6" fill="#3b82f6"/>
+  <text x="890" y="746" font-size="10.5" fill="#334155">주의 — 임의규정 미준수</text>
+  <circle cx="874" cy="766" r="6" fill="#a855f7"/>
+  <text x="890" y="770" font-size="10.5" fill="#334155">검토필요 — 매칭 모호</text>
+  <circle cx="874" cy="790" r="6" fill="#22c55e"/>
+  <text x="890" y="794" font-size="10.5" fill="#334155">적정</text>
+  <line x1="866" y1="808" x2="1064" y2="808" stroke="#e2e8f0"/>
+  <text x="866" y="828" font-size="10.5" fill="#475569">종합 라벨:</text>
+  <text x="866" y="846" font-size="10.5" font-weight="700" fill="#0f172a">적정 / 부적정 / 검토불가</text>
+  <text x="866" y="870" font-size="9.5" fill="#94a3b8">※ 임금명세서는 HIGH/MID/LOW</text>
+  <text x="866" y="884" font-size="9.5" fill="#94a3b8">   → VIOLATION/WARN/OK</text>
+
+  <!-- ===== 하단: 결정성·감사추적 ===== -->
+  <rect x="40" y="1014" width="1040" height="82" rx="12" fill="#0f172a"/>
+  <text x="60" y="1044" font-size="13" font-weight="700" fill="#ffffff">🔒 결정성 · 감사추적 (audit trail)</text>
+  <text x="60" y="1068" font-size="11" fill="#cbd5e1">ruleset_version 고정 · llm_cache(temp=0) · log_interaction — 입력·출력·findings(JSON 전량) 저장</text>
+  <text x="60" y="1086" font-size="11" fill="#93c5fd">→ 같은 입력이면 언제 돌려도 같은 판정 재현 (감독관 품질검토·재현성 확보)</text>
+</svg>
