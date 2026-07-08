@@ -23,7 +23,7 @@ _SKIP_THRESHOLD = 0.30
 def _admin_skip_threshold() -> float:
     """관리자 설정의 prefilter_threshold 우선, 없으면 모듈 기본값."""
     try:
-        from cgr.web.admin.store.settings_store import get as _admin_get
+        from cgr.store.settings_store import get as _admin_get
         v = _admin_get("prefilter_threshold")
         if v is not None:
             return float(v)

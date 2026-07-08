@@ -33,8 +33,12 @@ from cgr.models import WorkplaceContext
 from cgr.penalty_parser import format_for_user
 from cgr.run import review_file
 from cgr.verdict import classify
-from cgr.web.admin.store import access_log, history
+from cgr.store import access_log, history
 
+
+from cgr.log import bind_context, get_logger
+
+log = get_logger(__name__)
 
 router = APIRouter(prefix="/review", tags=["review"])
 
@@ -55,7 +59,8 @@ def _load_standard_work_rules() -> str | None:
     """
     try:
         return _STANDARD_WR_PATH.read_text(encoding="utf-8")
-    except Exception:
+    except Exception as e:
+        log.warning("실패 — None 반환: %s: %s", type(e).__name__, e)
         return None
 
 
@@ -158,8 +163,8 @@ async def post_review(
         # 임시 파일 정리
         try:
             tmp_path.unlink(missing_ok=True)
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("무시된 예외 — %s: %s", type(e).__name__, e)
 
 
 # ─────────────────────────────────────────────
@@ -200,8 +205,8 @@ def _dispatch_review(
     finally:
         try:
             tmp_path.unlink(missing_ok=True)
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("무시된 예외 — %s: %s", type(e).__name__, e)
 
 
 @router.post(
@@ -222,6 +227,7 @@ async def post_review_start(
     summary_only: bool = Form(default=False),
     case_id: str = Form(default=""),
 ):
+    bind_context(case=case_id)  # 로그 상관 — 이후 이 요청·잡의 모든 로그에 case 부착
     suffix = Path(file.filename or "upload.bin").suffix or ".bin"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tf:
         tf.write(await file.read())
@@ -296,16 +302,16 @@ def _run_work_rules(
         entry["filename"] = filename
         entry["service"] = "취업규칙"
         history.append_history(entry)
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning("무시된 예외 — %s: %s", type(e).__name__, e)
     try:
         access_log.log_event(
             service="취업규칙",
             action="review",
             meta={"filename": filename, "via": "api"},
         )
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning("무시된 예외 — %s: %s", type(e).__name__, e)
 
     article_results = []
     if not summary_only:
@@ -321,13 +327,14 @@ def _run_work_rules(
     try:
         import json as _json
 
-        from cgr.web.admin.store import analytics as _an
+        from cgr.store import analytics as _an
 
         # 원본 파일(이미지/문서)은 홈 추출 단계(/ec/extract/start, service=취업규칙)에서
         # 같은 case_id 로 이미 보관됨 → 여기선 로그를 case_id 로 연결만 한다.
         # (취업규칙 검토는 사용자가 확인·수정한 텍스트를 .txt 로 감싸 보내므로
         #  tmp_path 는 원본이 아니라 가공 텍스트라 따로 저장하지 않는다.)
         _case = (case_id or report.case_id or "").strip() or None
+        bind_context(case=_case)  # report 산출 후 확정 case 재바인드
 
         # 무엇을 위반/누락으로 잡았는지 — 조항·판정·근거·원문 인용·권고까지 전체 기록
         _flagged: list[dict] = []
@@ -365,8 +372,8 @@ def _run_work_rules(
             visitor="",
             case_id=_case,
         )
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning("무시된 예외 — %s: %s", type(e).__name__, e)
 
     return ReviewFullOut(
         case_id=report.case_id,
@@ -405,8 +412,8 @@ def _run_employment_contract(
                 "overall_label": report.overall_label,
             },
         )
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning("무시된 예외 — %s: %s", type(e).__name__, e)
 
     findings_out = [
         EcFindingOut(

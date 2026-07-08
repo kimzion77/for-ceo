@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from cgr.api.auth import require_api_key
 from cgr.upload_tracker import anon_visitor
-from cgr.web.admin.store import analytics
+from cgr.store import analytics
 
 
 router = APIRouter(tags=["track"])

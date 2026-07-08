@@ -225,7 +225,7 @@ def save_report(report: Report, out_dir: str | Path) -> tuple[Path, Path]:
 
     # 관리자 대시보드 이력 누적 (실패해도 검토 통과)
     try:
-        from cgr.web.admin.store.history import append_history, build_entry_from_report
+        from cgr.store.history import append_history, build_entry_from_report
         entry = build_entry_from_report(report)
         entry["report_path"] = str(json_path)
         append_history(entry)

@@ -27,7 +27,7 @@ import streamlit as st
 
 from cgr.web.admin.auth import require_login
 from cgr.web.admin.theme import inject_civic_theme
-from cgr.web.admin.store import history
+from cgr.store import history
 from cgr.web.admin.ui_common import page_header
 
 st.set_page_config(page_title="검토 이력", page_icon="📊", layout="wide")

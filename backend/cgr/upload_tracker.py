@@ -14,7 +14,10 @@ from pathlib import Path
 from typing import Any
 
 from cgr import datadir
-from cgr.web.admin.store import analytics
+from cgr.log import get_logger
+from cgr.store import analytics
+
+log = get_logger(__name__)
 
 
 # 허용 업로드 확장자 — 지원 문서·이미지만 (시큐어코딩: 입력 데이터 검증)
@@ -24,9 +27,38 @@ ALLOWED_UPLOAD_EXTS = {
 }
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20MB (운영 리버스프록시의 client_max_body_size 와 함께)
 
+# 확장자별 매직바이트 서명 — 확장자만 바꿔치기한 위장 파일 차단 (내용 기반 2차 검증).
+# 서명이 하나라도 일치하면 통과. txt/heic 계열은 별도 처리(아래).
+_MAGIC_SIGNATURES: dict[str, tuple[bytes, ...]] = {
+    "png": (b"\x89PNG",),
+    "jpg": (b"\xff\xd8",),
+    "jpeg": (b"\xff\xd8",),
+    "gif": (b"GIF8",),
+    "bmp": (b"BM",),
+    "webp": (b"RIFF",),
+    "tif": (b"II*\x00", b"MM\x00*"),
+    "tiff": (b"II*\x00", b"MM\x00*"),
+    "pdf": (b"%PDF",),
+    "docx": (b"PK\x03\x04",),   # OOXML zip
+    "hwpx": (b"PK\x03\x04",),   # HWPX zip
+    "doc": (b"\xd0\xcf\x11\xe0",),  # OLE2
+    "hwp": (b"\xd0\xcf\x11\xe0",),  # HWP 5.x OLE2
+}
+
+
+def _magic_ok(ext: str, content: bytes) -> bool:
+    """선언된 확장자와 파일 내용(매직바이트)이 부합하는지. 모르는 확장자는 통과."""
+    if ext in ("heic", "heif"):
+        # ISO-BMFF: 4바이트 크기 + 'ftyp'
+        return len(content) >= 12 and content[4:8] == b"ftyp"
+    sigs = _MAGIC_SIGNATURES.get(ext)
+    if not sigs:  # txt 등 — 서명 없는 형식은 내용 검사 생략
+        return True
+    return any(content.startswith(s) for s in sigs)
+
 
 def validate_upload(filename: str, content: bytes) -> None:
-    """업로드 파일 검증 — 빈/과대/허용외 형식 거부. 위반 시 HTTPException 발생."""
+    """업로드 파일 검증 — 빈/과대/허용외 형식/내용 불일치 거부. 위반 시 HTTPException."""
     from fastapi import HTTPException
 
     size = len(content or b"")
@@ -41,6 +73,11 @@ def validate_upload(filename: str, content: bytes) -> None:
     if ext and ext not in ALLOWED_UPLOAD_EXTS:
         raise HTTPException(
             status_code=400, detail=f"허용되지 않은 파일 형식이에요 (.{ext})."
+        )
+    if ext and not _magic_ok(ext, content):
+        raise HTTPException(
+            status_code=400,
+            detail=f"파일 내용이 .{ext} 형식과 일치하지 않아요. 원본 파일 그대로 올려주세요.",
         )
 
 
@@ -80,7 +117,8 @@ def record_upload(
             dest = datadir.uploads_dir() / f"{uid}.{ext}"
             dest.write_bytes(content or b"")
             stored = str(dest)
-        except Exception:
+        except Exception as e:
+            log.warning("업로드 파일 저장 실패 (메타만 기록): %s: %s", type(e).__name__, e)
             stored = ""
         return analytics.add_upload(
             service=service,
@@ -92,5 +130,6 @@ def record_upload(
             case_id=case_id,
             stored_path=stored,
         )
-    except Exception:
+    except Exception as e:
+        log.warning("업로드 기록 실패 (본 흐름 계속): %s: %s", type(e).__name__, e)
         return None

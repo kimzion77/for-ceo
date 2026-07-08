@@ -29,7 +29,7 @@ import streamlit as st
 
 from cgr.web.admin.auth import require_login
 from cgr.web.admin.theme import inject_civic_theme
-from cgr.web.admin.store import access_log
+from cgr.store import access_log
 from cgr.web.admin.ui_common import page_header
 
 

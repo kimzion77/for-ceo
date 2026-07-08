@@ -21,7 +21,7 @@ DEFAULT_EMBED_DIM = 1024  # text-embedding-3-large 는 truncate 지원 (default 
 def _load_admin_setting(key: str) -> str:
     """admin_settings.json 에서 설정값 조회. 실패해도 silent."""
     try:
-        from cgr.web.admin.store.settings_store import get as _admin_get
+        from cgr.store.settings_store import get as _admin_get
         v = _admin_get(key)
         return str(v) if v else ""
     except Exception:
@@ -98,10 +98,10 @@ def get_embed_dim(explicit: int | None = None) -> int:
 def assert_ready() -> None:
     """키 누락 시 친절히 안내."""
     if not get_api_key():
-        print(
-            "[설정 오류] OpenAI API 키 없음. 다음 중 하나로 설정:\n"
-            "  1. OPENAI_API_KEY 환경변수\n"
-            "  2. backend/.streamlit/secrets.toml 의 openai_api_key",
-            file=sys.stderr,
+        from cgr.log import get_logger
+
+        get_logger(__name__).error(
+            "[설정 오류] OpenAI API 키 없음 — OPENAI_API_KEY 환경변수 또는 "
+            "backend/.streamlit/secrets.toml 의 openai_api_key 로 설정"
         )
         raise SystemExit(2)

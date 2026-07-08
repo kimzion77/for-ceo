@@ -5,6 +5,8 @@ interpret 슬롯은 LLM verdict_reason 이 이미 평이하므로 그대로 user
 """
 from __future__ import annotations
 
+import contextvars
+
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -302,14 +304,21 @@ def explain_findings(
     by_slot: dict[str, str] = {}
     with ThreadPoolExecutor(max_workers=min(_MAX_WORKERS, len(batches))) as ex:
         futures = [
-            ex.submit(_explain_batch, batch, client=client, model=model_name)
+            ex.submit(
+                contextvars.copy_context().run,
+                _explain_batch, batch, client=client, model=model_name,
+            )
             for batch in batches
         ]
         for fut in as_completed(futures):
             try:
                 by_slot.update(fut.result())
             except Exception as e:
-                print(f"  [사유풀이 batch 실패] {e}", file=__import__("sys").stderr)
+                from cgr.log import get_logger
+
+                get_logger(__name__).warning(
+                    "[사유풀이 batch 실패] %s: %s", type(e).__name__, e
+                )
 
     for sid, reason in by_slot.items():
         f = item_to_finding.get(sid)

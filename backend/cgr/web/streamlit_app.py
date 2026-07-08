@@ -44,7 +44,7 @@ st.set_page_config(
 # 방문 로그 (세션당 1회) — 관리자 통계용
 if "_visit_logged" not in st.session_state:
     try:
-        from cgr.web.admin.store.access_log import log_event
+        from cgr.store.access_log import log_event
         log_event(service="취업규칙", action="visit")
     except Exception:
         pass
@@ -124,7 +124,7 @@ else:
 def _accumulate_history_and_log(report, filename: str) -> None:
     """검토 완료 시 관리자 이력 + access_log 누적 (실패해도 silent)."""
     try:
-        from cgr.web.admin.store.history import (
+        from cgr.store.history import (
             append_history,
             build_entry_from_report,
         )
@@ -137,7 +137,7 @@ def _accumulate_history_and_log(report, filename: str) -> None:
         return  # access_log 도 건너뜀
 
     try:
-        from cgr.web.admin.store.access_log import log_event
+        from cgr.store.access_log import log_event
 
         log_event(
             service="취업규칙",

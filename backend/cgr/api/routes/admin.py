@@ -26,8 +26,12 @@ from cgr.api.schemas import (
     StatsOut,
 )
 from cgr.master_db import get_master_db
-from cgr.web.admin.store import analytics, history, settings_store, slot_writer
+from cgr.store import analytics, history, settings_store, slot_writer
 
+
+from cgr.log import get_logger
+
+log = get_logger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -89,13 +93,13 @@ async def put_settings(patch: SettingsUpdateIn) -> SettingsOut:
         try:
             from cgr.master_db import get_master_db as _get
             _get.cache_clear()
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("무시된 예외 — %s: %s", type(e).__name__, e)
         try:
             from cgr.catalog import _load_cached
             _load_cached.cache_clear()
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("무시된 예외 — %s: %s", type(e).__name__, e)
 
     return await get_settings()
 
@@ -118,8 +122,8 @@ async def get_admin_stats() -> StatsOut:
     try:
         db = get_master_db()
         n_articles = len(db.all_articles())
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning("무시된 예외 — %s: %s", type(e).__name__, e)
 
     hist_rows = history.read_history()
     cache_stats = llm_cache.stats()

@@ -18,6 +18,7 @@
 """
 from __future__ import annotations
 
+import contextvars
 import threading
 import time
 import uuid
@@ -57,10 +58,13 @@ def start_job(fn: Callable[[], Any]) -> str:
             "elapsed": 0.0,
         }
 
+    # 요청의 로그 상관 컨텍스트(rid/case)를 잡 스레드로 전파 — 제출 시점에 복사.
+    ctx = contextvars.copy_context()
+
     def _run() -> None:
         t0 = time.time()
         try:
-            result = fn()
+            result = ctx.run(fn)
             with _LOCK:
                 if job_id in _JOBS:
                     _JOBS[job_id].update(

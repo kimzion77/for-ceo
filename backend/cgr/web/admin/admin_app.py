@@ -34,7 +34,7 @@ from cgr import llm_cache
 from cgr.config import get_api_key, get_llm_model, get_embed_model
 from cgr.master_db import get_master_db, _resolve_path as _resolve_db_path
 from cgr.web.admin.auth import require_login
-from cgr.web.admin.store import access_log, prompt_writer
+from cgr.store import access_log, prompt_writer
 from cgr.web.admin.theme import (
     hero,
     inject_civic_theme,
@@ -56,7 +56,7 @@ require_login()
 # 방문 로그 (세션당 1회)
 if "_admin_visit_logged" not in st.session_state:
     try:
-        from cgr.web.admin.store.access_log import log_event
+        from cgr.store.access_log import log_event
         log_event(service="관리자", action="visit")
     except Exception:
         pass

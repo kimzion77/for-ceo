@@ -29,6 +29,10 @@ from cgr.sc.services import analyze as analyze_service
 from cgr.sc.services import structure as structure_service
 
 
+from cgr.log import bind_context, get_logger
+
+log = get_logger(__name__)
+
 router = APIRouter(prefix="/sc", tags=["service_provider_contract"])
 
 
@@ -74,8 +78,8 @@ async def post_extract(request: Request, file: UploadFile = File(...)):
     finally:
         try:
             tmp_path.unlink(missing_ok=True)
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("무시된 예외 — %s: %s", type(e).__name__, e)
 
     return ExtractOut(
         extracted_text=text,
@@ -111,6 +115,7 @@ async def post_extract_start(
     case_id: str = Form(default=""),
     service: str = Form(default="노무계약서"),
 ):
+    bind_context(case=case_id)  # 로그 상관 — 이후 이 요청·잡의 모든 로그에 case 부착
     content = await file.read()
     upload_tracker.validate_upload(file.filename or "", content)
     suffix = Path(file.filename or "upload.bin").suffix or ".bin"
@@ -135,8 +140,8 @@ async def post_extract_start(
         finally:
             try:
                 tmp_path.unlink(missing_ok=True)
-            except Exception:
-                pass
+            except Exception as e:
+                log.warning("무시된 예외 — %s: %s", type(e).__name__, e)
 
     return JobStartOut(job_id=jobs.start_job(_do))
 
@@ -417,8 +422,8 @@ def _load_standard_sc() -> str | None:
         text = _STANDARD_SC_PATH.read_text(encoding="utf-8").strip()
         if text:
             return text
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning("무시된 예외 — %s: %s", type(e).__name__, e)
     # 폴백 — 슬롯 카탈로그 합성
     try:
         import yaml
@@ -438,7 +443,8 @@ def _load_standard_sc() -> str | None:
                 line += f"\n  표준 문구 예시: {fix}"
             lines.append(line)
         return "\n".join(lines) if len(lines) > 1 else None
-    except Exception:
+    except Exception as e:
+        log.warning("실패 — None 반환: %s: %s", type(e).__name__, e)
         return None
 
 

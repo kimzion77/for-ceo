@@ -35,6 +35,10 @@ from cgr.ec.services import validate_field as validate_field_service
 from cgr.parsers.dispatcher import parse_to_text
 
 
+from cgr.log import bind_context, get_logger
+
+log = get_logger(__name__)
+
 router = APIRouter(prefix="/ec", tags=["employment_contract"])
 
 
@@ -90,8 +94,8 @@ async def post_extract(
     finally:
         try:
             tmp_path.unlink(missing_ok=True)
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("무시된 예외 — %s: %s", type(e).__name__, e)
 
     return ExtractOut(
         extracted_text=text,
@@ -127,6 +131,7 @@ async def post_extract_start(
     case_id: str = Form(default=""),
     service: str = Form(default="근로계약서"),
 ):
+    bind_context(case=case_id)  # 로그 상관 — 이후 이 요청·잡의 모든 로그에 case 부착
     content = await file.read()
     upload_tracker.validate_upload(file.filename or "", content)
     suffix = Path(file.filename or "upload.bin").suffix or ".bin"
@@ -151,8 +156,8 @@ async def post_extract_start(
         finally:
             try:
                 tmp_path.unlink(missing_ok=True)
-            except Exception:
-                pass
+            except Exception as e:
+                log.warning("무시된 예외 — %s: %s", type(e).__name__, e)
 
     return JobStartOut(job_id=jobs.start_job(_do))
 
@@ -365,6 +370,7 @@ class AnalyzeOut(BaseModel):
     dependencies=[Depends(require_api_key)],
 )
 def post_analyze(body: AnalyzeIn):
+    bind_context(case=body.case_id)  # 로그 상관 — 이후 이 요청·잡의 모든 로그에 case 부착
     t0 = time.time()
     try:
         result = analyze_service.run(
@@ -379,7 +385,7 @@ def post_analyze(body: AnalyzeIn):
             detail=f"분석 실패: {type(e).__name__}: {e}",
         )
     try:
-        from cgr.web.admin.store import analytics as _an
+        from cgr.store import analytics as _an
         import json as _json
 
         _an.log_interaction(
@@ -390,8 +396,8 @@ def post_analyze(body: AnalyzeIn):
             visitor="",
             case_id=body.case_id or None,
         )
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning("무시된 예외 — %s: %s", type(e).__name__, e)
     return AnalyzeOut(
         analysis_result=result,
         elapsed_sec=round(time.time() - t0, 2),
@@ -461,6 +467,7 @@ class AnalyzeResultOut(BaseModel):
     dependencies=[Depends(require_api_key)],
 )
 def post_analyze_start(body: AnalyzeIn):
+    bind_context(case=body.case_id)  # 로그 상관 — 이후 이 요청·잡의 모든 로그에 case 부착
     # 클로저로 입력 캡처 — 스레드에서 실행
     def _do() -> dict[str, Any]:
         result = analyze_service.run(
@@ -473,7 +480,7 @@ def post_analyze_start(body: AnalyzeIn):
         try:
             import json as _json
 
-            from cgr.web.admin.store import analytics as _an
+            from cgr.store import analytics as _an
 
             _an.log_interaction(
                 kind="근로계약서",
@@ -483,8 +490,8 @@ def post_analyze_start(body: AnalyzeIn):
                 visitor="",
                 case_id=body.case_id or None,
             )
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("무시된 예외 — %s: %s", type(e).__name__, e)
         return result
 
     job_id = jobs.start_job(_do)

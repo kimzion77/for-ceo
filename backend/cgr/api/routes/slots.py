@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from cgr.api.auth import require_admin_key, require_api_key
 from cgr.api.schemas import SlotListOut, SlotOut, SlotUpdateIn, SlotUpdateOut
-from cgr.web.admin.store import slot_writer
+from cgr.store import slot_writer
 
 
 router = APIRouter(prefix="/slots", tags=["slots"])

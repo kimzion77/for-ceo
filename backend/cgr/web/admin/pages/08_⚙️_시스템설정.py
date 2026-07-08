@@ -21,7 +21,7 @@ import streamlit as st
 
 from cgr.web.admin.auth import require_login
 from cgr.web.admin.theme import inject_civic_theme
-from cgr.web.admin.store import settings_store
+from cgr.store import settings_store
 from cgr.web.admin.ui_common import page_header
 
 st.set_page_config(page_title="시스템 설정", page_icon="⚙️", layout="wide")

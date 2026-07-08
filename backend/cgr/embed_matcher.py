@@ -40,7 +40,7 @@ def _admin_threshold(key: str, fallback: float) -> float:
     호출 시점에 매번 조회하므로 관리자 페이지에서 변경 즉시 반영.
     """
     try:
-        from cgr.web.admin.store.settings_store import get as _admin_get
+        from cgr.store.settings_store import get as _admin_get
         v = _admin_get(key)
         if v is not None:
             return float(v)

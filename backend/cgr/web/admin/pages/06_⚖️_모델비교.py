@@ -34,7 +34,7 @@ from cgr.run import review_file
 from cgr.verdict import classify
 from cgr.web.admin.auth import require_login
 from cgr.web.admin.theme import inject_civic_theme
-from cgr.web.admin.store import settings_store
+from cgr.store import settings_store
 from cgr.web.admin.ui_common import page_header
 
 

@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Query
 
 from cgr.api.auth import require_api_key
 from cgr.api.schemas import HistoryEntryOut, HistoryListOut, HistoryStatsOut
-from cgr.web.admin.store import history
+from cgr.store import history
 
 
 router = APIRouter(prefix="/history", tags=["history"])

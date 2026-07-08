@@ -960,7 +960,7 @@ def post_guide_chat(body: GuideChatIn, request: Request) -> GuideChatOut:
     model_name = get_llm_model()
     from cgr import prompt_store
     from cgr.upload_tracker import anon_visitor
-    from cgr.web.admin.store import analytics as _an
+    from cgr.store import analytics as _an
 
     # 관리자 override 가 있으면 그 프롬프트, 없으면 코드 기본값 (즉시 적용)
     system_prompt = prompt_store.get_or_default("guide_chat", _GUIDE_CHAT_SYSTEM)

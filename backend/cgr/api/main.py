@@ -25,6 +25,10 @@ from fastapi.middleware.gzip import GZipMiddleware
 
 from cgr.api.routes import admin, ec, guide, history, master_db, review, sc, slots, topics, track, wr_classify, ws
 from cgr.api.schemas import HealthResponse
+from cgr.log import get_logger, setup as setup_logging
+
+setup_logging()  # 'cgr' 네임스페이스 로거 stderr 구성 (CGR_LOG_LEVEL, 기본 INFO)
+log = get_logger(__name__)
 
 
 app = FastAPI(
@@ -82,6 +86,20 @@ async def _security_headers(request, call_next):
     return resp
 
 
+# ─── 요청 상관 컨텍스트 — 요청마다 rid 발급, 이후 모든 로그에 [rid=..] 자동 부착 ───
+# case_id 를 아는 라우트가 bind_context(case=...) 를 추가하면 [rid=.. case=..] 로 확장.
+# 백그라운드 잡(jobs.start_job)은 contextvars 복사로 같은 rid/case 를 이어받는다.
+@app.middleware("http")
+async def _request_context(request, call_next):
+    from cgr.log import bind_context, new_request_id
+
+    rid = new_request_id()
+    bind_context(rid=rid)
+    resp = await call_next(request)
+    resp.headers.setdefault("X-Request-Id", rid)  # 사용자 문의 시 로그 대조용
+    return resp
+
+
 # ─── 라우터 등록 (prefix /api/v1) ──────────
 API_PREFIX = "/api/v1"
 app.include_router(review.router, prefix=API_PREFIX)
@@ -102,12 +120,13 @@ app.include_router(track.router, prefix=API_PREFIX)
 @app.on_event("startup")
 async def _startup_maintenance() -> None:
     try:
-        from cgr.web.admin.store import analytics, settings_store
+        from cgr.store import analytics, settings_store
 
         days = int(settings_store.get("upload_retention_days", 30) or 30)
-        analytics.cleanup_old_uploads(days)
-    except Exception:
-        pass
+        n = analytics.cleanup_old_uploads(days)
+        log.info("startup 정리 — 보관기간 %d일 초과 업로드 %s건 삭제", days, n)
+    except Exception as e:
+        log.warning("startup 정리 실패 (서비스는 계속): %s: %s", type(e).__name__, e)
 
 
 # ─── 헬스 체크 (인증 불요) ──────────────────
@@ -126,7 +145,7 @@ async def health() -> HealthResponse:
     except Exception as e:
         services["master_db"] = f"error: {e}"
     try:
-        from cgr.web.admin.store import slot_writer
+        from cgr.store import slot_writer
         parsed = slot_writer.load_raw()
         services["slots"] = f"{len(parsed.get('slots') or [])}개"
     except Exception as e:

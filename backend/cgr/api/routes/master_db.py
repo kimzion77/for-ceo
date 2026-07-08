@@ -25,7 +25,7 @@ router = APIRouter(prefix="/master-db", tags=["master_db"])
 async def get_articles() -> ArticleListOut:
     db = get_master_db()
     # 슬롯 카탈로그에서 조별 슬롯 개수
-    from cgr.web.admin.store import slot_writer
+    from cgr.store import slot_writer
 
     parsed = slot_writer.load_raw()
     slot_counts: dict[int, int] = {}

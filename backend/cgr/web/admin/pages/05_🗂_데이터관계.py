@@ -31,7 +31,7 @@ from cgr.web.admin.data_relation import (
     master_db_tab,
     slot_catalog_tab,
 )
-from cgr.web.admin.store import history
+from cgr.store import history
 from cgr.web.admin.ui_common import page_header
 
 

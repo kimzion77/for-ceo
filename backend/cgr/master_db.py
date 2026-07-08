@@ -57,7 +57,7 @@ def _resolve_path(explicit: str | Path | None = None) -> Path:
 
     # 관리자 설정 우선 — master_db_version: "2025" | "2026"
     try:
-        from cgr.web.admin.store.settings_store import get as _admin_get
+        from cgr.store.settings_store import get as _admin_get
         ver = _admin_get("master_db_version")
         if ver:
             for c in DEFAULT_PATHS:

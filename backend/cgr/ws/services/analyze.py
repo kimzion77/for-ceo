@@ -228,17 +228,12 @@ def run(
     # ─── PII 비식별 게이트 ─── 외부 LLM 호출 전 마스킹.
     masked = mask_pii(wage_text)
     wage_text = masked.masked
-    # (디버그용으로 카운트 로그) — 실제 운영 시 logger.info 로 대체 가능
     if masked.counts:
-        import sys
-        try:
-            print(
-                f"[ws.analyze] PII 마스킹 적용: {pii_summary(masked)}",
-                file=sys.stderr,
-                flush=True,
-            )
-        except Exception:
-            pass
+        from cgr.log import get_logger
+
+        get_logger(__name__).info(
+            "[ws.analyze] PII 마스킹 적용: %s", pii_summary(masked)
+        )
 
     catalog = load_ws_catalog()
     applicable = [
