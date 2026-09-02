@@ -201,9 +201,12 @@ textarea {
   outline-offset: 2px;
 }
 
-/* ─── 인쇄 — REPORT_SPEC 준수 ─── */
+/* ─── 인쇄 — REPORT_SPEC 준수 ───
+ * size 는 여기서 선언하지 않는다: 신구대조표 화면이 자체 @page(A4 가로)를
+ * 선언하는데, 전역과 두 개의 unnamed @page 가 공존하면 크롬 인쇄 미리보기가
+ * 용지는 전역(세로) 기준·레이아웃은 캐스케이드(가로) 기준으로 어긋나
+ * 오른쪽이 잘리는 실사고가 있었다. 기본 용지(A4 세로)는 브라우저 기본값에 맡긴다. */
 @page {
-  size: A4 portrait;
   margin: 18mm 16mm;
   /* 페이지 번호 (브라우저 지원 한정) */
   @bottom-right {
