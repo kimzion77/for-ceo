@@ -157,6 +157,19 @@
   font-size: 12px;
   color: #475569;
 }
+/* 인쇄 전용 미러 — 화면에선 전역 .printOnly 가 숨김. textarea 와 같은 타이포로,
+   div 라 내용이 길어도 페이지를 넘어 흐른다 */
+.cellPrint {
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 5px 9px 6px;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  color: #000;
+}
+.remarkPrint {
+  font-size: 12px;
+}
 .rowDel {
   display: block;
   margin: 0 8px 8px auto;
@@ -217,12 +230,22 @@
   font-size: 13px;
 }
 
-/* ─── 인쇄 — 표가 한 페이지에 깔끔히 ─── */
+/* ─── 인쇄 — A4 가로(@page 는 컴포넌트에서 주입), 긴 내용은 미러 div 로 페이지 분할 ─── */
 @media print {
   .paper {
     border: none;
     box-shadow: none;
     padding: 0;
+  }
+  /* textarea 는 보이는 상자만 인쇄돼 긴 내용이 잘림 — 미러 div(.cellPrint)로 대체 */
+  .cellArea {
+    display: none !important;
+  }
+  /* 조·제목 입력칸의 점선 밑줄은 지면에서 제거 */
+  .headInput,
+  .headInputWide,
+  .metaInput {
+    border-bottom-color: transparent !important;
   }
   .table th {
     background: #e5e7eb !important;

@@ -143,6 +143,10 @@ export default function WrComparisonView({
 
   return (
     <div className={styles.wrap}>
+      {/* 신구대조표 인쇄는 A4 가로 — 이 화면이 마운트된 라우트의 인쇄에만 적용
+          (전역 @page 는 A4 세로. @page 는 선택자 스코프가 없어 문서 단위로만 걸리므로,
+          이 컴포넌트가 렌더된 동안에만 style 태그로 덮어쓴다) */}
+      <style>{`@media print { @page { size: A4 landscape; margin: 12mm 14mm; } }`}</style>
       {/* 주의사항 — 붙임 반영, 항상 노출 */}
       <div className={`${styles.notice} noPrint`}>
         <div className={styles.noticeHead}>⚠️ 신구대조표 작성 주의사항</div>
@@ -215,6 +219,9 @@ export default function WrComparisonView({
                       onInput={(e) => autoGrow(e.currentTarget)}
                       spellCheck={false}
                     />
+                    {/* 인쇄 미러 — textarea 는 보이는 높이만 인쇄되고 페이지를 못 넘어가
+                        긴 내용이 잘린다. 인쇄 시에는 div 로 흘려 페이지 분할 허용 */}
+                    <div className={`${styles.cellPrint} printOnly`}>{r.before}</div>
                   </td>
                   <td>
                     <textarea
@@ -225,6 +232,7 @@ export default function WrComparisonView({
                       onInput={(e) => autoGrow(e.currentTarget)}
                       spellCheck={false}
                     />
+                    <div className={`${styles.cellPrint} printOnly`}>{r.after}</div>
                   </td>
                   <td>
                     <textarea
@@ -235,6 +243,9 @@ export default function WrComparisonView({
                       onInput={(e) => autoGrow(e.currentTarget)}
                       spellCheck={false}
                     />
+                    <div className={`${styles.cellPrint} ${styles.remarkPrint} printOnly`}>
+                      {r.remark}
+                    </div>
                     <button
                       type="button"
                       className={`${styles.rowDel} noPrint`}
