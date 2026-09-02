@@ -94,7 +94,7 @@ export default function WrContractPage({ params }: { params: { id: string } }) {
         <footer className={styles.footer}>
           <span className={styles.footerNote}>
             ⚠️ 취업규칙 변경은 근로자 과반수 의견 청취·동의 등 법정 절차를 거쳐 확정하세요.
-            다운로드 시 <strong>의견청취서 양식</strong>이 신구대조표 뒤에 함께 포함됩니다.
+            인쇄·다운로드 시 <strong>의견청취서 양식</strong>이 신구대조표 뒤에 함께 포함됩니다.
           </span>
         </footer>
       </div>

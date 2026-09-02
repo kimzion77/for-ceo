@@ -146,7 +146,11 @@ export default function WrComparisonView({
       {/* 신구대조표 인쇄는 A4 가로 — 이 화면이 마운트된 라우트의 인쇄에만 적용
           (전역 @page 는 A4 세로. @page 는 선택자 스코프가 없어 문서 단위로만 걸리므로,
           이 컴포넌트가 렌더된 동안에만 style 태그로 덮어쓴다) */}
-      <style>{`@media print { @page { size: A4 landscape; margin: 12mm 14mm; } }`}</style>
+      <style>{`@media print {
+        @page { size: A4 landscape; margin: 12mm 14mm; }
+        /* 의견청취서 페이지만 세로 (named page — Chromium 지원) */
+        @page opinion { size: A4 portrait; margin: 18mm 16mm; }
+      }`}</style>
       {/* 주의사항 — 붙임 반영, 항상 노출 */}
       <div className={`${styles.notice} noPrint`}>
         <div className={styles.noticeHead}>⚠️ 신구대조표 작성 주의사항</div>
@@ -265,6 +269,46 @@ export default function WrComparisonView({
           + 행 추가
         </button>
       </div>
+
+      {/* 의견청취서 — 인쇄 시에만 신구대조표 뒤 새 페이지(세로)로 첨부.
+          Word(.docx) 다운로드의 _append_opinion_form 과 동일 양식 (근로기준법 제94조) */}
+      <section className={`${styles.opinionPage} printOnly`} aria-hidden>
+        <h2 className={styles.opTitle}>취업규칙 (개정) 의견청취서</h2>
+        <p className={styles.opIntro}>
+          「근로기준법」 제94조에 따라 취업규칙의 작성·변경에 관하여 근로자
+          과반수(근로자 과반수로 조직된 노동조합이 있는 경우 그 노동조합)의 의견을
+          청취합니다.
+        </p>
+        <table className={styles.opTable}>
+          <tbody>
+            <tr>
+              <th>사업장명</th>
+              <td />
+            </tr>
+            <tr>
+              <th>대표자</th>
+              <td />
+            </tr>
+            <tr>
+              <th>근로자 과반수(또는 노동조합) 대표</th>
+              <td />
+            </tr>
+            <tr>
+              <th>의견청취일</th>
+              <td>          년        월        일</td>
+            </tr>
+          </tbody>
+        </table>
+        <p className={styles.opLabel}>개정 취업규칙에 대한 의견</p>
+        <div className={styles.opBox} />
+        <p className={styles.opSign}>
+          근로자 과반수(또는 노동조합) 대표              (서명 또는 인)
+        </p>
+        <p className={styles.opNote}>
+          ※ 취업규칙을 근로자에게 불리하게 변경하는 경우에는 의견청취가 아니라 근로자
+          과반수의 &lsquo;동의&rsquo;를 받아야 합니다(근로기준법 제94조 제1항 단서).
+        </p>
+      </section>
 
       <div className={`${styles.actions} noPrint`}>
         <button type="button" className={styles.btnSecondary} onClick={handlePrint}>
