@@ -117,3 +117,26 @@ def test_middleware_sets_request_id():
     rid1, rid2 = r1.headers.get("X-Request-Id"), r2.headers.get("X-Request-Id")
     assert rid1 and len(rid1) == 8
     assert rid1 != rid2  # 요청마다 새 ID
+
+
+# ─── 소스 린트 — print 스타일 인자가 로거에 남는 사고 방지 ───
+def test_no_print_style_kwargs_in_log_calls():
+    """print(..., file=sys.stderr) → log.info(...) 전환 시 file= 인자가 남으면
+    실행 시점에 TypeError: Logger._log() got an unexpected keyword argument 'file'.
+    테스트가 못 잡는 실전용 경로에서 터지므로 (실사고: 취업규칙 검토 71% 중단)
+    소스 수준에서 차단한다."""
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1] / "cgr"
+    # log.<level>( ... file= ... ) — 호출 괄호 안에서만 매치 (중첩 1단계 허용)
+    pat = re.compile(
+        r"log\.(debug|info|warning|error|exception|critical)\s*\("
+        r"(?:[^()]|\([^()]*\))*?\bfile\s*=",
+        re.S,
+    )
+    offenders = []
+    for p in root.rglob("*.py"):
+        if pat.search(p.read_text(encoding="utf-8")):
+            offenders.append(str(p.relative_to(root)))
+    assert not offenders, f"log 호출에 print 스타일 file= 인자 잔존: {offenders}"

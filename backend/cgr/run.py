@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import contextvars
 import hashlib
-import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
@@ -82,8 +81,7 @@ def review_file(
             ordered = [e for e in ordered if e is not None]
             elapsed = time.time() - t0
             log.info(
-                f"  [제{article}조] 추출 완료 ({len(slots)}슬롯 [embed:{len(embed_slots)} llm:{len(llm_slots)}], {elapsed:.1f}s)",
-                file=sys.stderr,
+                f"  [제{article}조] 추출 완료 ({len(slots)}슬롯 [embed:{len(embed_slots)} llm:{len(llm_slots)}], {elapsed:.1f}s)"
             )
             return article, slots, ordered, None
         except Exception as e:
@@ -98,8 +96,7 @@ def review_file(
         active_by_art, skipped_arts = filter_articles_by_embedding(text, by_art, db)
         log.info(
             f"[사전필터] LLM 호출 {len(active_by_art)}개 / SKIP {len(skipped_arts)}개 "
-            f"({time.time() - pf_t0:.1f}s)",
-            file=sys.stderr,
+            f"({time.time() - pf_t0:.1f}s)"
         )
     except Exception as e:
         log.warning(f"[사전필터] 실패 — 모든 조 LLM 호출로 진행: {e}")
@@ -113,8 +110,7 @@ def review_file(
     embed_matcher.prepare_slots(all_active_slots)
     n_embed_slots = sum(1 for s in all_active_slots if s.comparator == "embed_match")
     log.info(
-        f"[임베딩 매처] 본문 청크 {len(embed_matcher.chunks)}개 + 슬롯 {n_embed_slots}개 사전 임베딩 ({time.time() - em_t0:.1f}s)",
-        file=sys.stderr,
+        f"[임베딩 매처] 본문 청크 {len(embed_matcher.chunks)}개 + 슬롯 {n_embed_slots}개 사전 임베딩 ({time.time() - em_t0:.1f}s)"
     )
 
     # 선택 디스플레이 임베딩을 추출과 동시 시작 (별도 thread)
@@ -192,8 +188,7 @@ def review_file(
     try:
         optional_displays = od_future.result(timeout=30.0)
         log.info(
-            f"[선택 조 디스플레이] {len(optional_displays)}개 조 (전체 {time.time() - od_t0:.1f}s · 병렬 효과)",
-            file=sys.stderr,
+            f"[선택 조 디스플레이] {len(optional_displays)}개 조 (전체 {time.time() - od_t0:.1f}s · 병렬 효과)"
         )
     except Exception as e:
         log.warning(f"[선택 조 디스플레이] 임베딩 실패 — 빈 디스플레이로 진행: {e}")
