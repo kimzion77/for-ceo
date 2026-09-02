@@ -324,10 +324,11 @@
   .table tr {
     break-inside: avoid;
   }
-  /* 의견청취서 — 새 페이지에서 시작, named page(opinion)로 세로 방향 */
+  /* 의견청취서 — 새 페이지에서 시작. 가로 지면에서 양식이 늘어지지 않게 중앙 고정폭 */
   .opinionPage {
     break-before: page;
-    page: opinion;
+    max-width: 180mm;
+    margin: 0 auto;
   }
   .opTable th {
     -webkit-print-color-adjust: exact;

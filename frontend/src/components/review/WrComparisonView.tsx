@@ -146,11 +146,9 @@ export default function WrComparisonView({
       {/* 신구대조표 인쇄는 A4 가로 — 이 화면이 마운트된 라우트의 인쇄에만 적용
           (전역 @page 는 A4 세로. @page 는 선택자 스코프가 없어 문서 단위로만 걸리므로,
           이 컴포넌트가 렌더된 동안에만 style 태그로 덮어쓴다) */}
-      <style>{`@media print {
-        @page { size: A4 landscape; margin: 12mm 14mm; }
-        /* 의견청취서 페이지만 세로 (named page — Chromium 지원) */
-        @page opinion { size: A4 portrait; margin: 18mm 16mm; }
-      }`}</style>
+      {/* 혼합 방향(named page 로 의견청취서만 세로)은 크롬 인쇄 미리보기 렌더러가
+          크래시하는 사례가 있어 사용하지 않는다 — 전체 가로 단일 @page 로 통일 */}
+      <style>{`@media print { @page { size: A4 landscape; margin: 12mm 14mm; } }`}</style>
       {/* 주의사항 — 붙임 반영, 항상 노출 */}
       <div className={`${styles.notice} noPrint`}>
         <div className={styles.noticeHead}>⚠️ 신구대조표 작성 주의사항</div>
