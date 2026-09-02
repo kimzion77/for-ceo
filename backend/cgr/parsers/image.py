@@ -8,8 +8,8 @@
 - **결정성**: 같은 이미지 → 같은 텍스트. 파일 바이트 해시 + 모델 + 프롬프트 키로 캐시.
 - **저비용 결정 분리**: OCR 자체는 `temperature=0` 의 한 번 호출. 후속 슬롯 추출/판정과 분리.
 - **포맷 보존**: 줄바꿈·들여쓰기·표 칸은 가능한 한 원문 그대로. 가공·요약·번역 금지.
-- **여러 페이지**: 멀티페이지 PDF 와 달리 여기는 단일 이미지. PDF 스캔본은 `pdf.py` 가
-  텍스트 레이어 부재 시 페이지별 이미지로 분리해 본 함수를 호출하는 식의 추가 작업 필요(추후).
+- **여러 페이지**: 여기는 단일 이미지 파일 담당. 스캔 PDF 는 `pdf.py` 가 텍스트 레이어
+  부재를 감지하면 페이지별 PNG 로 렌더해 `ocr_image_bytes()` 를 호출한다.
 
 지원 확장자: .png .jpg .jpeg .gif .bmp .tif .tiff .webp
 """
@@ -108,10 +108,23 @@ def parse_image(path: str | Path) -> str:
     """
     p = Path(path)
     img_bytes, mime = _read_image_bytes(p)
+    return ocr_image_bytes(img_bytes, mime)
+
+
+def ocr_image_bytes(img_bytes: bytes, mime: str = "image/png") -> str:
+    """이미지 바이트 → OCR 텍스트. 캐시 키는 바이트 해시라 파일 유무와 무관하게 결정적.
+
+    스캔 PDF 폴백(`pdf.py`)이 페이지별 렌더 PNG 로 직접 호출한다.
+    """
+    if len(img_bytes) > _MAX_BYTES:
+        raise ValueError(
+            f"이미지 용량이 너무 큽니다 ({len(img_bytes)//1024//1024}MB). "
+            f"OCR 은 페이지당 {_MAX_BYTES//1024//1024}MB 이하만 지원."
+        )
 
     model_name = get_llm_model()
 
-    # 캐시 키 — 이미지 바이트 해시 + 프롬프트 + 모델
+    # 캐시 키 — 이미지 바이트 해시 + 프롬프트 + 모델 (페이지별 독립 캐시)
     img_hash = hashlib.sha256(img_bytes).hexdigest()
     cache_key = llm_cache.make_key(
         system=_OCR_PROMPT,

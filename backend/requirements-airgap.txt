@@ -10,6 +10,7 @@ requests>=2.31
 openpyxl>=3.1
 python-docx>=1.1
 pdfplumber>=0.11
+pypdfium2>=4.30        # 스캔 PDF 폴백 렌더 (pdf.py page.to_image)
 Pillow>=10.0
 olefile>=0.46
 fastapi>=0.110
